@@ -5,7 +5,6 @@
 #ifndef MATCHIT_TRANSFORMBLOCK_H
 #define MATCHIT_TRANSFORMBLOCK_H
 
-#include "CodegenUtils.h"
 #include "./Block.h"
 #include "./CodegenUtils.h"
 #include "./MFunc.h"
@@ -16,54 +15,10 @@ class TransformBlock : public Block {
 
 private:
 
-    // TODO this doesn't allow structs of structs
+    // TODO this doesn't allow structs of structs...or does it?
     std::vector<MType *> input_struct_fields;
     std::vector<MType *> output_struct_fields;
     O (*transform)(I);
-
-    void codegen_postprocess(llvm::AllocaInst *alloc_ret_idx, llvm::AllocaInst *alloc_ret, llvm::Value *call_res) {
-        // save the result of the function call
-        llvm::AllocaInst *call_alloc = jit->get_builder().CreateAlloca(call_res->getType());
-        jit->get_builder().CreateStore(call_res, call_alloc);
-
-        // load the current ret idx to figure out where to store the output of the transform extern function
-        llvm::LoadInst *ret_idx = jit->get_builder().CreateLoad(alloc_ret_idx);
-        ret_idx->setAlignment(8);
-
-        // load the return struct
-        llvm::LoadInst *loaded_field = LLVMIR::codegen_load_struct_field(jit, alloc_ret, 0);
-        std::vector<llvm::Value *> gep_element_idx;
-        gep_element_idx.push_back(ret_idx);
-        llvm::Value *gep_element = jit->get_builder().CreateInBoundsGEP(loaded_field, gep_element_idx);
-        // load the actual index into the return data that we want to eventually store data into
-        llvm::LoadInst *address = jit->get_builder().CreateLoad(gep_element);
-
-        // now we have the pointer to the address where we should store the computed value from the extern call
-        // but first, we must allocate space for that
-        // TODO this assumes that the underlying element type is some type of array or pointer, which it might not always be, so we need some type of check
-        llvm::Value *bitcast = LLVMIR::codegen_c_malloc_and_cast(jit, (mfunction->get_ret_type()->get_bits() / 8) * 50,
-                                                                 mfunction->get_ret_type()->codegen());
-
-        // load the return struct again
-        loaded_field = LLVMIR::codegen_load_struct_field(jit, alloc_ret, 0);
-
-        // store the malloc'd space in the return struct
-        LLVMIR::codegen_store_malloc_in_struct(jit, loaded_field, bitcast, alloc_ret_idx);
-
-        // now we get that same address again :)
-        ret_idx = jit->get_builder().CreateLoad(alloc_ret_idx);
-        ret_idx->setAlignment(8);
-        loaded_field = LLVMIR::codegen_load_struct_field(jit, alloc_ret, 0);
-        gep_element = jit->get_builder().CreateInBoundsGEP(loaded_field, gep_element_idx);
-        address = jit->get_builder().CreateLoad(gep_element);
-
-        // copy over the data computed from the extern transform call
-        llvm::LoadInst *transformed_data = jit->get_builder().CreateLoad(call_alloc);
-        LLVMIR::codegen_llvm_memcpy(jit, address, transformed_data);
-
-        // increment the return index
-        LLVMIR::codegen_ret_idx_inc(jit, alloc_ret_idx);
-    }
 
 public:
 
@@ -100,16 +55,62 @@ public:
         MFunc *func = new MFunc(function_name, "TransformBlock", ret_type, arg_types, jit);
         set_function(func);
 
-        // build up the boilerplate parts of the block
-        generic_codegen_tuple tup = codegen_init();
+        func->codegen_extern_proto();
+        func->codegen_extern_wrapper_proto();
 
-        // ignore error in clion
-        // add on the Block specific processing
-        codegen_postprocess(std::get<3>(tup), std::get<4>(tup), std::get<5>(tup));
-        LLVMIR::branch(jit, std::get<0>(tup));
+        using namespace CodegenUtils;
 
-        // create the return after the loop
-        codegen_loop_end_block(std::get<1>(tup), std::get<4>(tup), std::get<3>(tup));
+        llvm::BasicBlock *entry = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", func->get_extern_wrapper());
+        llvm::BasicBlock *for_cond = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.cond", func->get_extern_wrapper());
+        llvm::BasicBlock *for_inc = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.inc", func->get_extern_wrapper());
+        llvm::BasicBlock *for_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.body", func->get_extern_wrapper());
+        llvm::BasicBlock *for_end = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.end", func->get_extern_wrapper());
+        llvm::BasicBlock *store_data = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store", func->get_extern_wrapper());
+
+        // initialize stuff
+        // counters
+        jit->get_builder().SetInsertPoint(entry);
+        FuncComp loop_idx = init_idx(jit);
+        FuncComp ret_idx = init_idx(jit);
+        FuncComp args = init_function_args(jit, *func);
+        // return structure
+        FuncComp ret_struct = init_return_data_structure(jit, ret_type, *func, args.get_last());
+        jit->get_builder().CreateBr(for_cond);
+
+        // create the for loop parts
+        jit->get_builder().SetInsertPoint(for_cond);
+        FuncComp loop_condition = check_loop_idx_condition(jit, llvm::cast<llvm::AllocaInst>(loop_idx.get_result(0)), llvm::cast<llvm::AllocaInst>(args.get_last()));
+        jit->get_builder().CreateCondBr(loop_condition.get_result(0), for_body, for_end);
+        jit->get_builder().SetInsertPoint(for_inc);
+        increment_idx(jit, llvm::cast<llvm::AllocaInst>(loop_idx.get_result(0)));
+        jit->get_builder().CreateBr(for_cond);
+
+        // build the body
+        jit->get_builder().SetInsertPoint(for_body);
+        // get all of the data
+        llvm::LoadInst *data = jit->get_builder().CreateLoad(args.get_result(0));
+        llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx.get_result(0));
+        // now get just the element we want to process
+        std::vector<llvm::Value *> data_idx;
+        data_idx.push_back(cur_loop_idx);
+        llvm::Value *data_gep = jit->get_builder().CreateInBoundsGEP(data, data_idx);
+        llvm::LoadInst *element = jit->get_builder().CreateLoad(data_gep);
+        llvm::AllocaInst *element_alloc = jit->get_builder().CreateAlloca(element->getType());
+        llvm::StoreInst *store_element =  jit->get_builder().CreateStore(element, element_alloc);
+        std::vector<llvm::Value *> inputs;
+        inputs.push_back(element_alloc);
+        FuncComp call_res = create_extern_call(jit, *func, inputs);
+        jit->get_builder().CreateBr(store_data);
+
+        // store the result
+        jit->get_builder().SetInsertPoint(store_data);
+        store_extern_result(jit, ret_type, ret_struct.get_result(0), ret_idx.get_result(0), call_res.get_result(0));
+        increment_idx(jit, llvm::cast<llvm::AllocaInst>(ret_idx.get_result(0)));
+        jit->get_builder().CreateBr(for_inc);
+
+        // return the data
+        jit->get_builder().SetInsertPoint(for_end);
+        return_data(jit, ret_struct.get_result(0), ret_idx.get_result(0));
 
         func->verify_wrapper();
     }

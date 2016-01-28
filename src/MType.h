@@ -2,7 +2,6 @@
 // Created by Jessica Ray on 1/28/16.
 //
 
-
 #include <map>
 #include <iostream>
 #include "llvm/IR/Type.h"
@@ -243,8 +242,8 @@ public:
     MPointerType() {}
 
     // this is bits of the pointer_type_code
-    MPointerType(MType *pointer_type) : MType(pointer_type->get_type_code(), 64), pointer_type(pointer_type) { // TODO 64 is platform specific
-    }
+//    MPointerType(MType *pointer_type) : MType(pointer_type->get_type_code(), 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
+    MPointerType(MType *pointer_type) : MType(mtype_ptr, 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
 
     unsigned int get_alignment();
 

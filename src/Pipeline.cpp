@@ -9,6 +9,7 @@
 #include "llvm/IR/Verifier.h"
 #include "./JIT.h"
 #include "./Pipeline.h"
+#include "./CodegenUtils.h"
 
 void Pipeline::register_block(Block *block) {
     building_blocks.push_back(block);

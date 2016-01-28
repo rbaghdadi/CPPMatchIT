@@ -8,7 +8,6 @@
 #include <string>
 #include <tuple>
 #include "llvm/IR/Function.h"
-#include "./CodegenUtils.h"
 #include "./MFunc.h"
 
 // TODO should probably be a struct to be easier to read, work with
@@ -32,7 +31,7 @@ protected:
      * @param entry_block The block that is to be run right before the loop is entered.
      * @return Allocated space for the return value of extern_wrapper.
      */
-    llvm::AllocaInst *codegen_init_ret_stack();
+//    llvm::AllocaInst *codegen_init_ret_stack();
 
     /**
      * Initialize the index for storing the most recently computed return value. Used for block functions like jpg_filter
@@ -40,7 +39,7 @@ protected:
      *
      * @param entry_block The block that is to be run right before the loop is entered.
      */
-    llvm::AllocaInst *codegen_init_loop_ret_idx();
+//    llvm::AllocaInst *codegen_init_loop_ret_idx();
 
     /**
      * Initialize the input data that will be fed into extern_func as arguments
@@ -48,7 +47,7 @@ protected:
      * @param entry_block The block that is run right before the loop is entered.
      * @return LLVM versions of the args that need to be passed into extern_func.
      */
-    std::vector<llvm::AllocaInst *> codegen_init_args();
+//    std::vector<llvm::AllocaInst *> codegen_init_args();
 
     /**
      * Create the section of code that will run after the for loop is done running extern_func.
@@ -58,7 +57,7 @@ protected:
      * @param alloc_ret Allocated space for the return value of extern_wrapper.
      * @param alloc_ret_idx Allocated space for the return value index.
      */
-    void codegen_loop_end_block(llvm::BasicBlock *end_block, llvm::AllocaInst *alloc_ret, llvm::AllocaInst *alloc_ret_idx);
+//    void codegen_loop_end_block(llvm::BasicBlock *end_block, llvm::AllocaInst *alloc_ret, llvm::AllocaInst *alloc_ret_idx);
 
     /**
      * Build the body of extern_wrapper. This creates a for loop around extern_func, processing all the input
@@ -69,16 +68,16 @@ protected:
      * @param alloc_ret Allocated space for the return value of extern_wrapper.
      * @param args allocated space for the LLVM versions of the args that need to be passed into extern_func.
      */
-    llvm::Value *codegen_loop_body_block(llvm::AllocaInst *alloc_loop_idx, std::vector<llvm::AllocaInst *> args);
+//    llvm::Value *codegen_loop_body_block(llvm::AllocaInst *alloc_loop_idx, std::vector<llvm::AllocaInst *> args);
 
-    llvm::Value *codegen_init_ret_heap();
+//    llvm::Value *codegen_init_ret_heap();
 
-    llvm::AllocaInst *codegen_init_loop_max_bound();
+//    llvm::AllocaInst *codegen_init_loop_max_bound();
 
     // allocate space for the results with the ret struct
-    llvm::Value *codegen_init_ret_data_heap(llvm::AllocaInst *max_loop_bound);
+//    llvm::Value *codegen_init_ret_data_heap(llvm::AllocaInst *max_loop_bound);
 
-    generic_codegen_tuple codegen_init();
+//    generic_codegen_tuple codegen_init();
 
 public:
 

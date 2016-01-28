@@ -5,8 +5,8 @@
 #include <iostream>
 #include <stdlib.h>
 #include <openssl/md5.h>
-#include "./ComparisonBlock.h"
-#include "./FilterBlock.h"
+//#include "./ComparisonBlock.h"
+//#include "./FilterBlock.h"
 #include "./JIT.h"
 #include "./LLVM.h"
 #include "./Pipeline.h"
@@ -47,17 +47,17 @@ public:
             TransformBlock(transform, "transform", jit, std::vector<MType *>(), filehash_fields) {}
 };
 
-class Filter : public FilterBlock<char *> {
-public:
-    Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterBlock(filter, transform_name, jit) {}
-};
-
-class HashCompare : public ComparisonBlock<FileHash *, Comparison *> {
-public:
-    HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
-                std::vector<MType *> comparison_fields) : ComparisonBlock(compare, "compare", jit, filehash_fields, comparison_fields) {}
-};
-
+//class Filter : public FilterBlock<char *> {
+//public:
+//    Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterBlock(filter, transform_name, jit) {}
+//};
+//
+//class HashCompare : public ComparisonBlock<FileHash *, Comparison *> {
+//public:
+//    HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
+//                std::vector<MType *> comparison_fields) : ComparisonBlock(compare, "compare", jit, filehash_fields, comparison_fields) {}
+//};
+//
 class StructCheck : public TransformBlock<FileHash *, FileHash *> {
 public:
     StructCheck(FileHash *(*transform)(FileHash *), JIT *jit, std::vector<MType *> filehash_fields) :
@@ -188,15 +188,15 @@ int main() {
      * Create blocks
      */
 
-    // create the file jpg_filter
-    Filter jpg_filt(jpg_filter, "jpg_filter", &jit);
-    jpg_filt.codegen();
-    Filter txt_filt(txt_filter, "txt_filter", &jit);
-    txt_filt.codegen();
+//    // create the file jpg_filter
+//    Filter jpg_filt(jpg_filter, "jpg_filter", &jit);
+//    jpg_filt.codegen();
+//    Filter txt_filt(txt_filter, "txt_filter", &jit);
+//    txt_filt.codegen();
 
     // fake transform
-    IdentityTransform identity_xform(identity, &jit);
-    identity_xform.codegen();
+//    IdentityTransform identity_xform(identity, &jit);
+//    identity_xform.codegen();
 
     // create the transform
     std::vector<MType *> filehash_field_types;
@@ -207,34 +207,34 @@ int main() {
     Transform xform(transform, &jit, filehash_field_types);
     xform.codegen();
 
-    // create the comparison
-    std::vector<MType *> comparison_field_types;
-    MType *bool_field = create_type<bool *>();
-    comparison_field_types.push_back(bool_field);
-    comparison_field_types.push_back(char_field);
-    comparison_field_types.push_back(char_field);
-
-    HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
-    hcomp.codegen();
-
-    StructCheck scheck(struct_check, &jit, filehash_field_types);
-    scheck.codegen();
-
-    /*
-     * Create pipeline and run
-     */
-
-    // create the pipeline
-    // TODO have the pipeline take in an initial data size so it's not hardcoded to be BUFFER_SIZE, and have it return
-    // the final number of elements left when it is done processing. That way we can hook together a bunch of pipelines and such
+//    // create the comparison
+//    std::vector<MType *> comparison_field_types;
+//    MType *bool_field = create_type<bool *>();
+//    comparison_field_types.push_back(bool_field);
+//    comparison_field_types.push_back(char_field);
+//    comparison_field_types.push_back(char_field);
+//
+//    HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
+//    hcomp.codegen();
+//
+//    StructCheck scheck(struct_check, &jit, filehash_field_types);
+//    scheck.codegen();
+//
+//    /*
+//     * Create pipeline and run
+//     */
+//
+//    // create the pipeline
+//    // TODO have the pipeline take in an initial data size so it's not hardcoded to be BUFFER_SIZE, and have it return
+//    // the final number of elements left when it is done processing. That way we can hook together a bunch of pipelines and such
     Pipeline pipeline;
-    pipeline.register_block(&identity_xform);
-    pipeline.register_block(&txt_filt);
-    pipeline.register_block(&identity_xform);
+//    pipeline.register_block(&identity_xform);
+//    pipeline.register_block(&txt_filt);
+//    pipeline.register_block(&identity_xform);
     pipeline.register_block(&xform);
-    pipeline.register_block(&scheck);
-    pipeline.register_block(&hcomp);
-
+//    pipeline.register_block(&scheck);
+//    pipeline.register_block(&hcomp);
+//
     pipeline.codegen(jit);
     jit.dump();
     jit.add_module();
