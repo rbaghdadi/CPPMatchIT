@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.3)
+project(CPPMatchIT)
+
+set(MD5_FLAGS "-I/usr/local/Cellar/openssl/1.0.2d_1/include/ -L/usr/local/Cellar/openssl/1.0.2d_1/lib/ -lssl -lcrypto")
+set(LLVM_FLAGS "-I/Users/JRay/llvm-build/llvm-3.7.0.src/include -I/Users/JRay/llvm-build/llvm-3.7.0.src/build/include  -fPIC -fvisibility-inlines-hidden -Wall -W -Wno-unused-parameter -Wwrite-strings -Wcast-qual -Wmissing-field-initializers -pedantic -Wno-long-long -Wcovered-switch-default -Wnon-virtual-dtor -std=c++11 -O3  -fno-exceptions -fno-rtti  -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -L/Users/JRay/llvm-build/llvm-3.7.0.src/build/lib -Wl,-search_paths_first -Wl,-headerpad_max_install_names -lLLVMBitWriter -lLLVMX86Disassembler -lLLVMX86AsmParser -lLLVMX86CodeGen -lLLVMSelectionDAG -lLLVMAsmPrinter -lLLVMCodeGen -lLLVMScalarOpts -lLLVMProfileData -lLLVMInstCombine -lLLVMInstrumentation -lLLVMTransformUtils -lLLVMipa -lLLVMX86Desc -lLLVMMCDisassembler -lLLVMX86Info -lLLVMX86AsmPrinter -lLLVMX86Utils -lLLVMMCJIT -lLLVMExecutionEngine -lLLVMTarget -lLLVMAnalysis -lLLVMRuntimeDyld -lLLVMObject -lLLVMMCParser -lLLVMBitReader -lLLVMMC -lLLVMCore -lLLVMSupport -lpthread -lz -lm -I/Users/JRay/llvm-build/llvm-3.7.0.src/include")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -v -std=c++11 ${MD5_FLAGS} ${LLVM_FLAGS} -lLLVMOrcJIT")
+
+set(SOURCE_FILES src/main.cpp src/TransformBlock.cpp src/TransformBlock.h src/Pipeline.cpp src/Pipeline.h src/Block.cpp src/Block.h src/MFunc.cpp src/MFunc.h src/JIT.cpp src/LLVM.cpp src/LLVM.h src/MType.h src/MType.cpp src/FilterBlock.cpp src/CodegenUtils.h src/CodegenUtils.cpp)
+
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY /Users/JRay/Documents/Research/CPPMatchIT/bin)
+add_executable(CPPMatchIT ${SOURCE_FILES})
