@@ -38,7 +38,7 @@ void MFunc::codegen_extern_wrapper_proto() {
     if (associated_block.compare("TransformStage") == 0 || associated_block.compare("ComparisonBlock") == 0) {
         llvm_ret_type = llvm::PointerType::get(extern_ret_type->codegen(), 0);
         extern_wrapper_data_ret_type = extern_ret_type;
-    } else if (associated_block.compare("FilterBlock") == 0) {
+    } else if (associated_block.compare("FilterStage") == 0) {
         llvm_ret_type = llvm::PointerType::get(extern_arg_types[0]->codegen(), 0);
         extern_wrapper_data_ret_type = extern_arg_types[0];
     } else { // This is a merged block or something like that

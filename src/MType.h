@@ -127,6 +127,14 @@ protected:
                 bits = 64;
             case mtype_struct:
                 bits = 0;
+            case mtype_void:
+                bits = 0;
+            case mtype_null:
+                bits = 0;
+            case mtype_ptr:
+                bits = 0;
+            case mtype_class:
+                bits = 0;
         }
     }
 
@@ -144,7 +152,7 @@ public:
 
     MType() {}
 
-    ~MType() {}
+    virtual ~MType() {}
 
     mtype_code_t get_type_code();
 
@@ -155,8 +163,6 @@ public:
     void set_bits(unsigned int bits);
 
     virtual llvm::Type *codegen() =0;
-
-//    virtual llvm::Type *codegen_constant_array() =0;
 
     bool is_prim_type();
 
@@ -186,6 +192,8 @@ public:
     MPrimType(mtype_code_t type_code, unsigned int bits) : MType(type_code, bits) {
         assert(is_prim_type());
     }
+
+    ~MPrimType() {}
 
     unsigned int get_alignment();
 
@@ -217,6 +225,8 @@ public:
         set_bits(num_bits);
     }
 
+    ~MStructType() {}
+
     unsigned int get_alignment();
 
     llvm::Type *codegen();
@@ -244,6 +254,8 @@ public:
     // this is bits of the pointer_type_code
 //    MPointerType(MType *pointer_type) : MType(pointer_type->get_type_code(), 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
     MPointerType(MType *pointer_type) : MType(mtype_ptr, 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
+
+    ~MPointerType() {}
 
     unsigned int get_alignment();
 

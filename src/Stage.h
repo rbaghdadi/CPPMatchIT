@@ -19,6 +19,8 @@ protected:
 
 public:
 
+    virtual ~InstructionBlock() { }
+
     llvm::BasicBlock *get_basic_block() {
         return bb;
     }
@@ -45,9 +47,12 @@ private:
 
 public:
 
+    ~LoopCounterBasicBlock() { }
+
     LoopCounterBasicBlock() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.loop_counters");
     }
+
 
     llvm::AllocaInst *get_loop_idx() {
         return loop_idx;
@@ -97,6 +102,8 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "return_struct");
     }
 
+    ~ReturnStructBasicBlock() { }
+
     llvm::AllocaInst *get_return_struct() {
         return return_struct;
     }
@@ -139,6 +146,8 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.loop_condition");
     }
 
+    ~ForLoopConditionBasicBlock() { }
+
     llvm::Value *get_loop_comparison() {
         return comparison;
     }
@@ -176,6 +185,8 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.increment");
     }
 
+    ~ForLoopIncrementBasicBlock() { }
+
     void set_loop_idx(llvm::AllocaInst *loop_idx) {
         this->loop_idx = loop_idx;
     }
@@ -203,6 +214,8 @@ public:
     ForLoopEndBasicBlock() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.end");
     }
+
+    ~ForLoopEndBasicBlock() { }
 
     void set_return_struct(llvm::AllocaInst *return_struct) {
         this->return_struct = return_struct;
@@ -237,6 +250,8 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "arg.prep");
     }
 
+    ~ExternArgPrepBasicBlock() { }
+
     std::vector<llvm::Value *> get_args() {
         return args;
     }
@@ -260,7 +275,7 @@ class ExternCallBasicBlock : public InstructionBlock  {
 private:
 
     // key instructions generated in the block
-    llvm::CallInst *call_result;
+    llvm::AllocaInst *data_to_return;
     // values needed for this block
     MFunc *extern_function;
     std::vector<llvm::Value *> args;
@@ -271,8 +286,10 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "extern.call");
     }
 
-    llvm::CallInst *get_call_result() {
-        return call_result;
+    ~ExternCallBasicBlock() { }
+
+    llvm::AllocaInst *get_data_to_return() {
+        return data_to_return;
     }
 
     void set_extern_function(MFunc *extern_function) {
@@ -283,13 +300,18 @@ public:
         this->args = args;
     }
 
+    // used for a stage like FilterStage which needs to store the input data rather than the output of the filter function
+    void override_data_to_return(llvm::AllocaInst *data_to_return) {
+        this->data_to_return = data_to_return;
+    }
+
     void codegen(JIT *jit, bool no_insert = false) {
         assert(extern_function);
         assert(!codegen_done);
         if (!no_insert) {
             jit->get_builder().SetInsertPoint(bb);
         }
-        call_result = llvm::cast<llvm::CallInst>(CodegenUtils::create_extern_call(jit, *extern_function, args).get_result());
+        data_to_return = llvm::cast<llvm::AllocaInst>(CodegenUtils::create_extern_call(jit, *extern_function, args).get_result());
         codegen_done = true;
     }
 
@@ -303,13 +325,15 @@ private:
     MType *return_type;
     llvm::AllocaInst *return_struct;
     llvm::AllocaInst *return_idx;
-    llvm::CallInst *extern_call_result;
+    llvm::AllocaInst *data_to_store;
 
 public:
 
     ExternCallStoreBasicBlock() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store");
     }
+
+    ~ExternCallStoreBasicBlock() { }
 
     void set_mtype(MType *return_type) {
         this->return_type = return_type;
@@ -323,18 +347,20 @@ public:
         this->return_idx = return_idx;
     }
 
-    void set_extern_extern_call_result(llvm::CallInst *extern_call_result) {
-        this->extern_call_result = extern_call_result;
+    void set_data_to_store(llvm::AllocaInst *extern_call_result) {
+        this->data_to_store = extern_call_result;
     }
 
     void codegen(JIT *jit, bool no_insert = false) {
         assert(return_type);
         assert(return_struct);
         assert(return_idx);
-        assert(extern_call_result);
+        assert(data_to_store);
         assert(!codegen_done);
         jit->get_builder().SetInsertPoint(bb);
-        CodegenUtils::store_extern_result(jit, return_type, return_struct, return_idx, extern_call_result);
+//        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(data_to_store->getType());
+//        jit->get_builder().CreateStore(data_to_store, alloc);
+        CodegenUtils::store_extern_result(jit, return_type, return_struct, return_idx, data_to_store);
         codegen_done = true;
     }
 
@@ -355,6 +381,8 @@ public:
     ExternInitBasicBlock() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "extern.init");
     }
+
+    ~ExternInitBasicBlock() { }
 
     llvm::AllocaInst *get_element() {
         return element;
@@ -380,7 +408,7 @@ public:
         llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(loaded_data, index);
         llvm::LoadInst *loaded_element = jit->get_builder().CreateLoad(element_gep);
         element = jit->get_builder().CreateAlloca(loaded_element->getType());
-        llvm::StoreInst *stored_element = jit->get_builder().CreateStore(loaded_element, element);
+        jit->get_builder().CreateStore(loaded_element, element);
         codegen_done = true;
     }
 
@@ -411,6 +439,7 @@ protected:
     ExternArgPrepBasicBlock *extern_arg_prep_basic_block;
     ExternCallBasicBlock *extern_call_basic_block;
     ExternCallStoreBasicBlock *extern_call_store_basic_block;
+    llvm::BasicBlock *dummy_block;
 
     /**
      * Initialize the return value of extern_func_wrapper that will be filled on each iteration as extern_func is called.
@@ -469,9 +498,32 @@ protected:
 public:
 
     Stage(JIT *jit, mtype_code_t input_type_code, mtype_code_t output_type_code, std::string function_name) :
-            jit(jit), input_mtype_code(input_type_code), output_mtype_code(output_type_code), function_name(function_name) { }
+            jit(jit), function_name(function_name), input_mtype_code(input_type_code), output_mtype_code(output_type_code) {
+        loop_counter_basic_block = new LoopCounterBasicBlock();
+        return_struct_basic_block = new ReturnStructBasicBlock();
+        for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
+        for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
+        for_loop_end_basic_block = new ForLoopEndBasicBlock();
+        extern_init_basic_block = new ExternInitBasicBlock();
+        extern_arg_prep_basic_block = new ExternArgPrepBasicBlock();
+        extern_call_basic_block = new ExternCallBasicBlock();
+        extern_call_store_basic_block = new ExternCallStoreBasicBlock();
+        dummy_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy");
+//        jit->get_builder().SetInsertPoint(dummy_block);
+//        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
+    }
 
-    ~Stage() {}
+    virtual ~Stage() {
+        delete loop_counter_basic_block;
+        delete return_struct_basic_block;
+        delete for_loop_condition_basic_block;
+        delete for_loop_increment_basic_block;
+        delete for_loop_end_basic_block;
+        delete extern_init_basic_block;
+        delete extern_arg_prep_basic_block;
+        delete extern_call_basic_block;
+        delete extern_call_store_basic_block;
+    }
 
     std::string get_function_name();
 
@@ -524,6 +576,12 @@ public:
     ExternCallStoreBasicBlock *get_extern_call_store_basic_block() {
         return extern_call_store_basic_block;
     }
+
+    llvm::BasicBlock *get_dummy_block() {
+        return dummy_block;
+    }
+
+    virtual void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) = 0;
 
 };
 

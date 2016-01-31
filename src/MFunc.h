@@ -30,7 +30,7 @@ private:
     std::string extern_wrapper_name;
 
     /**
-     * The type of block that this function belongs to (i.e. FilterBlock, TransformStage, etc)
+     * The type of block that this function belongs to (i.e. FilterStage, TransformStage, etc)
      */
     std::string associated_block;
 
@@ -112,7 +112,7 @@ private:
 public:
 
     MFunc(std::string name, std::string associated_block, MType *ret_type, std::vector<MType *> arg_types, JIT *jit) :
-            extern_name(name), associated_block(associated_block), extern_wrapper_name("__execute_" + name), extern_ret_type(ret_type), extern_arg_types(arg_types), jit(jit) {
+            extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block), extern_ret_type(ret_type), extern_arg_types(arg_types), jit(jit) {
 //        build_extern_proto();
 //        build_extern_wrapper_proto();
 //        build_extern_wrapper_body();
@@ -120,8 +120,6 @@ public:
     }
 
     ~MFunc() {}
-
-    // TODO rule of 5 stuff for all of the classes
 
     /**
     * Build the LLVM prototype for extern_func.

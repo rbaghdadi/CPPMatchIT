@@ -22,7 +22,7 @@ void Stage::set_function(MFunc *mfunction) {
 //    llvm::PointerType *llvm_ret_type; // user type
 //    if (mfunction->get_associated_block().compare("TransformStage") == 0 || mfunction->get_associated_block().compare("ComparisonBlock") == 0) {
 //        llvm_ret_type = llvm::PointerType::get(mfunction->get_ret_type()->codegen(), 0);
-//    } else if (mfunction->get_associated_block().compare("FilterBlock") == 0) {
+//    } else if (mfunction->get_associated_block().compare("FilterStage") == 0) {
 //        llvm_ret_type = llvm::PointerType::get(mfunction->get_arg_types()[0]->codegen(), 0);
 //    }
 //    ret_struct_fields.push_back(llvm_ret_type);

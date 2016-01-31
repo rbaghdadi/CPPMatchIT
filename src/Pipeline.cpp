@@ -35,7 +35,7 @@ void Pipeline::codegen(JIT &jit) {
 
     // the argument types of the llvm function that we want to call
     std::vector<llvm::Type *> llvm_func_arg_types;
-    for (int i = 0; i < m_extern_wrapper->get_arg_types().size(); i++) {
+    for (size_t i = 0; i < m_extern_wrapper->get_arg_types().size(); i++) {
         llvm_func_arg_types.push_back(llvm::PointerType::get(m_extern_wrapper->get_arg_types()[i]->codegen(), 0));
     }
 
@@ -54,6 +54,8 @@ void Pipeline::codegen(JIT &jit) {
         llvm::Value *arg = iter;
         arg->setName("pipe_x" + std::to_string(iter_ctr++));
     }
+
+    jit.dump();
 
     /*
      * Prep the input data that will be fed into the first block
@@ -90,7 +92,7 @@ void Pipeline::codegen(JIT &jit) {
         llvm::AllocaInst *call_alloc = jit.get_builder().CreateAlloca(call->getType());
 
         // store the result of the previous call
-        llvm::StoreInst *call_store = jit.get_builder().CreateStore(call, call_alloc);
+        jit.get_builder().CreateStore(call, call_alloc);
 
         // hey, now load it again
         llvm::LoadInst *call_load = jit.get_builder().CreateLoad(call_alloc);

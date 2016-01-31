@@ -17,7 +17,10 @@ FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value
 //        loaded->setAlignment(N);
         loaded_args.push_back(loaded);
     }
-    return FuncComp(jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args));
+    llvm::CallInst *call = jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args);
+    llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(call->getType());
+    jit->get_builder().CreateStore(call, alloc);
+    return FuncComp(alloc);//FuncComp(jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args));
 }
 
 FuncComp init_idx(JIT *jit, int start_idx, std::string name) {
@@ -57,12 +60,12 @@ FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::A
 FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound) {
     llvm::Type *return_type = extern_mfunc.get_extern_wrapper()->getReturnType();
     // we return a pointer from the wrapper function
-    llvm::Type *return_type_ptr = llvm::PointerType::get(return_type, 0);
+    llvm::PointerType::get(return_type, 0);
     // allocate space for the whole return structure
     llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(return_type);
     // do the c-malloc
     llvm::Value *malloc_ret_struct = codegen_c_malloc_and_cast(jit, data_ret_type->get_bits() / 8 + 8, return_type);
-    llvm::StoreInst *store_malloc_ret_struct = jit->get_builder().CreateStore(malloc_ret_struct, alloc);
+    jit->get_builder().CreateStore(malloc_ret_struct, alloc);
     // now allocate space for the pointer to the returned user data (within the struct)
     llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(loop_bound);
     load_bound->setAlignment(8);
@@ -87,7 +90,7 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
     gep_ret_dat = jit->get_builder().CreateInBoundsGEP(loaded_ret_struct, ret_data_idx);
 
     // now store the malloc data in the alloc space
-    llvm::StoreInst *store_malloc = jit->get_builder().CreateStore(malloc_data, gep_ret_dat);
+    jit->get_builder().CreateStore(malloc_data, gep_ret_dat);
 
     // TODO figure out the appropriate alignment
     return FuncComp(alloc);
@@ -96,7 +99,7 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
 // ret type is the user data type that will be returned. Ex: If transform block, this is the type that comes out of the extern call
 // If this is a filter block, this is the type of input data, since that is actually what is returned (not the bool that comes from the extern call)
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
-                         llvm::Value *extern_call_res) {
+                         llvm::AllocaInst *extern_call_res) {
     // TODO user type alignments
     // first, we need to load the return struct and then pull out the correct field to store the computed result
     llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(ret); // { X*, i64 }
@@ -115,12 +118,13 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
     if (ret_type->is_ptr_type()) {
         // TODO need to allocate the correct amount of space. How do I figure that out? What is the size of a user type? It could be a struct, which in that case would mean that it's 8 bytes, or if it's like a char array or something, it's the size of the array
         llvm::Value *malloc_space = codegen_c_malloc_and_cast(jit, ret_type->get_bits() * 50, ret_type->codegen());
-        llvm::StoreInst *stored_malloc = jit->get_builder().CreateStore(malloc_space, idx_gep);
+        jit->get_builder().CreateStore(malloc_space, idx_gep);
         llvm::LoadInst *loaded_element = jit->get_builder().CreateLoad(idx_gep);
-        codegen_llvm_memcpy(jit, loaded_element, extern_call_res);
+        llvm::LoadInst *loaded_src = jit->get_builder().CreateLoad(extern_call_res);
+        codegen_llvm_memcpy(jit, loaded_element, loaded_src);
     } else {
         // just copy it into the alloca space
-        llvm::StoreInst *store = jit->get_builder().CreateStore(extern_call_res, idx_gep);
+        jit->get_builder().CreateStore(extern_call_res, idx_gep);
     }
     // increment the return idx
     llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
@@ -133,7 +137,7 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
 // the last argument is the size of the array of data being fed in. It is NOT user created
 FuncComp init_function_args(JIT *jit, MFunc extern_mfunc) {
     llvm::Function *wrapper = extern_mfunc.get_extern_wrapper();
-    int ctr = 0;
+    size_t ctr = 0;
     std::vector<llvm::Value *> args;
     for (llvm::Function::arg_iterator iter = wrapper->arg_begin(); iter != wrapper->arg_end(); iter++) {
         unsigned int alignment = 0;

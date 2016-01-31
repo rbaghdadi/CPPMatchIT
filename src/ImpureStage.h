@@ -15,11 +15,12 @@ public:
     ImpureStage(std::string stage_name, JIT *jit, MFunc *mfunction, mtype_code_t input_mtype_code,
                 mtype_code_t output_mtype_code) : Stage(jit, input_mtype_code, output_mtype_code, stage_name) {
         set_function(mfunction);
+//        dummy_block->insertInto(mfunction->get_extern_wrapper());
     }
 
-    void codegen() {
+    void codegen() { }
 
-    }
+    void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) { }
 
 };
 

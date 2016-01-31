@@ -20,32 +20,12 @@ private:
     std::vector<MType *> output_struct_fields;
     O (*transform)(I);
 
-//    LoopCounterBasicBlock *loop_counter_basic_block;
-//    ReturnStructBasicBlock *return_struct_basic_block;
-//    ForLoopConditionBasicBlock *for_loop_condition_basic_block;
-//    ForLoopIncrementBasicBlock *for_loop_increment_basic_block;
-//    ForLoopEndBasicBlock *for_loop_end_basic_block;
-//    ExternInitBasicBlock *extern_init_basic_block;
-//    ExternArgPrepBasicBlock *extern_arg_prep_basic_block;
-//    ExternCallBasicBlock *extern_call_basic_block;
-//    ExternCallStoreBasicBlock *extern_call_store_basic_block;
-
 public:
 
     TransformStage(O (*transform)(I), std::string transform_name, JIT *jit, std::vector<MType *> input_struct_fields = std::vector<MType *>(),
                    std::vector<MType *> output_struct_fields = std::vector<MType *>()) :
-            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform),
-            input_struct_fields(input_struct_fields), output_struct_fields(output_struct_fields) {
-        loop_counter_basic_block = new LoopCounterBasicBlock();
-        return_struct_basic_block = new ReturnStructBasicBlock();
-        for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
-        for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
-        for_loop_end_basic_block = new ForLoopEndBasicBlock();
-        extern_init_basic_block = new ExternInitBasicBlock();
-        extern_arg_prep_basic_block = new ExternArgPrepBasicBlock();
-        extern_call_basic_block = new ExternCallBasicBlock();
-        extern_call_store_basic_block = new ExternCallStoreBasicBlock();
-
+            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), input_struct_fields(input_struct_fields),
+            output_struct_fields(output_struct_fields), transform(transform) {
         // TODO what if input type is a struct (see ComparisonBlock)
         MType *ret_type;
         // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
@@ -71,58 +51,13 @@ public:
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
         set_function(func);
-
         func->codegen_extern_proto();
-        func->codegen_extern_wrapper_proto();
-
     }
 
-    ~TransformStage() {
-        delete loop_counter_basic_block;
-        delete return_struct_basic_block;
-        delete for_loop_condition_basic_block;
-        delete for_loop_increment_basic_block;
-        delete for_loop_end_basic_block;
-        delete extern_init_basic_block;
-        delete extern_arg_prep_basic_block;
-        delete extern_call_basic_block;
-        delete extern_call_store_basic_block;
-//        delete return_basic_block;
-    }
-
-
-
+    ~TransformStage() { }
 
     void codegen() {
-//        // TODO what if input type is a struct (see ComparisonBlock)
-//        MType *ret_type;
-//        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
-//        if (output_type_code == mtype_ptr && !output_struct_fields.empty()) {
-//            ret_type = create_struct_reference_type(output_struct_fields);
-//        } else if (output_type_code != mtype_struct) {
-//            ret_type = create_type<O>();
-//        } else {
-//            ret_type = create_struct_type(output_struct_fields);
-//        }
-//
-//        MType *arg_type;
-//        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
-//        if(input_type_code == mtype_ptr && !input_struct_fields.empty()) {
-//            arg_type = create_struct_reference_type(input_struct_fields);
-//        } else if (input_type_code != mtype_struct) {
-//            arg_type = create_type<I>();
-//        } else {
-//            arg_type = create_struct_type(input_struct_fields);
-//        }
-//
-//        std::vector<MType *> arg_types;
-//        arg_types.push_back(arg_type);
-//        MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
-//        set_function(mfunction);
-//
-//        func->codegen_extern_proto();
-//        func->codegen_extern_wrapper_proto();
-
+        mfunction->codegen_extern_wrapper_proto();
         // initialize the function args
         extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
         extern_arg_prep_basic_block->set_extern_function(mfunction);
@@ -139,7 +74,7 @@ public:
         return_struct_basic_block->set_function(mfunction->get_extern_wrapper());
         return_struct_basic_block->set_extern_function(mfunction);
         return_struct_basic_block->set_loop_bound(loop_counter_basic_block->get_loop_bound());
-        return_struct_basic_block->set_stage_return_type(mfunction->get_ret_type());
+        return_struct_basic_block->set_stage_return_type(mfunction->get_extern_wrapper_data_ret_type());
         return_struct_basic_block->codegen(jit);
         jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
 
@@ -167,15 +102,21 @@ public:
         extern_call_basic_block->set_function(mfunction->get_extern_wrapper());
         extern_call_basic_block->set_extern_function(mfunction);
         std::vector<llvm::Value *> sliced;
-        sliced.push_back(extern_init_basic_block->get_element());//extern_arg_prep_basic_block->get_args()[0]);
+        sliced.push_back(extern_init_basic_block->get_element());
         extern_call_basic_block->set_extern_args(sliced);
         extern_call_basic_block->codegen(jit);
-        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
+//        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
+        dummy_block->insertInto(mfunction->get_extern_wrapper());
+        jit->get_builder().CreateBr(dummy_block);
+//        jit->get_builder().SetInsertPoint(dummy_block);
+//        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
+//        jit->get_builder().SetInsertPoint(extern_call_basic_block->get_basic_block());
+        postprocess(this, dummy_block, extern_call_store_basic_block->get_basic_block());
 
         // store the result
         extern_call_store_basic_block->set_function(mfunction->get_extern_wrapper());
-        extern_call_store_basic_block->set_mtype(mfunction->get_ret_type());
-        extern_call_store_basic_block->set_extern_extern_call_result(extern_call_basic_block->get_call_result());
+        extern_call_store_basic_block->set_mtype(mfunction->get_extern_wrapper_data_ret_type());
+        extern_call_store_basic_block->set_data_to_store(extern_call_basic_block->get_data_to_return());
         extern_call_store_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
         extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
         extern_call_store_basic_block->codegen(jit);
@@ -190,8 +131,14 @@ public:
         mfunction->verify_wrapper();
     }
 
+    void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) {
+//        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
+//        jit->get_builder().CreateBr(dummy_block);
+        jit->get_builder().SetInsertPoint(branch_from);
+        jit->get_builder().CreateBr(branch_into);//stage->get_extern_call_store_basic_block()->get_basic_block());
+    }
 
-    void codegen2() {
+    void codegen_old() {
         // TODO what if input type is a struct (see ComparisonBlock)
         MType *ret_type;
         // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
@@ -261,7 +208,7 @@ public:
         llvm::Value *data_gep = jit->get_builder().CreateInBoundsGEP(data, data_idx);
         llvm::LoadInst *element = jit->get_builder().CreateLoad(data_gep);
         llvm::AllocaInst *element_alloc = jit->get_builder().CreateAlloca(element->getType());
-        llvm::StoreInst *store_element =  jit->get_builder().CreateStore(element, element_alloc);
+        jit->get_builder().CreateStore(element, element_alloc);
         std::vector<llvm::Value *> inputs;
         inputs.push_back(element_alloc);
         jit->get_builder().CreateBr(for_extern_call);

@@ -5,13 +5,12 @@
 #include <iostream>
 #include <stdlib.h>
 #include <openssl/md5.h>
-//#include "./ComparisonBlock.h"
-//#include "./FilterBlock.h"
 #include "./JIT.h"
 #include "./LLVM.h"
 #include "./Pipeline.h"
 #include "./TransformStage.h"
 #include "./MergeStages.h"
+#include "./FilterStage.h"
 
 // Basic structure of a program:
 // 1. User extends necessary block classes
@@ -48,17 +47,17 @@ public:
             TransformStage(transform, "transform", jit, std::vector<MType *>(), filehash_fields) {}
 };
 
-//class Filter : public FilterBlock<char *> {
-//public:
-//    Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterBlock(filter, transform_name, jit) {}
-//};
-//
+class Filter : public FilterStage<char *> {
+public:
+    Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit) {}
+};
+
 //class HashCompare : public ComparisonBlock<FileHash *, Comparison *> {
 //public:
 //    HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
 //                std::vector<MType *> comparison_fields) : ComparisonBlock(compare, "compare", jit, filehash_fields, comparison_fields) {}
 //};
-//
+
 class StructCheck : public TransformStage<FileHash *, FileHash *> {
 public:
     StructCheck(FileHash *(*transform)(FileHash *), JIT *jit, std::vector<MType *> filehash_fields) :
@@ -190,10 +189,8 @@ int main() {
      */
 
 //    // create the file jpg_filter
-//    Filter jpg_filt(jpg_filter, "jpg_filter", &jit);
-//    jpg_filt.codegen();
-//    Filter txt_filt(txt_filter, "txt_filter", &jit);
-//    txt_filt.codegen();
+    Filter jpg_filt(jpg_filter, "jpg_filter", &jit);
+    Filter txt_filt(txt_filter, "txt_filter", &jit);
 
     // fake transform
 //    IdentityTransform identity_xform(identity, &jit);
@@ -207,8 +204,6 @@ int main() {
     filehash_field_types.push_back(uchar_field);
 
     Transform xform(transform, &jit, filehash_field_types);
-//    xform.codegen();
-
 //    // create the comparison
 //    std::vector<MType *> comparison_field_types;
 //    MType *bool_field = create_type<bool *>();
@@ -220,7 +215,6 @@ int main() {
 //    hcomp.codegen();
 //
     StructCheck scheck(struct_check, &jit, filehash_field_types);
-//    scheck.codegen();
 //
 //    /*
 //     * Create pipeline and run
@@ -239,8 +233,11 @@ int main() {
 //    pipeline.register_block(&hcomp);
 //
 
-    ImpureStage s = Opt::merge_stages_again(&jit, &xform, &scheck);
-    pipeline.register_stage(&s);
+    ImpureStage merge1 = Opt::merge_stages_again(&jit, &jpg_filt, &xform);
+//    pipeline.register_stage(&jpg_filt);
+//    pipeline.register_stage(&txt_filt);
+    pipeline.register_stage(&merge1);
+    pipeline.register_stage(&scheck);
     pipeline.codegen(jit);
     jit.dump();
     jit.add_module();

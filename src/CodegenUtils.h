@@ -32,13 +32,14 @@ public:
         return results;
     }
 
-    std::vector<llvm::Value *> slice(int start, int end) {
-        std::vector<llvm::Value *> sliced;
-        int ctr = 0;
-        for (int i = start; i < end; i++) {
-            sliced[ctr++] = results[i];
-        }
-    }
+//    std::vector<llvm::Value *> slice(int start, int end) {
+//        std::vector<llvm::Value *> sliced;
+//        int ctr = 0;
+//        for (int i = start; i < end; i++) {
+//            sliced[ctr++] = results[i];
+//        }
+//        return sliced;
+//    }
 
     llvm::Value *get_result(unsigned int i) {
         return results[i];
@@ -64,7 +65,7 @@ FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::A
 FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound);
 
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
-                         llvm::Value *extern_call_res);
+                         llvm::AllocaInst *extern_call_res);
 
 FuncComp init_function_args(JIT *jit, MFunc extern_mfunc);
 
