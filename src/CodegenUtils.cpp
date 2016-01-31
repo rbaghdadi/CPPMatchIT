@@ -40,7 +40,7 @@ void increment_idx(JIT *jit, llvm::AllocaInst *loop_idx, int step_size) {
     store->setAlignment(8);
 }
 
-FuncComp check_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound) {
+FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound) {
     llvm::LoadInst *load_idx = jit->get_builder().CreateLoad(loop_idx);
     load_idx->setAlignment(8);
     llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(loop_bound);
@@ -53,6 +53,7 @@ FuncComp check_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::Al
 // Our return types are structs with the form: { X*, i64 }
 // where X is the user type returned by the extern function and i64 is the size of the X* array
 // ret type is the actual return type of the data
+// TODO make extern_mfunc a pointer
 FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound) {
     llvm::Type *return_type = extern_mfunc.get_extern_wrapper()->getReturnType();
     // we return a pointer from the wrapper function
@@ -92,7 +93,6 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
     return FuncComp(alloc);
 }
 
-// this assumes all appropriate space has been malloc'd
 // ret type is the user data type that will be returned. Ex: If transform block, this is the type that comes out of the extern call
 // If this is a filter block, this is the type of input data, since that is actually what is returned (not the bool that comes from the extern call)
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
@@ -122,6 +122,10 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
         // just copy it into the alloca space
         llvm::StoreInst *store = jit->get_builder().CreateStore(extern_call_res, idx_gep);
     }
+    // increment the return idx
+    llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+    llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
+    store_ret_idx->setAlignment(8);
 }
 
 // load up the input data

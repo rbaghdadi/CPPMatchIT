@@ -11,8 +11,8 @@
 #include "./Pipeline.h"
 #include "./CodegenUtils.h"
 
-void Pipeline::register_block(Block *block) {
-    building_blocks.push_back(block);
+void Pipeline::register_stage(Stage *stage) {
+    stages.push_back(stage);
 }
 
 void Pipeline::simple_execute(JIT &jit, const void **data) {
@@ -25,9 +25,12 @@ void Pipeline::codegen(JIT &jit) {
      * Create the pipeline wrapper
      */
 
+//    MFunc *m_extern_wrapper = Opt::merge_blocks(&jit, building_blocks[0], building_blocks[1]);
+
+
     // these both reference the same function, but gives us two different sets of data
-//    building_blocks[0]->codegen();
-    MFunc *m_extern_wrapper = building_blocks[0]->get_mfunction();
+    stages[0]->codegen();
+    MFunc *m_extern_wrapper = stages[0]->get_mfunction();
     llvm::Function *llvm_extern_wrapper = m_extern_wrapper->get_extern_wrapper();
 
     // the argument types of the llvm function that we want to call
@@ -78,8 +81,11 @@ void Pipeline::codegen(JIT &jit) {
 
     llvm::Value *call = jit.get_builder().CreateCall(llvm_extern_wrapper, llvm_func_args);
 
-    Block *prev_block = building_blocks[0];
-    for (std::vector<Block *>::iterator iter = building_blocks.begin() + 1; iter != building_blocks.end(); iter++) {
+    Stage *prev_block = stages[0];
+    for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
+        (*iter)->codegen();
+        jit.get_builder().SetInsertPoint(wrapper_block);
+
         // alloc space for the result of the previous call
         llvm::AllocaInst *call_alloc = jit.get_builder().CreateAlloca(call->getType());
 
@@ -109,6 +115,7 @@ void Pipeline::codegen(JIT &jit) {
             args.push_back(loaded_val);
         }
         args.push_back(loaded_idx);
+
         call = jit.get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
         prev_block = (*iter);
     }

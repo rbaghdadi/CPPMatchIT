@@ -6,7 +6,7 @@
 #define MATCHIT_FILTERBLOCK_H
 
 #include <string>
-#include "./Block.h"
+#include "Stage.h"
 #include "CodegenUtils.h"
 
 template <typename I>

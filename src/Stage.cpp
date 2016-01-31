@@ -2,25 +2,25 @@
 // Created by Jessica Ray on 1/28/16.
 //
 
-#include "./Block.h"
+#include "Stage.h"
 
-std::string Block::get_function_name() {
+std::string Stage::get_function_name() {
     return function_name;
 }
 
-MFunc *Block::get_mfunction() {
+MFunc *Stage::get_mfunction() {
     return mfunction;
 }
 
-void Block::set_function(MFunc *mfunction) {
+void Stage::set_function(MFunc *mfunction) {
     this->mfunction = mfunction;
 }
 
 //// all wrapper functions return structs of the user type and an int for an index
-//llvm::AllocaInst *Block::codegen_init_ret_stack() {
+//llvm::AllocaInst *Stage::codegen_init_ret_stack() {
 //    std::vector<llvm::Type *> ret_struct_fields;
 //    llvm::PointerType *llvm_ret_type; // user type
-//    if (mfunction->get_associated_block().compare("TransformBlock") == 0 || mfunction->get_associated_block().compare("ComparisonBlock") == 0) {
+//    if (mfunction->get_associated_block().compare("TransformStage") == 0 || mfunction->get_associated_block().compare("ComparisonBlock") == 0) {
 //        llvm_ret_type = llvm::PointerType::get(mfunction->get_ret_type()->codegen(), 0);
 //    } else if (mfunction->get_associated_block().compare("FilterBlock") == 0) {
 //        llvm_ret_type = llvm::PointerType::get(mfunction->get_arg_types()[0]->codegen(), 0);
@@ -35,7 +35,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return stack_alloc;
 //}
 //
-//llvm::Value * Block::codegen_init_ret_heap() {
+//llvm::Value * Stage::codegen_init_ret_heap() {
 //    // now we call C malloc to get space for our return struct on the heap
 //    llvm::Function *c_malloc = jit->get_module()->getFunction("malloc");
 //    assert(c_malloc);
@@ -48,7 +48,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return bitcast;
 //}
 //
-//llvm::AllocaInst *Block::codegen_init_loop_ret_idx() {
+//llvm::AllocaInst *Stage::codegen_init_loop_ret_idx() {
 //    llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()),
 //                                                              nullptr, "ret_idx");
 //    alloc->setAlignment(8);
@@ -58,7 +58,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return alloc;
 //}
 //
-//std::vector<llvm::AllocaInst *> Block::codegen_init_args() {
+//std::vector<llvm::AllocaInst *> Stage::codegen_init_args() {
 //    std::vector<llvm::AllocaInst *> args;
 //    int ctr = 0;
 //    for (llvm::Function::arg_iterator iter = mfunction->get_extern_wrapper()->arg_begin(); iter != mfunction->get_extern_wrapper()->arg_end(); iter++) {
@@ -83,7 +83,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return args;
 //}
 //
-//void Block::codegen_loop_end_block(llvm::BasicBlock *end_block, llvm::AllocaInst *alloc_ret,
+//void Stage::codegen_loop_end_block(llvm::BasicBlock *end_block, llvm::AllocaInst *alloc_ret,
 //                                   llvm::AllocaInst *alloc_ret_idx) {
 //    jit->get_builder().SetInsertPoint(end_block);
 //
@@ -107,7 +107,7 @@ void Block::set_function(MFunc *mfunction) {
 //    jit->get_builder().CreateRet(final_struct);
 //}
 //
-//llvm::Value *Block::codegen_loop_body_block(llvm::AllocaInst *alloc_loop_idx, std::vector<llvm::AllocaInst *> args) {
+//llvm::Value *Stage::codegen_loop_body_block(llvm::AllocaInst *alloc_loop_idx, std::vector<llvm::AllocaInst *> args) {
 //    std::vector<llvm::Value*> extern_call_args;
 //    // TODO var name should be loop idx, since we are dealing with the loop index actually...
 //    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(alloc_loop_idx, "cur_loop_idx");
@@ -131,7 +131,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return extern_ret;
 //}
 //
-//llvm::AllocaInst *Block::codegen_init_loop_max_bound() {
+//llvm::AllocaInst *Stage::codegen_init_loop_max_bound() {
 //    int last_arg_idx = mfunction->get_extern_wrapper()->getFunctionType()->getNumParams() - 1;
 //    llvm::Function::arg_iterator final_param = mfunction->get_extern_wrapper()->arg_begin();
 //    for (int i = 0; i < last_arg_idx; i++) {
@@ -145,7 +145,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return alloc_max_bound;
 //}
 //
-//llvm::Value *Block::codegen_init_ret_data_heap(llvm::AllocaInst *max_loop_bound) {
+//llvm::Value *Stage::codegen_init_ret_data_heap(llvm::AllocaInst *max_loop_bound) {
 //    llvm::LoadInst *load_max_bound = jit->get_builder().CreateLoad(max_loop_bound, "num_elements");
 //    load_max_bound->setAlignment(8);
 //    // figure out the amount of space we need for the data in the struct
@@ -176,7 +176,7 @@ void Block::set_function(MFunc *mfunction) {
 //    return bitcast;
 //};
 //
-//generic_codegen_tuple Block::codegen_init() {
+//generic_codegen_tuple Stage::codegen_init() {
 //    // create function prototypes
 //    mfunction->codegen_extern_proto();
 //    mfunction->codegen_extern_wrapper_proto();
@@ -233,7 +233,7 @@ void Block::set_function(MFunc *mfunction) {
 //    LLVMIR::branch_cond(jit, condition, for_body_block, for_end_block);
 //
 //    // create the (initial) body of the loop
-//    // the rest of the body is Block specific and happens in the subclasses of Block
+//    // the rest of the body is Stage specific and happens in the subclasses of Stage
 //    jit->get_builder().SetInsertPoint(for_body_block);
 //    llvm::Value *call_res = codegen_loop_body_block(alloc_loop_idx, args);
 //

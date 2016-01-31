@@ -35,12 +35,15 @@ void MFunc::codegen_extern_wrapper_proto() {
     std::vector<llvm::Type *> ret_struct_fields;
     llvm::PointerType *llvm_ret_type; // need to figure out the appropriate ret type for the block (since some blocks just feed through the original data, but
     // have different return types--like Filter with bool return type)
-    if (associated_block.compare("TransformBlock") == 0 || associated_block.compare("ComparisonBlock") == 0) {
+    if (associated_block.compare("TransformStage") == 0 || associated_block.compare("ComparisonBlock") == 0) {
         llvm_ret_type = llvm::PointerType::get(extern_ret_type->codegen(), 0);
         extern_wrapper_data_ret_type = extern_ret_type;
     } else if (associated_block.compare("FilterBlock") == 0) {
         llvm_ret_type = llvm::PointerType::get(extern_arg_types[0]->codegen(), 0);
         extern_wrapper_data_ret_type = extern_arg_types[0];
+    } else { // This is a merged block or something like that
+        llvm_ret_type = llvm::PointerType::get(extern_ret_type->codegen(), 0);
+        extern_wrapper_data_ret_type = extern_ret_type;
     }
     ret_struct_fields.push_back(llvm_ret_type);
     ret_struct_fields.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));

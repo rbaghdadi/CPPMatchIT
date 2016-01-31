@@ -10,7 +10,8 @@
 #include "./JIT.h"
 #include "./LLVM.h"
 #include "./Pipeline.h"
-#include "./TransformBlock.h"
+#include "./TransformStage.h"
+#include "./MergeStages.h"
 
 // Basic structure of a program:
 // 1. User extends necessary block classes
@@ -31,20 +32,20 @@ typedef struct {
 } Comparison;
 
 /*
- * Block class definitions
+ * Stage class definitions
  */
 
-class IdentityTransform : public TransformBlock<char *, char *> {
+class IdentityTransform : public TransformStage<char *, char *> {
 public:
     IdentityTransform(char * (*transform)(char *), JIT *jit) :
-            TransformBlock(transform, "identity", jit) {}
+            TransformStage(transform, "identity", jit) {}
 };
 
-class Transform : public TransformBlock<char *, FileHash *> {
+class Transform : public TransformStage<char *, FileHash *> {
 public:
     // TODO this isn't very nice for the user to have to write
     Transform(FileHash *(*transform)(char *), JIT *jit, std::vector<MType *> filehash_fields) :
-            TransformBlock(transform, "transform", jit, std::vector<MType *>(), filehash_fields) {}
+            TransformStage(transform, "transform", jit, std::vector<MType *>(), filehash_fields) {}
 };
 
 //class Filter : public FilterBlock<char *> {
@@ -58,14 +59,14 @@ public:
 //                std::vector<MType *> comparison_fields) : ComparisonBlock(compare, "compare", jit, filehash_fields, comparison_fields) {}
 //};
 //
-class StructCheck : public TransformBlock<FileHash *, FileHash *> {
+class StructCheck : public TransformStage<FileHash *, FileHash *> {
 public:
     StructCheck(FileHash *(*transform)(FileHash *), JIT *jit, std::vector<MType *> filehash_fields) :
-            TransformBlock(transform, "struct_check", jit, filehash_fields, filehash_fields) {}
+            TransformStage(transform, "struct_check", jit, filehash_fields, filehash_fields) {}
 };
 
 /*
- * Block "apply" functions
+ * Stage "apply" functions
  */
 
 extern "C" FileHash *struct_check(FileHash *in) {
@@ -204,8 +205,9 @@ int main() {
     MType *uchar_field = create_type<unsigned char *>();
     filehash_field_types.push_back(char_field);
     filehash_field_types.push_back(uchar_field);
+
     Transform xform(transform, &jit, filehash_field_types);
-    xform.codegen();
+//    xform.codegen();
 
 //    // create the comparison
 //    std::vector<MType *> comparison_field_types;
@@ -217,7 +219,7 @@ int main() {
 //    HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
 //    hcomp.codegen();
 //
-//    StructCheck scheck(struct_check, &jit, filehash_field_types);
+    StructCheck scheck(struct_check, &jit, filehash_field_types);
 //    scheck.codegen();
 //
 //    /*
@@ -231,10 +233,14 @@ int main() {
 //    pipeline.register_block(&identity_xform);
 //    pipeline.register_block(&txt_filt);
 //    pipeline.register_block(&identity_xform);
-    pipeline.register_block(&xform);
+//    pipeline.register_block(&xform);
+//    pipeline.register_block(&scheck);
 //    pipeline.register_block(&scheck);
 //    pipeline.register_block(&hcomp);
 //
+
+    ImpureStage s = Opt::merge_stages_again(&jit, &xform, &scheck);
+    pipeline.register_stage(&s);
     pipeline.codegen(jit);
     jit.dump();
     jit.add_module();

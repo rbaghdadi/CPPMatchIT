@@ -30,7 +30,7 @@ private:
     std::string extern_wrapper_name;
 
     /**
-     * The type of block that this function belongs to (i.e. FilterBlock, TransformBlock, etc)
+     * The type of block that this function belongs to (i.e. FilterBlock, TransformStage, etc)
      */
     std::string associated_block;
 

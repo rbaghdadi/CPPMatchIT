@@ -8,19 +8,19 @@
 #include <vector>
 #include "llvm/IR/Type.h"
 #include "./JIT.h"
-#include "./Block.h"
+#include "Stage.h"
 
 class Pipeline {
 
 private:
 
-    std::vector<Block *> building_blocks;
+    std::vector<Stage *> stages;
 
 public:
 
     ~Pipeline() {}
 
-    void register_block(Block *block);
+    void register_stage(Stage *stage);
 
     // a simple all at once execution for right now
     void simple_execute(JIT &jit, const void **data);

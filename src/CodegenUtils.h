@@ -32,6 +32,14 @@ public:
         return results;
     }
 
+    std::vector<llvm::Value *> slice(int start, int end) {
+        std::vector<llvm::Value *> sliced;
+        int ctr = 0;
+        for (int i = start; i < end; i++) {
+            sliced[ctr++] = results[i];
+        }
+    }
+
     llvm::Value *get_result(unsigned int i) {
         return results[i];
     }
@@ -51,7 +59,7 @@ FuncComp init_idx(JIT *jit, int start_idx = 0, std::string name = "");
 
 void increment_idx(JIT *jit, llvm::AllocaInst *loop_idx, int step_size = 1);
 
-FuncComp check_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound);
+FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound);
 
 FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound);
 

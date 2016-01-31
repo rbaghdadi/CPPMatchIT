@@ -7,7 +7,7 @@
 
 #include <string>
 #include "llvm/IR/Verifier.h"
-#include "./Block.h"
+#include "Stage.h"
 
 
 // collection of stuff to pass around
