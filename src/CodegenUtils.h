@@ -54,7 +54,7 @@ public:
     }
 };
 
-FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value *> extern_function_arg_addrs);
+FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value *> extern_function_arg_allocs);
 
 FuncComp init_idx(JIT *jit, int start_idx = 0, std::string name = "");
 
@@ -62,12 +62,13 @@ void increment_idx(JIT *jit, llvm::AllocaInst *loop_idx, int step_size = 1);
 
 FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound);
 
-FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound);
+FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc,
+                                    llvm::Value *max_num_ret_elements);
 
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
                          llvm::AllocaInst *extern_call_res);
 
-FuncComp init_function_args(JIT *jit, MFunc extern_mfunc);
+std::vector<llvm::AllocaInst *> init_function_args(JIT *jit, MFunc extern_mfunc);
 
 void return_data(JIT *jit, llvm::Value *ret, llvm::Value *ret_idx);
 

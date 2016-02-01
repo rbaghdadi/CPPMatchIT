@@ -9,7 +9,7 @@
 #include "./LLVM.h"
 #include "./Pipeline.h"
 #include "./TransformStage.h"
-#include "./MergeStages.h"
+//#include "./MergeStages.h"
 #include "./FilterStage.h"
 #include "./ComparisonStage.h"
 
@@ -52,7 +52,7 @@ class Filter : public FilterStage<char *> {
 public:
     Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit) {}
 };
-
+//
 class HashCompare : public ComparisonStage<FileHash *, Comparison *> {
 public:
     HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
@@ -210,7 +210,6 @@ int main() {
     comparison_field_types.push_back(char_field);
     comparison_field_types.push_back(char_field);
     HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
-//    hcomp.codegen();
 
     /*
      * Create pipeline and run
@@ -222,12 +221,12 @@ int main() {
     Pipeline pipeline;
 //    ImpureStage merge1 = Opt::merge_stages_again(&jit, &txt_filt, &txt_filt);
 //    ImpureStage merge2 = Opt::merge_stages_again(&jit, &xform, &scheck);
-//    pipeline.register_stage(&jpg_filt);
+    pipeline.register_stage(&jpg_filt);
 //    pipeline.register_stage(&txt_filt);
 //    pipeline.register_stage(&merge1);
 //    pipeline.register_stage(&merge2);
     pipeline.register_stage(&xform);
-//    pipeline.register_stage(&scheck);
+    pipeline.register_stage(&scheck);
     pipeline.register_stage(&hcomp);
     pipeline.codegen(jit);
     jit.dump();

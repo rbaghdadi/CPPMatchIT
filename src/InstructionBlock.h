@@ -68,7 +68,7 @@ private:
     // values needed for this block
     MType *stage_return_type;
     MFunc *extern_function;
-    llvm::AllocaInst *loop_bound;
+    llvm::AllocaInst *max_num_ret_elements;
 
 public:
 
@@ -84,7 +84,7 @@ public:
 
     void set_extern_function(MFunc *extern_function);
 
-    void set_loop_bound(llvm::AllocaInst *loop_bound);
+    void set_max_num_ret_elements(llvm::AllocaInst *loop_bound);
 
     void codegen(JIT *jit, bool no_insert = false);
 
@@ -112,7 +112,7 @@ public:
 
     void set_loop_idx(llvm::AllocaInst *loop_idx);
 
-    void set_loop_bound(llvm::AllocaInst *loop_bound);
+    void set_max_bound(llvm::AllocaInst *loop_bound);
 
     // this should be the last thing called after all the optimizations and such are performed
     void codegen(JIT *jit, bool no_insert = false);
@@ -169,7 +169,7 @@ class ExternArgPrepBasicBlock : public InstructionBlock  {
 private:
 
     // key instructions generated in the block
-    std::vector<llvm::Value *> args;
+    std::vector<llvm::AllocaInst *> args;
     // values needed for this block
     MFunc *extern_function;
 
@@ -181,7 +181,7 @@ public:
 
     ~ExternArgPrepBasicBlock() { }
 
-    std::vector<llvm::Value *> get_args();
+    std::vector<llvm::AllocaInst *> get_args();
 
     void set_extern_function(MFunc *extern_function);
 
@@ -255,9 +255,9 @@ class ExternInitBasicBlock : public InstructionBlock {
 private:
 
     // key instructions generated in the block
-    llvm::AllocaInst *element;
+    llvm::AllocaInst *element; // individual elements to be fed into function
     // values needed for this block
-    llvm::AllocaInst *data;
+    llvm::AllocaInst *data; // the full data arg to pull an individual element from
     llvm::AllocaInst *loop_idx;
 
 public:

@@ -9,6 +9,8 @@
 #include "llvm/IR/Verifier.h"
 #include "./Stage.h"
 #include "./MType.h"
+#include "./ForLoop.h"
+#include "./Utils.h"
 
 
 // collection of stuff to pass around
@@ -34,6 +36,7 @@ private:
     std::vector<MType *> input_struct_fields;
     std::vector<MType *> output_struct_fields;
     O (*compare)(I,I);
+//    ForLoop *loop;
 
     LoopCounterBasicBlock *loop_counter_basic_block_inner;
     ForLoopConditionBasicBlock *for_loop_condition_basic_block_inner;
@@ -251,125 +254,161 @@ public:
         set_function(func);
         func->codegen_extern_proto();
         func->codegen_extern_wrapper_proto();
+
+//        loop = new ForLoop(jit, func);
     }
 
     ~ComparisonStage() { }
 
 
-    void codegen() {
-        // initialize the function args
-        extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
-        extern_arg_prep_basic_block->set_extern_function(mfunction);
-        extern_arg_prep_basic_block->codegen(jit);
-        jit->get_builder().CreateBr(loop_counter_basic_block->get_basic_block());
-
-        // allocate space for the loop bounds and counters
-        loop_counter_basic_block->set_function(mfunction->get_extern_wrapper());
-        // ==== MODIFIED change idx 1 to 2
-        // TODO make some utility functions on top of vector, like last()
-        loop_counter_basic_block->set_max_bound(extern_arg_prep_basic_block->get_args()[2]);
-        // ==== DONE
-        loop_counter_basic_block->codegen(jit);
-        jit->get_builder().CreateBr(return_struct_basic_block->get_basic_block());
-
-        // allocate space for the return structure
-        return_struct_basic_block->set_function(mfunction->get_extern_wrapper());
-        return_struct_basic_block->set_extern_function(mfunction);
-        // TODO loop bound in this case needs to be bound^2 since n^2 comparison (do this in Pipeline::codegen)
-        return_struct_basic_block->set_loop_bound(loop_counter_basic_block->get_loop_bound());
-        return_struct_basic_block->set_stage_return_type(mfunction->get_extern_wrapper_data_ret_type());
-        return_struct_basic_block->codegen(jit);
-        jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
-
-        // loop condition
-        for_loop_condition_basic_block->set_function(mfunction->get_extern_wrapper());
-        for_loop_condition_basic_block->set_loop_bound(loop_counter_basic_block->get_loop_bound());
-        for_loop_condition_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
-        for_loop_condition_basic_block->codegen(jit);
-        jit->get_builder().CreateCondBr(for_loop_condition_basic_block->get_loop_comparison(),
-                                        extern_init_basic_block->get_basic_block(),
-                                        for_loop_end_basic_block->get_basic_block());
-
-        // loop index increment
-        for_loop_increment_basic_block->set_function(mfunction->get_extern_wrapper());
-        for_loop_increment_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
-        for_loop_increment_basic_block->codegen(jit);
-        jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
-
-        // get the args for the outer loop
-        extern_init_basic_block->set_function(mfunction->get_extern_wrapper());
-        extern_init_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
-        extern_init_basic_block->set_data(llvm::cast<llvm::AllocaInst>(extern_arg_prep_basic_block->get_args()[0]));
-        extern_init_basic_block->codegen(jit);
-        // ==== MODIFIED change extern_call_basic_block to loop_counter_basic_block_inner
-        jit->get_builder().CreateBr(loop_counter_basic_block_inner->get_basic_block());
-        // ==== DONE
-
-        // ==== ADDED create the inner loop
-        loop_counter_basic_block_inner->set_function(mfunction->get_extern_wrapper());
-        // ==== MODIFIED change idx 1 to 2
-        loop_counter_basic_block_inner->set_max_bound(extern_arg_prep_basic_block->get_args()[2]);
-        // ==== DONE
-        loop_counter_basic_block_inner->codegen(jit);
-        jit->get_builder().CreateBr(for_loop_condition_basic_block_inner->get_basic_block());
-
-        for_loop_condition_basic_block_inner->set_function(mfunction->get_extern_wrapper());
-        for_loop_condition_basic_block_inner->set_loop_bound(loop_counter_basic_block_inner->get_loop_bound());
-        for_loop_condition_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
-        for_loop_condition_basic_block_inner->codegen(jit);
-        jit->get_builder().CreateCondBr(for_loop_condition_basic_block_inner->get_loop_comparison(),
-                                        extern_init_basic_block_inner->get_basic_block(),
-                                        for_loop_increment_basic_block->get_basic_block());
-
-        for_loop_increment_basic_block_inner->set_function(mfunction->get_extern_wrapper());
-        for_loop_increment_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
-        for_loop_increment_basic_block_inner->codegen(jit);
-        jit->get_builder().CreateBr(for_loop_condition_basic_block_inner->get_basic_block());
-
-        // get the args for the inner loop
-        extern_init_basic_block_inner->set_function(mfunction->get_extern_wrapper());
-        extern_init_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
-        extern_init_basic_block_inner->set_data(llvm::cast<llvm::AllocaInst>(extern_arg_prep_basic_block->get_args()[1]));
-        extern_init_basic_block_inner->codegen(jit);
-        jit->get_builder().CreateBr(extern_call_basic_block->get_basic_block());
-        // ==== DONE
-
-        // create the call
-        extern_call_basic_block->set_function(mfunction->get_extern_wrapper());
-        extern_call_basic_block->set_extern_function(mfunction);
-        std::vector<llvm::Value *> sliced;
-        sliced.push_back(extern_init_basic_block->get_element());
-        // ==== ADDED add the second argument
-        sliced.push_back(extern_init_basic_block_inner->get_element());
-        // ==== DONE
-        extern_call_basic_block->set_extern_args(sliced);
-        extern_call_basic_block->codegen(jit);
-        postprocess(this, extern_call_basic_block->get_basic_block(), extern_call_store_basic_block->get_basic_block());
-
-        // store the result
-        extern_call_store_basic_block->set_function(mfunction->get_extern_wrapper());
-        extern_call_store_basic_block->set_mtype(mfunction->get_extern_wrapper_data_ret_type());
-        extern_call_store_basic_block->set_data_to_store(extern_call_basic_block->get_data_to_return());
-        extern_call_store_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
-        extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
-        extern_call_store_basic_block->codegen(jit);
-        // ==== MODIFIED for_loop_increment_basic_block_inner instead of for_loop_increment_basic_block
-        jit->get_builder().CreateBr(for_loop_increment_basic_block_inner->get_basic_block());
-        // ==== DONE
-
-        // return the data
-        for_loop_end_basic_block->set_function(mfunction->get_extern_wrapper());
-        for_loop_end_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
-        for_loop_end_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
-        for_loop_end_basic_block->codegen(jit);
-
-        mfunction->verify_wrapper();
+    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb, ExternCallBasicBlock *ecbb, ExternCallStoreBasicBlock *ecsbb) {
+        ForLoop *inner_loop = new ForLoop(jit, mfunction);
+        // build the body
+        eibb->set_function(mfunction->get_extern_wrapper());
+        eibb->set_loop_idx(loop->get_loop_counter_basic_block()->get_loop_idx());
+        eibb->set_data(args[0]);
+        eibb->codegen(jit);
+        jit->get_builder().CreateBr(inner_loop->get_loop_counter_basic_block()->get_basic_block());
+        // alright, get the second loop going
+        ExternInitBasicBlock *inner_eibb = new ExternInitBasicBlock();
+        inner_eibb->set_function(mfunction->get_extern_wrapper());
+        inner_loop->set_max_loop_bound(last(args));
+        inner_loop->set_branch_to_after_counter(inner_loop->get_for_loop_condition_basic_block()->get_basic_block());
+        inner_loop->set_branch_to_true_condition(inner_eibb->get_basic_block());
+        inner_loop->set_branch_to_false_condition(loop->get_for_loop_increment_basic_block()->get_basic_block());
+        inner_loop->codegen();
+        // now get data for the second input
+        inner_eibb->set_data(args[1]);
+        inner_eibb->set_loop_idx(inner_loop->get_loop_counter_basic_block()->get_loop_idx());
+        inner_eibb->codegen(jit);
+        jit->get_builder().CreateBr(ecbb->get_basic_block());
+        // now create the call to the extern function
+        ecbb->set_function(mfunction->get_extern_wrapper());
+        std::vector<llvm::Value *> elements;
+        elements.push_back(eibb->get_element());
+        elements.push_back(inner_eibb->get_element());
+        ecbb->set_extern_function(mfunction);
+        ecbb->set_extern_args(elements);
+        ecbb->codegen(jit);
+        jit->get_builder().CreateBr(ecsbb->get_basic_block());
     }
 
-    void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) {
-        jit->get_builder().SetInsertPoint(branch_from);
-        jit->get_builder().CreateBr(branch_into);
-    }
+
+
+//    void codegen() {
+//        // initialize the function args
+//        extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
+//        extern_arg_prep_basic_block->set_extern_function(mfunction);
+//        extern_arg_prep_basic_block->codegen(jit);
+//        jit->get_builder().CreateBr(loop_counter_basic_block->get_basic_block());
+//
+//        // allocate space for the loop bounds and counters
+//        loop_counter_basic_block->set_function(mfunction->get_extern_wrapper());
+//        // ==== MODIFIED change idx 1 to 2
+//        // TODO make some utility functions on top of vector, like last()
+//        loop_counter_basic_block->set_max_bound(extern_arg_prep_basic_block->get_args()[2]);
+//        // ==== DONE
+//        loop_counter_basic_block->codegen(jit);
+//        jit->get_builder().CreateBr(return_struct_basic_block->get_basic_block());
+//
+//        // allocate space for the return structure
+//        return_struct_basic_block->set_function(mfunction->get_extern_wrapper());
+//        return_struct_basic_block->set_extern_function(mfunction);
+//        // TODO loop bound in this case needs to be bound^2 since n^2 comparison (do this in Pipeline::codegen)
+//        return_struct_basic_block->set_loop_bound(loop_counter_basic_block->get_loop_bound());
+//        return_struct_basic_block->set_stage_return_type(mfunction->get_extern_wrapper_data_ret_type());
+//        return_struct_basic_block->codegen(jit);
+//        jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
+//
+//        // loop condition
+//        for_loop_condition_basic_block->set_function(mfunction->get_extern_wrapper());
+//        for_loop_condition_basic_block->set_max_bound(loop_counter_basic_block->get_loop_bound());
+//        for_loop_condition_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
+//        for_loop_condition_basic_block->codegen(jit);
+//        jit->get_builder().CreateCondBr(for_loop_condition_basic_block->get_loop_comparison(),
+//                                        extern_init_basic_block->get_basic_block(),
+//                                        for_loop_end_basic_block->get_basic_block());
+//
+//        // loop index increment
+//        for_loop_increment_basic_block->set_function(mfunction->get_extern_wrapper());
+//        for_loop_increment_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
+//        for_loop_increment_basic_block->codegen(jit);
+//        jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
+//
+//        // get the args for the outer loop
+//        extern_init_basic_block->set_function(mfunction->get_extern_wrapper());
+//        extern_init_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
+//        extern_init_basic_block->set_data(llvm::cast<llvm::AllocaInst>(extern_arg_prep_basic_block->get_args()[0]));
+//        extern_init_basic_block->codegen(jit);
+//        // ==== MODIFIED change extern_call_basic_block to loop_counter_basic_block_inner
+//        jit->get_builder().CreateBr(loop_counter_basic_block_inner->get_basic_block());
+//        // ==== DONE
+//
+//        // ==== ADDED create the inner loop
+//        loop_counter_basic_block_inner->set_function(mfunction->get_extern_wrapper());
+//        // ==== MODIFIED change idx 1 to 2
+//        loop_counter_basic_block_inner->set_max_bound(extern_arg_prep_basic_block->get_args()[2]);
+//        // ==== DONE
+//        loop_counter_basic_block_inner->codegen(jit);
+//        jit->get_builder().CreateBr(for_loop_condition_basic_block_inner->get_basic_block());
+//
+//        for_loop_condition_basic_block_inner->set_function(mfunction->get_extern_wrapper());
+//        for_loop_condition_basic_block_inner->set_max_bound(loop_counter_basic_block_inner->get_loop_bound());
+//        for_loop_condition_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
+//        for_loop_condition_basic_block_inner->codegen(jit);
+//        jit->get_builder().CreateCondBr(for_loop_condition_basic_block_inner->get_loop_comparison(),
+//                                        extern_init_basic_block_inner->get_basic_block(),
+//                                        for_loop_increment_basic_block->get_basic_block());
+//
+//        for_loop_increment_basic_block_inner->set_function(mfunction->get_extern_wrapper());
+//        for_loop_increment_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
+//        for_loop_increment_basic_block_inner->codegen(jit);
+//        jit->get_builder().CreateBr(for_loop_condition_basic_block_inner->get_basic_block());
+//
+//        // get the args for the inner loop
+//        extern_init_basic_block_inner->set_function(mfunction->get_extern_wrapper());
+//        extern_init_basic_block_inner->set_loop_idx(loop_counter_basic_block_inner->get_loop_idx());
+//        extern_init_basic_block_inner->set_data(llvm::cast<llvm::AllocaInst>(extern_arg_prep_basic_block->get_args()[1]));
+//        extern_init_basic_block_inner->codegen(jit);
+//        jit->get_builder().CreateBr(extern_call_basic_block->get_basic_block());
+//        // ==== DONE
+//
+//        // create the call
+//        extern_call_basic_block->set_function(mfunction->get_extern_wrapper());
+//        extern_call_basic_block->set_extern_function(mfunction);
+//        std::vector<llvm::Value *> sliced;
+//        sliced.push_back(extern_init_basic_block->get_element());
+//        // ==== ADDED add the second argument
+//        sliced.push_back(extern_init_basic_block_inner->get_element());
+//        // ==== DONE
+//        extern_call_basic_block->set_extern_args(sliced);
+//        extern_call_basic_block->codegen(jit);
+//        postprocess(this, extern_call_basic_block->get_basic_block(), extern_call_store_basic_block->get_basic_block());
+//
+//        // store the result
+//        extern_call_store_basic_block->set_function(mfunction->get_extern_wrapper());
+//        extern_call_store_basic_block->set_mtype(mfunction->get_extern_wrapper_data_ret_type());
+//        extern_call_store_basic_block->set_data_to_store(extern_call_basic_block->get_data_to_return());
+//        extern_call_store_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
+//        extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
+//        extern_call_store_basic_block->codegen(jit);
+//        // ==== MODIFIED for_loop_increment_basic_block_inner instead of for_loop_increment_basic_block
+//        jit->get_builder().CreateBr(for_loop_increment_basic_block_inner->get_basic_block());
+//        // ==== DONE
+//
+//        // return the data
+//        for_loop_end_basic_block->set_function(mfunction->get_extern_wrapper());
+//        for_loop_end_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
+//        for_loop_end_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
+//        for_loop_end_basic_block->codegen(jit);
+//
+//        mfunction->verify_wrapper();
+//    }
+
+//    void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) {
+//        jit->get_builder().SetInsertPoint(branch_from);
+//        jit->get_builder().CreateBr(branch_into);
+//    }
 
 
 //    void codegen_old() {

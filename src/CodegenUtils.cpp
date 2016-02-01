@@ -9,10 +9,10 @@ namespace CodegenUtils {
 
 // create a call to an extern function
 // for the addresses, you would pass in a gep result (so needs to point to the correct element, not just all of the input data)
-FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value *> extern_function_arg_addrs) {
+FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value *> extern_function_arg_allocs) {
     std::vector<llvm::Value *> loaded_args;
-    for (std::vector<llvm::Value *>::iterator iter = extern_function_arg_addrs.begin();
-         iter != extern_function_arg_addrs.end(); iter++) {
+    for (std::vector<llvm::Value *>::iterator iter = extern_function_arg_allocs.begin();
+         iter != extern_function_arg_allocs.end(); iter++) {
         llvm::LoadInst *loaded = jit->get_builder().CreateLoad(*iter);
 //        loaded->setAlignment(N);
         loaded_args.push_back(loaded);
@@ -57,7 +57,8 @@ FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::A
 // where X is the user type returned by the extern function and i64 is the size of the X* array
 // ret type is the actual return type of the data
 // TODO make extern_mfunc a pointer
-FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc, llvm::Value *loop_bound) {
+FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc,
+                                    llvm::Value *max_num_ret_elements) {
     llvm::Type *return_type = extern_mfunc.get_extern_wrapper()->getReturnType();
     // we return a pointer from the wrapper function
     llvm::PointerType::get(return_type, 0);
@@ -67,7 +68,7 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
     llvm::Value *malloc_ret_struct = codegen_c_malloc_and_cast(jit, data_ret_type->get_bits() / 8 + 8, return_type);
     jit->get_builder().CreateStore(malloc_ret_struct, alloc);
     // now allocate space for the pointer to the returned user data (within the struct)
-    llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(loop_bound);
+    llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(max_num_ret_elements);
     load_bound->setAlignment(8);
     // figure out the amount of space we need for the data in the struct
     llvm::AllocaInst *alloc_num_bytes = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
@@ -137,10 +138,10 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
 // load up the input data
 // give the inputs arguments names so we can actually use them
 // the last argument is the size of the array of data being fed in. It is NOT user created
-FuncComp init_function_args(JIT *jit, MFunc extern_mfunc) {
+std::vector<llvm::AllocaInst *> init_function_args(JIT *jit, MFunc extern_mfunc) {
     llvm::Function *wrapper = extern_mfunc.get_extern_wrapper();
     size_t ctr = 0;
-    std::vector<llvm::Value *> args;
+    std::vector<llvm::AllocaInst *> args;
     for (llvm::Function::arg_iterator iter = wrapper->arg_begin(); iter != wrapper->arg_end(); iter++) {
         unsigned int alignment = 0;
         if (ctr == extern_mfunc.get_arg_types().size()) {
@@ -155,7 +156,7 @@ FuncComp init_function_args(JIT *jit, MFunc extern_mfunc) {
         store->setAlignment(alignment);
         args.push_back(alloc);
     }
-    return FuncComp(args);
+    return args;//FuncComp(args);
 }
 
 void return_data(JIT *jit, llvm::Value *ret, llvm::Value *ret_idx) {

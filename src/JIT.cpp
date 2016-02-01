@@ -116,6 +116,4 @@ void JIT::run(const std::string func_to_run, const void ** data) {
     auto jit_sym = find_mangled_name(mangle(func_to_run));
     void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
     jit_func(data);
-
-
 }

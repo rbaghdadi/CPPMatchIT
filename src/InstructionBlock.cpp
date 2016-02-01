@@ -3,6 +3,7 @@
 //
 
 #include "./InstructionBlock.h"
+#include "./Utils.h"
 
 /*
  * InstructionBlock
@@ -44,6 +45,7 @@ void LoopCounterBasicBlock::codegen(JIT *jit, bool no_insert) {
     loop_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
     loop_bound = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
     return_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
+
     llvm::LoadInst *load = jit->get_builder().CreateLoad(max_bound);
     load->setAlignment(8);
     jit->get_builder().CreateStore(load, loop_bound)->setAlignment(8);
@@ -66,15 +68,16 @@ void ReturnStructBasicBlock::set_extern_function(MFunc *extern_function) {
     this->extern_function = extern_function;
 }
 
-void ReturnStructBasicBlock::set_loop_bound(llvm::AllocaInst *loop_bound) {
-    this->loop_bound = loop_bound;
+void ReturnStructBasicBlock::set_max_num_ret_elements(llvm::AllocaInst *loop_bound) {
+    this->max_num_ret_elements = loop_bound;
 }
 
 void ReturnStructBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(stage_return_type && extern_function && loop_bound);
+    assert(stage_return_type && extern_function && max_num_ret_elements);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    return_struct = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_return_data_structure(jit, stage_return_type, *extern_function, loop_bound).get_result());
+    return_struct = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_return_data_structure(jit, stage_return_type, *extern_function,
+                                                                                          max_num_ret_elements).get_result());
     codegen_done = true;
 }
 
@@ -90,7 +93,7 @@ void ForLoopConditionBasicBlock::set_loop_idx(llvm::AllocaInst *loop_idx) {
     this->loop_idx = loop_idx;
 }
 
-void ForLoopConditionBasicBlock::set_loop_bound(llvm::AllocaInst *loop_bound) {
+void ForLoopConditionBasicBlock::set_max_bound(llvm::AllocaInst *loop_bound) {
     this->loop_bound = loop_bound;
 }
 
@@ -144,7 +147,7 @@ void ForLoopEndBasicBlock::codegen(JIT *jit, bool no_insert) {
  * ExternArgPrepBasicBlock
  */
 
-std::vector<llvm::Value *> ExternArgPrepBasicBlock::get_args() {
+std::vector<llvm::AllocaInst *> ExternArgPrepBasicBlock::get_args() {
     return args;
 }
 
@@ -156,7 +159,7 @@ void ExternArgPrepBasicBlock::codegen(JIT *jit, bool no_insert) {
     assert(extern_function);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    args = CodegenUtils::init_function_args(jit, *extern_function).get_results();
+    args = CodegenUtils::init_function_args(jit, *extern_function);
     codegen_done = true;
 }
 
@@ -243,6 +246,7 @@ void ExternInitBasicBlock::codegen(JIT *jit, bool no_insert) {
     assert(loop_idx);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
+    // TODO This needs to be a for loop!
     llvm::LoadInst *loaded_data = jit->get_builder().CreateLoad(data);
     llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
     std::vector<llvm::Value *> index;

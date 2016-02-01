@@ -31,7 +31,8 @@ void Pipeline::codegen(JIT &jit) {
 
 
     // these both reference the same function, but gives us two different sets of data
-    stages[0]->codegen();
+//    stages[0]->codegen();
+    stages[0]->base_codegen();
     MFunc *m_extern_wrapper = stages[0]->get_mfunction();
     llvm::Function *llvm_extern_wrapper = m_extern_wrapper->get_extern_wrapper();
 
@@ -85,7 +86,8 @@ void Pipeline::codegen(JIT &jit) {
 
     Stage *prev_block = stages[0];
     for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
-        (*iter)->codegen();
+//        (*iter)->codegen();
+        (*iter)->base_codegen();
         jit.get_builder().SetInsertPoint(wrapper_block);
 
         // alloc space for the result of the previous call

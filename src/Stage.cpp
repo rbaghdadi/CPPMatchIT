@@ -13,6 +13,7 @@ MFunc *Stage::get_mfunction() {
 }
 
 void Stage::set_function(MFunc *mfunction) {
+    loop = new ForLoop(jit, mfunction);
     this->mfunction = mfunction;
 }
 
@@ -24,21 +25,21 @@ mtype_code_t Stage::get_output_mtype_code() {
     return output_mtype_code;
 }
 
-LoopCounterBasicBlock *Stage::get_loop_counter_basic_block() {
-    return loop_counter_basic_block;
-}
+//LoopCounterBasicBlock *Stage::get_loop_counter_basic_block() {
+//    return loop_counter_basic_block;
+//}
 
 ReturnStructBasicBlock *Stage::get_return_struct_basic_block() {
     return return_struct_basic_block;
 }
-
-ForLoopConditionBasicBlock *Stage::get_for_loop_condition_basic_block() {
-    return for_loop_condition_basic_block;
-}
-
-ForLoopIncrementBasicBlock *Stage::get_for_loop_increment_basic_block() {
-    return for_loop_increment_basic_block;
-}
+//
+//ForLoopConditionBasicBlock *Stage::get_for_loop_condition_basic_block() {
+//    return for_loop_condition_basic_block;
+//}
+//
+//ForLoopIncrementBasicBlock *Stage::get_for_loop_increment_basic_block() {
+//    return for_loop_increment_basic_block;
+//}
 
 ForLoopEndBasicBlock *Stage::get_for_loop_end_basic_block() {
     return for_loop_end_basic_block;
