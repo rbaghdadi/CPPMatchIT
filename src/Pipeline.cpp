@@ -21,6 +21,8 @@ void Pipeline::simple_execute(JIT &jit, const void **data) {
 
 void Pipeline::codegen(JIT &jit) {
 
+    assert(!stages.empty());
+
     /*
      * Create the pipeline wrapper
      */
@@ -54,8 +56,6 @@ void Pipeline::codegen(JIT &jit) {
         llvm::Value *arg = iter;
         arg->setName("pipe_x" + std::to_string(iter_ctr++));
     }
-
-    jit.dump();
 
     /*
      * Prep the input data that will be fed into the first block
@@ -113,15 +113,18 @@ void Pipeline::codegen(JIT &jit) {
         // now call the next function
         std::vector<llvm::Value *> args;
         args.push_back(loaded_val);
-        if ((*iter)->get_mfunction()->get_associated_block().compare("ComparisonBlock") == 0) {
+        if ((*iter)->get_mfunction()->get_associated_block().compare("ComparisonStage") == 0) {
             args.push_back(loaded_val);
         }
         args.push_back(loaded_idx);
 
         call = jit.get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
+
         prev_block = (*iter);
     }
 
     jit.get_builder().CreateRet(nullptr);
+
+    m_extern_wrapper->verify_wrapper();
 
 }

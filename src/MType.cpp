@@ -90,6 +90,8 @@ llvm::Type *MPrimType::codegen() {
         return llvm::Type::getFloatTy(llvm::getGlobalContext());
     } else if (is_double_type()) {
         return llvm::Type::getDoubleTy(llvm::getGlobalContext());
+    } else {
+        return nullptr;
     }
 }
 

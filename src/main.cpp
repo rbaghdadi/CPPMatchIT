@@ -11,6 +11,7 @@
 #include "./TransformStage.h"
 #include "./MergeStages.h"
 #include "./FilterStage.h"
+#include "./ComparisonStage.h"
 
 // Basic structure of a program:
 // 1. User extends necessary block classes
@@ -25,9 +26,9 @@ typedef struct {
 } FileHash;
 
 typedef struct {
+    bool is_match;
     char *file_path1;
     char *file_path2;
-    bool is_match;
 } Comparison;
 
 /*
@@ -52,11 +53,11 @@ public:
     Filter(bool (*filter)(char*), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit) {}
 };
 
-//class HashCompare : public ComparisonBlock<FileHash *, Comparison *> {
-//public:
-//    HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
-//                std::vector<MType *> comparison_fields) : ComparisonBlock(compare, "compare", jit, filehash_fields, comparison_fields) {}
-//};
+class HashCompare : public ComparisonStage<FileHash *, Comparison *> {
+public:
+    HashCompare(Comparison *(*compare)(FileHash *, FileHash *), JIT *jit, std::vector<MType *> filehash_fields,
+                std::vector<MType *> comparison_fields) : ComparisonStage(compare, "compare", jit, filehash_fields, comparison_fields) {}
+};
 
 class StructCheck : public TransformStage<FileHash *, FileHash *> {
 public:
@@ -185,61 +186,49 @@ int main() {
     data.push_back(str2.c_str());
 
     /*
-     * Create blocks
+     * Create stages
      */
 
-//    // create the file jpg_filter
+    // file filters
     Filter jpg_filt(jpg_filter, "jpg_filter", &jit);
     Filter txt_filt(txt_filter, "txt_filter", &jit);
 
-    // fake transform
-//    IdentityTransform identity_xform(identity, &jit);
-//    identity_xform.codegen();
-
-    // create the transform
+    // transforms
     std::vector<MType *> filehash_field_types;
     MType *char_field = create_type<char *>();
     MType *uchar_field = create_type<unsigned char *>();
     filehash_field_types.push_back(char_field);
     filehash_field_types.push_back(uchar_field);
-
     Transform xform(transform, &jit, filehash_field_types);
-//    // create the comparison
-//    std::vector<MType *> comparison_field_types;
-//    MType *bool_field = create_type<bool *>();
-//    comparison_field_types.push_back(bool_field);
-//    comparison_field_types.push_back(char_field);
-//    comparison_field_types.push_back(char_field);
-//
-//    HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
-//    hcomp.codegen();
-//
-    StructCheck scheck(struct_check, &jit, filehash_field_types);
-//
-//    /*
-//     * Create pipeline and run
-//     */
-//
-//    // create the pipeline
-//    // TODO have the pipeline take in an initial data size so it's not hardcoded to be BUFFER_SIZE, and have it return
-//    // the final number of elements left when it is done processing. That way we can hook together a bunch of pipelines and such
-    Pipeline pipeline;
-//    pipeline.register_block(&identity_xform);
-//    pipeline.register_block(&txt_filt);
-//    pipeline.register_block(&identity_xform);
-//    pipeline.register_block(&xform);
-//    pipeline.register_block(&scheck);
-//    pipeline.register_block(&scheck);
-//    pipeline.register_block(&hcomp);
-//
 
-    ImpureStage merge1 = Opt::merge_stages_again(&jit, &txt_filt, &jpg_filt);
-    ImpureStage merge2 = Opt::merge_stages_again(&jit, &xform, &scheck);
-    pipeline.register_stage(&jpg_filt);
-    pipeline.register_stage(&txt_filt);
-    pipeline.register_stage(&merge1);
-    pipeline.register_stage(&merge2);
+    StructCheck scheck(struct_check, &jit, filehash_field_types);
+
+    // comparison
+    std::vector<MType *> comparison_field_types;
+    MType *bool_field = create_type<bool>();
+    comparison_field_types.push_back(bool_field);
+    comparison_field_types.push_back(char_field);
+    comparison_field_types.push_back(char_field);
+    HashCompare hcomp(compare, &jit, filehash_field_types, comparison_field_types);
+//    hcomp.codegen();
+
+    /*
+     * Create pipeline and run
+     */
+
+    // create the pipeline
+    // TODO have the pipeline take in an initial data size so it's not hardcoded to be BUFFER_SIZE, and have it return
+    // TODO the final number of elements left when it is done processing. That way we can hook together a bunch of pipelines and such
+    Pipeline pipeline;
+//    ImpureStage merge1 = Opt::merge_stages_again(&jit, &txt_filt, &txt_filt);
+//    ImpureStage merge2 = Opt::merge_stages_again(&jit, &xform, &scheck);
+//    pipeline.register_stage(&jpg_filt);
+//    pipeline.register_stage(&txt_filt);
+//    pipeline.register_stage(&merge1);
+//    pipeline.register_stage(&merge2);
+    pipeline.register_stage(&xform);
 //    pipeline.register_stage(&scheck);
+    pipeline.register_stage(&hcomp);
     pipeline.codegen(jit);
     jit.dump();
     jit.add_module();

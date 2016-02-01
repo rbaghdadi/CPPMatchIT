@@ -8,6 +8,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "./Stage.h"
 #include "./ImpureStage.h"
+#include "./InstructionBlock.h"
 
 using namespace CodegenUtils;
 
@@ -101,32 +102,12 @@ ImpureStage merge_stages_again(JIT *jit, Stage *stage1, Stage *stage2) {
     stage.get_extern_call2_basic_block()->set_extern_args(call2_input_args);
     stage.get_extern_call2_basic_block()->codegen(jit);
     stage.get_extern_call_basic_block()->override_data_to_return(stage.get_extern_call2_basic_block()->get_data_to_return());
-    stage.get_extern_call_basic_block()->get_data_to_return()->dump();
     stage2->postprocess(&stage, stage.get_extern_call2_basic_block()->get_basic_block(), extern_call_store_basic_block->get_basic_block());
     stage.get_extern_call2_basic_block()->override_data_to_return(stage.get_extern_call_basic_block()->get_data_to_return());
 
-//    llvm::BasicBlock *dummy = stage.get_dummy_block();
-//    dummy->insertInto(merged_func->get_extern_wrapper());
-//    jit->get_builder().CreateBr(dummy);
-//    stage1->postprocess(&stage, dummy, next_call);
-//    jit->get_builder().SetInsertPoint(next_call);
-
-    // the merging happens here
-    // now, create the call to stage 2's function with appropriate arguments (a.k.a the result of the previous call)
-//    std::vector<llvm::Value *> tmp_args;
-//    tmp_args.push_back(extern_call_basic_block->get_data_to_return());
-//    stage2->get_extern_call_basic_block()->set_function(merged_func->get_extern_wrapper());
-//    stage2->get_extern_call_basic_block()->set_extern_args(tmp_args);
-//    stage2->get_extern_call_basic_block()->set_extern_function(stage2->get_mfunction());
-//    stage2->get_extern_call_basic_block()->codegen(jit, true);
-//     TODO better way to do this? The block just shouldn't show up here
-//    stage2->get_extern_call_basic_block()->get_basic_block()->removeFromParent();
-//    stage2->postprocess(&stage, stage.get_extern_call2_basic_block()->get_basic_block(), extern_call_store_basic_block->get_basic_block());
-
-
+    // store the final result
     extern_call_store_basic_block->set_function(merged_func->get_extern_wrapper());
     extern_call_store_basic_block->set_mtype(merged_return_type);
-//    extern_call_store_basic_block->set_data_to_store(stage2->get_extern_call_basic_block()->get_data_to_return());
     extern_call_store_basic_block->set_data_to_store(stage.get_extern_call2_basic_block()->get_data_to_return());
     extern_call_store_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
     extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
