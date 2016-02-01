@@ -114,6 +114,7 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
     std::vector<llvm::Value *> idx;
     idx.push_back(loaded_idx);
     llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
+
     // if the user's extern function returns a pointer, we need to allocate space for that and then use a memcpyå
     if (ret_type->is_ptr_type()) {
         // TODO need to allocate the correct amount of space. How do I figure that out? What is the size of a user type? It could be a struct, which in that case would mean that it's 8 bytes, or if it's like a char array or something, it's the size of the array
@@ -126,6 +127,7 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
         // just copy it into the alloca space
         jit->get_builder().CreateStore(extern_call_res, idx_gep);
     }
+
     // increment the return idx
     llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
     llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);

@@ -233,11 +233,13 @@ int main() {
 //    pipeline.register_block(&hcomp);
 //
 
-    ImpureStage merge1 = Opt::merge_stages_again(&jit, &jpg_filt, &xform);
-//    pipeline.register_stage(&jpg_filt);
-//    pipeline.register_stage(&txt_filt);
+    ImpureStage merge1 = Opt::merge_stages_again(&jit, &txt_filt, &jpg_filt);
+    ImpureStage merge2 = Opt::merge_stages_again(&jit, &xform, &scheck);
+    pipeline.register_stage(&jpg_filt);
+    pipeline.register_stage(&txt_filt);
     pipeline.register_stage(&merge1);
-    pipeline.register_stage(&scheck);
+    pipeline.register_stage(&merge2);
+//    pipeline.register_stage(&scheck);
     pipeline.codegen(jit);
     jit.dump();
     jit.add_module();

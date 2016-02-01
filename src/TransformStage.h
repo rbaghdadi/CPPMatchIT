@@ -52,12 +52,13 @@ public:
         MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
         set_function(func);
         func->codegen_extern_proto();
+        func->codegen_extern_wrapper_proto();
     }
 
     ~TransformStage() { }
 
     void codegen() {
-        mfunction->codegen_extern_wrapper_proto();
+//        mfunction->codegen_extern_wrapper_proto();
         // initialize the function args
         extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
         extern_arg_prep_basic_block->set_extern_function(mfunction);
@@ -106,12 +107,12 @@ public:
         extern_call_basic_block->set_extern_args(sliced);
         extern_call_basic_block->codegen(jit);
 //        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
-        dummy_block->insertInto(mfunction->get_extern_wrapper());
-        jit->get_builder().CreateBr(dummy_block);
+//        dummy_block->insertInto(mfunction->get_extern_wrapper());
+//        jit->get_builder().CreateBr(dummy_block);
 //        jit->get_builder().SetInsertPoint(dummy_block);
 //        jit->get_builder().CreateBr(extern_call_store_basic_block->get_basic_block());
 //        jit->get_builder().SetInsertPoint(extern_call_basic_block->get_basic_block());
-        postprocess(this, dummy_block, extern_call_store_basic_block->get_basic_block());
+        postprocess(this, extern_call_basic_block->get_basic_block(), extern_call_store_basic_block->get_basic_block());
 
         // store the result
         extern_call_store_basic_block->set_function(mfunction->get_extern_wrapper());

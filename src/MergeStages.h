@@ -18,7 +18,7 @@ namespace Opt {
 ImpureStage merge_stages_again(JIT *jit, Stage *stage1, Stage *stage2) {
     // inputs just to the extern call, not the whole wrapper
     std::vector<MType *> extern_input_types = stage1->get_mfunction()->get_arg_types();
-    MType *merged_return_type = stage2->get_mfunction()->get_ret_type();
+    MType *merged_return_type = stage2->get_mfunction()->get_extern_wrapper_data_ret_type();//->get_ret_type();
 
     // create the merged function
     MFunc *merged_func = new MFunc(stage1->get_function_name() + "_" + stage2->get_function_name() + "_merged",
@@ -84,55 +84,50 @@ ImpureStage merge_stages_again(JIT *jit, Stage *stage1, Stage *stage2) {
     extern_init_basic_block->codegen(jit);
     jit->get_builder().CreateBr(extern_call_basic_block->get_basic_block());
 
-    // create the call
+    // create the call to the first stage's function
     extern_call_basic_block->set_function(merged_func->get_extern_wrapper());
     extern_call_basic_block->set_extern_function(stage1->get_mfunction());
-    std::vector<llvm::Value *> sliced;
-    sliced.push_back(extern_init_basic_block->get_element());
-    extern_call_basic_block->set_extern_args(sliced);
+    std::vector<llvm::Value *> call1_input_args;
+    call1_input_args.push_back(extern_init_basic_block->get_element());
+    extern_call_basic_block->set_extern_args(call1_input_args);
     extern_call_basic_block->codegen(jit);
+    stage1->postprocess(&stage, extern_call_basic_block->get_basic_block(), stage.get_extern_call2_basic_block()->get_basic_block());
 
-    llvm::BasicBlock *dummy = stage.get_dummy_block();//extern_call_basic_block->get_basic_block();
-    dummy->insertInto(merged_func->get_extern_wrapper());
-    jit->get_builder().CreateBr(dummy);
-    llvm::BasicBlock *next_call = llvm::BasicBlock::Create(llvm::getGlobalContext(), "next_call", merged_func->get_extern_wrapper());
-    stage1->postprocess(&stage, dummy, next_call);//extern_call_store_basic_block->get_basic_block());
-//    jit->get_builder().SetInsertPoint(dummy);
-//    llvm::Instruction *last_inst;
-//    for (llvm::BasicBlock::iterator iter = dummy->begin(); iter != dummy->end(); iter++) {
-//        last_inst = iter;
-//    }
-//    last_inst->dropAllReferences();
-//    last_inst->eraseFromParent();
+    // create the call to the second stage's function
+    stage.get_extern_call2_basic_block()->set_function(merged_func->get_extern_wrapper());
+    stage.get_extern_call2_basic_block()->set_extern_function(stage2->get_mfunction());
+    std::vector<llvm::Value *> call2_input_args;
+    call2_input_args.push_back(extern_call_basic_block->get_data_to_return());
+    stage.get_extern_call2_basic_block()->set_extern_args(call2_input_args);
+    stage.get_extern_call2_basic_block()->codegen(jit);
+    stage.get_extern_call_basic_block()->override_data_to_return(stage.get_extern_call2_basic_block()->get_data_to_return());
+    stage.get_extern_call_basic_block()->get_data_to_return()->dump();
+    stage2->postprocess(&stage, stage.get_extern_call2_basic_block()->get_basic_block(), extern_call_store_basic_block->get_basic_block());
+    stage.get_extern_call2_basic_block()->override_data_to_return(stage.get_extern_call_basic_block()->get_data_to_return());
 
-    // create a new block for our second call
-//    llvm::BasicBlock *next_call = llvm::BasicBlock::Create(llvm::getGlobalContext(), "next_call", merged_func->get_extern_wrapper());
-//    jit->get_builder().CreateBr(next_call);
-    jit->get_builder().SetInsertPoint(next_call);
+//    llvm::BasicBlock *dummy = stage.get_dummy_block();
+//    dummy->insertInto(merged_func->get_extern_wrapper());
+//    jit->get_builder().CreateBr(dummy);
+//    stage1->postprocess(&stage, dummy, next_call);
+//    jit->get_builder().SetInsertPoint(next_call);
 
     // the merging happens here
     // now, create the call to stage 2's function with appropriate arguments (a.k.a the result of the previous call)
-    std::vector<llvm::Value *> tmp_args;
-    tmp_args.push_back(extern_call_basic_block->get_data_to_return());
-    stage2->get_extern_call_basic_block()->set_function(merged_func->get_extern_wrapper());
-    stage2->get_extern_call_basic_block()->set_extern_args(tmp_args);
-    stage2->get_extern_call_basic_block()->set_extern_function(stage2->get_mfunction());
-    stage2->get_extern_call_basic_block()->codegen(jit, true);
+//    std::vector<llvm::Value *> tmp_args;
+//    tmp_args.push_back(extern_call_basic_block->get_data_to_return());
+//    stage2->get_extern_call_basic_block()->set_function(merged_func->get_extern_wrapper());
+//    stage2->get_extern_call_basic_block()->set_extern_args(tmp_args);
+//    stage2->get_extern_call_basic_block()->set_extern_function(stage2->get_mfunction());
+//    stage2->get_extern_call_basic_block()->codegen(jit, true);
+//     TODO better way to do this? The block just shouldn't show up here
+//    stage2->get_extern_call_basic_block()->get_basic_block()->removeFromParent();
+//    stage2->postprocess(&stage, stage.get_extern_call2_basic_block()->get_basic_block(), extern_call_store_basic_block->get_basic_block());
 
-    // TODO better way to do this? The block just shouldn't show up here
-    stage2->get_extern_call_basic_block()->get_basic_block()->removeFromParent();
-    stage2->postprocess(&stage, next_call, extern_call_store_basic_block->get_basic_block());
-//    llvm::Instruction *last_inst;
-//    for (llvm::BasicBlock::iterator iter = next_call->begin(); iter != next_call->end(); iter++) {
-//        last_inst = iter;
-//    }
-    // last inst is a branch instruction. replace instances of dummy with store
-//    last_inst->replaceUsesOfWith(dummy, extern_call_store_basic_block->get_basic_block());
 
     extern_call_store_basic_block->set_function(merged_func->get_extern_wrapper());
     extern_call_store_basic_block->set_mtype(merged_return_type);
-    extern_call_store_basic_block->set_data_to_store(
-            stage2->get_extern_call_basic_block()->get_data_to_return());//extern_call_basic_block->get_call_result());
+//    extern_call_store_basic_block->set_data_to_store(stage2->get_extern_call_basic_block()->get_data_to_return());
+    extern_call_store_basic_block->set_data_to_store(stage.get_extern_call2_basic_block()->get_data_to_return());
     extern_call_store_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
     extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
     extern_call_store_basic_block->codegen(jit);
@@ -143,8 +138,6 @@ ImpureStage merge_stages_again(JIT *jit, Stage *stage1, Stage *stage2) {
     for_loop_end_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
     for_loop_end_basic_block->set_return_idx(loop_counter_basic_block->get_return_idx());
     for_loop_end_basic_block->codegen(jit);
-
-    jit->dump();
 
     merged_func->verify_wrapper();
 

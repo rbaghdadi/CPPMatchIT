@@ -98,13 +98,14 @@ public:
         MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), arg_types, jit);
         set_function(func);
         func->codegen_extern_proto();
+        func->codegen_extern_wrapper_proto();
 
     }
 
     ~FilterStage() {}
 
     void codegen() {
-        mfunction->codegen_extern_wrapper_proto();
+//        mfunction->codegen_extern_wrapper_proto();
         // initialize the function args
         extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
         extern_arg_prep_basic_block->set_extern_function(mfunction);
@@ -154,9 +155,9 @@ public:
         extern_call_basic_block->codegen(jit);
 
         // determine if this input should be kept or not
-        dummy_block->insertInto(mfunction->get_extern_wrapper());
-        jit->get_builder().CreateBr(dummy_block);
-        postprocess(this, dummy_block, extern_call_store_basic_block->get_basic_block());
+//        dummy_block->insertInto(mfunction->get_extern_wrapper());
+//        jit->get_builder().CreateBr(dummy_block);
+        postprocess(this, extern_call_basic_block->get_basic_block(), extern_call_store_basic_block->get_basic_block());
 //        llvm::BasicBlock *postprocess = llvm::BasicBlock::Create(llvm::getGlobalContext(), "postprocess", mfunction->get_extern_wrapper());
 //        jit->get_builder().CreateBr(postprocess);
 //        jit->get_builder().SetInsertPoint(postprocess);
@@ -184,10 +185,10 @@ public:
     }
 
     void postprocess(Stage *stage, llvm::BasicBlock *branch_from, llvm::BasicBlock *branch_into) {
-        jit->get_builder().SetInsertPoint(branch_from);
-        llvm::BasicBlock *postprocess = llvm::BasicBlock::Create(llvm::getGlobalContext(), "postprocess", stage->get_mfunction()->get_extern_wrapper());
-        jit->get_builder().CreateBr(postprocess);
-        jit->get_builder().SetInsertPoint(postprocess);
+//        jit->get_builder().SetInsertPoint(branch_from);
+//        llvm::BasicBlock *postprocess = llvm::BasicBlock::Create(llvm::getGlobalContext(), "postprocess", stage->get_mfunction()->get_extern_wrapper());
+//        jit->get_builder().CreateBr(postprocess);
+//        jit->get_builder().SetInsertPoint(postprocess);
         llvm::LoadInst *load = jit->get_builder().CreateLoad(stage->get_extern_call_basic_block()->get_data_to_return());
         llvm::Value *cmp = jit->get_builder().CreateICmpEQ(load, llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm::getGlobalContext()), 0));
         stage->get_extern_call_basic_block()->override_data_to_return(stage->get_extern_init_basic_block()->get_element());
