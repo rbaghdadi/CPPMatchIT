@@ -13,6 +13,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/IRBuilder.h"
+#include "./Utils.h"
 
 typedef llvm::orc::ObjectLinkingLayer<> ObjLayer;
 typedef llvm::orc::IRCompileLayer<ObjLayer> CompileLayer;
@@ -62,7 +63,7 @@ public:
                                                                           llvm_intr_memcpy_args, false);
         module->getOrInsertFunction("llvm.memcpy.p0i8.p0i8.i32", llvm_intr_memcpy_ft);
 
-        // add in C functions that will be needed
+        // add in standard C functions that will be needed
         std::vector<llvm::Type *> c_malloc_args;
         c_malloc_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
         llvm::FunctionType *c_malloc_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
@@ -73,6 +74,10 @@ public:
         c_printf_args.push_back(llvm::PointerType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 8), 0));
         llvm::FunctionType *c_printf_ft = llvm::FunctionType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 32), c_printf_args, true);
         module->getOrInsertFunction("printf", c_printf_ft);
+
+        // add in some of my custom functions
+        llvm::FunctionType *print_sep_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), std::vector<llvm::Type *>(), false);
+        module->getOrInsertFunction("print_sep", print_sep_ft);
 
     }
 

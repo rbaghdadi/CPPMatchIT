@@ -37,18 +37,18 @@ public:
         assert(branch_to_false_condition);
         assert(mfunction);
 
-        loop_counter_basic_block->set_function(mfunction->get_extern_wrapper());
+        loop_counter_basic_block->set_function(mfunction);
         loop_counter_basic_block->set_max_bound(max_loop_bound);
         loop_counter_basic_block->codegen(jit);
         jit->get_builder().CreateBr(branch_to_after_counter);
 
-        for_loop_condition_basic_block->set_function(mfunction->get_extern_wrapper());
+        for_loop_condition_basic_block->set_function(mfunction);
         for_loop_condition_basic_block->set_max_bound(max_loop_bound); // TODO this is kind of repetitive with the loop counter since they both load it
         for_loop_condition_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
         for_loop_condition_basic_block->codegen(jit);
         jit->get_builder().CreateCondBr(for_loop_condition_basic_block->get_loop_comparison(), branch_to_true_condition, branch_to_false_condition);
 
-        for_loop_increment_basic_block->set_function(mfunction->get_extern_wrapper());
+        for_loop_increment_basic_block->set_function(mfunction);
         for_loop_increment_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
         for_loop_increment_basic_block->codegen(jit);
         jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());

@@ -9,7 +9,7 @@
 #include "./LLVM.h"
 #include "./Pipeline.h"
 #include "./TransformStage.h"
-//#include "./MergeStages.h"
+#include "./MergeStages.h"
 #include "./FilterStage.h"
 #include "./ComparisonStage.h"
 
@@ -171,19 +171,24 @@ int main() {
     // generate some data
     std::string str1 = "/Users/JRay/Desktop/IMG_1311.JPG";
     std::string str2 = "/Users/JRay/Desktop/notes.txt";
+    std::string str3 = "/Users/JRay/Desktop/64-ia-32-architectures-software-developer-instruction-set-reference-manual-325383.pdf";
 
     std::vector<const void *> data;
     data.push_back(str1.c_str());
     data.push_back(str1.c_str());
-    data.push_back(str1.c_str());
-    data.push_back(str1.c_str());
-    data.push_back(str1.c_str());
+//    data.push_back(str3.c_str());
     data.push_back(str1.c_str());
     data.push_back(str1.c_str());
     data.push_back(str1.c_str());
     data.push_back(str2.c_str());
-    data.push_back(str2.c_str());
-    data.push_back(str2.c_str());
+    data.push_back(str1.c_str());
+    data.push_back(str1.c_str());
+    data.push_back(str1.c_str());
+//    data.push_back(str2.c_str());
+//    data.push_back(str3.c_str());
+//    data.push_back(str2.c_str());
+//    data.push_back(str2.c_str());
+
 
     /*
      * Create stages
@@ -215,20 +220,25 @@ int main() {
      * Create pipeline and run
      */
 
+    Merge merged_jpg_filt_xform(&jit, &jpg_filt, &xform);
+    Merge merged_jpg_filt_txt_filt(&jit, &jpg_filt, &txt_filt);
+//    merged_jpg_filt_xform.base_codegen();
+
     // create the pipeline
     // TODO have the pipeline take in an initial data size so it's not hardcoded to be BUFFER_SIZE, and have it return
     // TODO the final number of elements left when it is done processing. That way we can hook together a bunch of pipelines and such
     Pipeline pipeline;
-//    ImpureStage merge1 = Opt::merge_stages_again(&jit, &txt_filt, &txt_filt);
-//    ImpureStage merge2 = Opt::merge_stages_again(&jit, &xform, &scheck);
     pipeline.register_stage(&jpg_filt);
 //    pipeline.register_stage(&txt_filt);
 //    pipeline.register_stage(&merge1);
 //    pipeline.register_stage(&merge2);
-    pipeline.register_stage(&xform);
+//    pipeline.register_stage(&xform);
+//    pipeline.register_stage(&scheck);
+    pipeline.register_stage(&merged_jpg_filt_txt_filt);
+    pipeline.register_stage(&merged_jpg_filt_xform);
     pipeline.register_stage(&scheck);
     pipeline.register_stage(&hcomp);
-    pipeline.codegen(jit);
+    pipeline.codegen(jit, data.size());
     jit.dump();
     jit.add_module();
     pipeline.simple_execute(jit, &(data[0]));

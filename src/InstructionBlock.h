@@ -14,6 +14,7 @@ protected:
 
     llvm::BasicBlock *bb;
     bool codegen_done = false;
+    MFunc *mfunction;
 
 public:
 
@@ -21,7 +22,11 @@ public:
 
     llvm::BasicBlock *get_basic_block();
 
-    void set_function(llvm::Function *func);
+    void set_function(MFunc *func);
+
+    MFunc *get_mfunction() {
+        return mfunction;
+    }
 
     virtual void codegen(JIT *jit, bool no_insert = false) = 0;
 

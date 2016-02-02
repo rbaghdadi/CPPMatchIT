@@ -19,7 +19,7 @@ void Pipeline::simple_execute(JIT &jit, const void **data) {
     jit.run("pipeline", data);
 }
 
-void Pipeline::codegen(JIT &jit) {
+void Pipeline::codegen(JIT &jit, size_t size) {
 
     assert(!stages.empty());
 
@@ -76,13 +76,17 @@ void Pipeline::codegen(JIT &jit) {
         llvm_func_args.push_back(load);
         iter_ctr++;
     }
-    llvm_func_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), BUFFER_SIZE));
+    llvm_func_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), size));
 
     /*
      * Create the block calls and chain them together
      */
 
+    jit.get_builder().CreateCall(jit.get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     llvm::Value *call = jit.get_builder().CreateCall(llvm_extern_wrapper, llvm_func_args);
+
+    // print a separator to make the output easier to parse
+    jit.get_builder().CreateCall(jit.get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
     Stage *prev_block = stages[0];
     for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
@@ -121,6 +125,7 @@ void Pipeline::codegen(JIT &jit) {
         args.push_back(loaded_idx);
 
         call = jit.get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
+        jit.get_builder().CreateCall(jit.get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
         prev_block = (*iter);
     }

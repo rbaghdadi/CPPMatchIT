@@ -13,8 +13,6 @@
 #include "./MType.h"
 #include "./JIT.h"
 
-#define BUFFER_SIZE 10
-
 class MFunc {
 
 private:
