@@ -113,16 +113,13 @@ public:
 
     void dump();
 
-    // Why do these have mangled in the name? We use extern that removes the name mangling
-    // our functions are externs, so they need to be mapped to their C++ name I guess
+    // Why do these have mangled in the name? I don't think they are doing name mangling in the C++ sense
     std::string mangle(const std::string &name);
 
     llvm::orc::JITSymbol find_mangled_name(const std::string name);
 
     // once adding a module, you need to create a new one
     void add_module(std::string jit_name = "jit");
-
-    void add_module(llvm::Module *mod);
 
     void run(const std::string func_to_run, const void **data);
 

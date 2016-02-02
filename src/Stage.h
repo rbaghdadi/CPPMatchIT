@@ -46,18 +46,18 @@ public:
     }
 
     virtual ~Stage() {
-        delete return_struct_basic_block;
-        delete for_loop_end_basic_block;
-        delete extern_init_basic_block;
-        delete extern_arg_prep_basic_block;
-        delete extern_call_basic_block;
-        delete extern_call_store_basic_block;
-//        if (loop) {
-//            delete loop;
+//        delete return_struct_basic_block;
+//        delete for_loop_end_basic_block;
+//        delete extern_init_basic_block;
+//        delete extern_arg_prep_basic_block;
+//        delete extern_call_basic_block;
+//        delete extern_call_store_basic_block;
+////        if (loop) {
+////            delete loop;
+////        }
+//        if (mfunction) {
+//            delete mfunction;
 //        }
-        if (mfunction) {
-            delete mfunction;
-        }
     }
 
     std::string get_function_name();
@@ -69,13 +69,15 @@ public:
     virtual void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
                                         ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) = 0;
 
+    virtual llvm::BasicBlock *branch_to_after_store();
+
     virtual void base_codegen();
 
-//    virtual void get_element_size_in_bytes(T element) = 0;
+//    virtual void get_input_element_size_in_bytes() = 0;
+//
+//    virtual void get_output_element_size_in_bytes() = 0;
 
-    void set_for_loop(ForLoop *loop) {
-        this->loop = loop;
-    }
+    void set_for_loop(ForLoop *loop);
 
     mtype_code_t get_input_mtype_code();
 

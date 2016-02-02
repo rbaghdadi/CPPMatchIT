@@ -120,7 +120,9 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
     if (ret_type->is_ptr_type()) {
         // TODO need to allocate the correct amount of space. How do I figure that out? What is the size of a user type? It could be a struct, which in that case would mean that it's 8 bytes, or if it's like a char array or something, it's the size of the array
         // Could set a sizeof type operator, call it, then put that size in here
-        llvm::Value *malloc_space = codegen_c_malloc_and_cast(jit, ret_type->get_bits() * 50, ret_type->codegen());
+        unsigned int num_bits;
+
+        llvm::Value *malloc_space = codegen_c_malloc_and_cast(jit, ret_type->get_bits() * 256, ret_type->codegen());
         jit->get_builder().CreateStore(malloc_space, idx_gep);
         llvm::LoadInst *loaded_element = jit->get_builder().CreateLoad(idx_gep);
         llvm::LoadInst *loaded_src = jit->get_builder().CreateLoad(extern_call_res);

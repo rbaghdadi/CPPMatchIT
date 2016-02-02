@@ -88,28 +88,28 @@ void JIT::add_module(std::string jit_name) {
     module->setDataLayout((*target_machine).createDataLayout());
 }
 
-void JIT::add_module(llvm::Module *mod) {
-//    llvm::orc::makeAllSymbolsExternallyAccessible(*mod);
-    auto resolver = llvm::orc::createLambdaResolver(
-            [&](const std::string &name) {
-                if (auto sym = find_mangled_name(name)) {
-                    return llvm::RuntimeDyld::SymbolInfo(sym.getAddress(), sym.getFlags());
-                }
-            },
-            [](const std::string &s) {
-                return nullptr;
-            });
-
-    // allocate memory for the symbol (make a handle)
-    auto allocator = compile_layer.addModuleSet(JIT::singleton(std::move(mod)),
-                                                llvm::make_unique<llvm::SectionMemoryManager>(),
-                                                std::move(resolver));
-
-    module_handles.push_back(allocator);
-    // make a new module
-//    module = llvm::make_unique<llvm::Module>(jit_name, llvm::getGlobalContext());
-//    module->setDataLayout((*target_machine).createDataLayout());
-}
+//void JIT::add_module(llvm::Module *mod) {
+////    llvm::orc::makeAllSymbolsExternallyAccessible(*mod);
+//    auto resolver = llvm::orc::createLambdaResolver(
+//            [&](const std::string &name) {
+//                if (auto sym = find_mangled_name(name)) {
+//                    return llvm::RuntimeDyld::SymbolInfo(sym.getAddress(), sym.getFlags());
+//                }
+//            },
+//            [](const std::string &s) {
+//                return nullptr;
+//            });
+//
+//    // allocate memory for the symbol (make a handle)
+//    auto allocator = compile_layer.addModuleSet(JIT::singleton(std::move(mod)),
+//                                                llvm::make_unique<llvm::SectionMemoryManager>(),
+//                                                std::move(resolver));
+//
+//    module_handles.push_back(allocator);
+//    // make a new module
+////    module = llvm::make_unique<llvm::Module>(jit_name, llvm::getGlobalContext());
+////    module->setDataLayout((*target_machine).createDataLayout());
+//}
 
 // TODO need to customize this return type, or maybe make a global wrapper that takes no inputs and returns void
 void JIT::run(const std::string func_to_run, const void ** data) {

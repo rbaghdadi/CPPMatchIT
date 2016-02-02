@@ -69,8 +69,8 @@ void ReturnStructBasicBlock::set_extern_function(MFunc *extern_function) {
     this->extern_function = extern_function;
 }
 
-void ReturnStructBasicBlock::set_max_num_ret_elements(llvm::AllocaInst *loop_bound) {
-    this->max_num_ret_elements = loop_bound;
+void ReturnStructBasicBlock::set_max_num_ret_elements(llvm::AllocaInst *max_num_ret_elements) {
+    this->max_num_ret_elements = max_num_ret_elements;
 }
 
 void ReturnStructBasicBlock::codegen(JIT *jit, bool no_insert) {

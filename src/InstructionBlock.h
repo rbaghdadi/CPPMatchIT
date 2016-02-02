@@ -89,7 +89,7 @@ public:
 
     void set_extern_function(MFunc *extern_function);
 
-    void set_max_num_ret_elements(llvm::AllocaInst *loop_bound);
+    void set_max_num_ret_elements(llvm::AllocaInst *max_num_ret_elements);
 
     void codegen(JIT *jit, bool no_insert = false);
 

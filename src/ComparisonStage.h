@@ -21,11 +21,11 @@ private:
     std::vector<MType *> input_struct_fields;
     std::vector<MType *> output_struct_fields;
     O (*compare)(I,I);
-
-    LoopCounterBasicBlock *loop_counter_basic_block_inner;
-    ForLoopConditionBasicBlock *for_loop_condition_basic_block_inner;
-    ForLoopIncrementBasicBlock *for_loop_increment_basic_block_inner;
-    ExternInitBasicBlock *extern_init_basic_block_inner;
+    ForLoop *inner_loop;
+//    LoopCounterBasicBlock *loop_counter_basic_block_inner;
+//    ForLoopConditionBasicBlock *for_loop_condition_basic_block_inner;
+//    ForLoopIncrementBasicBlock *for_loop_increment_basic_block_inner;
+//    ExternInitBasicBlock *extern_init_basic_block_inner;
 
 public:
 
@@ -33,10 +33,10 @@ public:
                     std::vector<MType *> output_struct_fields = std::vector<MType *>()) :
             Stage(jit, mtype_of<I>(), mtype_of<O>(), compare_name), input_struct_fields(input_struct_fields),
             output_struct_fields(output_struct_fields), compare(compare) {
-        loop_counter_basic_block_inner = new LoopCounterBasicBlock();
-        for_loop_condition_basic_block_inner = new ForLoopConditionBasicBlock();
-        for_loop_increment_basic_block_inner = new ForLoopIncrementBasicBlock();
-        extern_init_basic_block_inner = new ExternInitBasicBlock();
+//        loop_counter_basic_block_inner = new LoopCounterBasicBlock();
+//        for_loop_condition_basic_block_inner = new ForLoopConditionBasicBlock();
+//        for_loop_increment_basic_block_inner = new ForLoopIncrementBasicBlock();
+//        extern_init_basic_block_inner = new ExternInitBasicBlock();
 
         MType *ret_type;
         // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
@@ -67,21 +67,25 @@ public:
         func->codegen_extern_wrapper_proto();
     }
 
-    ~ComparisonStage() { }
+    ~ComparisonStage() {
+//        if (inner_loop) {
+//            delete inner_loop;
+//        }
+    }
 
     ComparisonStage(const ComparisonStage &that) : Stage(that) {
         input_struct_fields = std::vector<MType *>(that.input_struct_fields);
         output_struct_fields = std::vector<MType *>(that.output_struct_fields);
         compare = that.compare;
-        loop_counter_basic_block_inner = new LoopCounterBasicBlock();
-        for_loop_condition_basic_block_inner = new ForLoopConditionBasicBlock();
-        for_loop_increment_basic_block_inner = new ForLoopIncrementBasicBlock();
-        extern_init_basic_block_inner = new ExternInitBasicBlock();
+//        loop_counter_basic_block_inner = new LoopCounterBasicBlock();
+//        for_loop_condition_basic_block_inner = new ForLoopConditionBasicBlock();
+//        for_loop_increment_basic_block_inner = new ForLoopIncrementBasicBlock();
+//        extern_init_basic_block_inner = new ExternInitBasicBlock();
     }
 
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
                                     ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
-        ForLoop *inner_loop = new ForLoop(jit, mfunction);
+        inner_loop = new ForLoop(jit, mfunction);
 
         // build the body
         eibb->set_loop_idx(loop_idx);//loop->get_loop_counter_basic_block()->get_loop_idx());
@@ -114,9 +118,13 @@ public:
         jit->get_builder().CreateBr(branch_to);
 
         // cleanup
-        delete inner_loop;
-        delete inner_eibb;
+//        delete inner_eibb;
     }
+
+    virtual llvm::BasicBlock *branch_to_after_store() {
+        return inner_loop->get_for_loop_increment_basic_block()->get_basic_block();
+    }
+
 };
 
 

@@ -2,7 +2,7 @@
 // Created by Jessica Ray on 1/28/16.
 //
 
-#include "Stage.h"
+#include "./Stage.h"
 
 std::string Stage::get_function_name() {
     return function_name;
@@ -15,6 +15,10 @@ MFunc *Stage::get_mfunction() {
 void Stage::set_function(MFunc *mfunction) {
     loop = new ForLoop(jit, mfunction);
     this->mfunction = mfunction;
+}
+
+void Stage::set_for_loop(ForLoop *loop) {
+    this->loop = loop;
 }
 
 mtype_code_t Stage::get_input_mtype_code() {
@@ -49,6 +53,11 @@ ExternCallStoreBasicBlock *Stage::get_extern_call_store_basic_block() {
     return extern_call_store_basic_block;
 }
 
+llvm::BasicBlock *Stage::branch_to_after_store() {
+    return loop->get_for_loop_increment_basic_block()->get_basic_block();
+}
+
+
 void Stage::base_codegen() {
     // initialize the function args
     extern_arg_prep_basic_block->set_function(mfunction);
@@ -66,10 +75,11 @@ void Stage::base_codegen() {
     // allocate space for the return structure
     return_struct_basic_block->set_function(mfunction);
     return_struct_basic_block->set_extern_function(mfunction);
-    if (mfunction->get_associated_block() == "ComparisonBlock") {
+    if (mfunction->get_associated_block() == "ComparisonStage") {
+        jit->get_builder().SetInsertPoint(return_struct_basic_block->get_basic_block());
         // output size is N^2 where N is the loop bound
-        llvm::Value *mult = jit->get_builder().CreateMul(loop->get_loop_counter_basic_block()->get_loop_bound(),
-                                                         loop->get_loop_counter_basic_block()->get_loop_bound());
+        llvm::LoadInst *loop_bound = jit->get_builder().CreateLoad(loop->get_loop_counter_basic_block()->get_loop_bound());
+        llvm::Value *mult = jit->get_builder().CreateMul(loop_bound, loop_bound);
         llvm::AllocaInst *mult_alloc = jit->get_builder().CreateAlloca(mult->getType());
         jit->get_builder().CreateStore(mult, mult_alloc)->setAlignment(8);
         return_struct_basic_block->set_max_num_ret_elements(mult_alloc);
@@ -93,7 +103,7 @@ void Stage::base_codegen() {
     extern_call_store_basic_block->set_return_idx(loop->get_loop_counter_basic_block()->get_return_idx());
     extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
     extern_call_store_basic_block->codegen(jit);
-    jit->get_builder().CreateBr(loop->get_for_loop_increment_basic_block()->get_basic_block());
+    jit->get_builder().CreateBr(branch_to_after_store());
 
     // return the data
     for_loop_end_basic_block->set_function(mfunction);
