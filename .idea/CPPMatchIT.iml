@@ -9,14 +9,16 @@
       <sourceFolder url="file://$MODULE_DIR$/src/MFunc.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/MType.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/JIT.h" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src/MType.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/CompositeTypes.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/ComparisonStage.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/JIT.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/FilterStage.cpp" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/ForLoop.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/MType.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/MFunc.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/Pipeline.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/Utils.h" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src/ForLoop.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/CompositeTypes.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/LLVM.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/LLVM.h" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/CodegenUtils.cpp" isTestSource="false" />
@@ -31,6 +33,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/Pipeline.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/apps/file_dups/main.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/apps/file_dups/Stages.h" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/apps/file_dups/Stages.cpp" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/CMakeLists.txt" isTestSource="false" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />

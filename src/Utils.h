@@ -13,6 +13,11 @@ T last(std::vector<T> vec) {
     return vec[vec.size() - 1];
 }
 
+template <typename T>
+T* as_array(std::vector<T> *vec) {
+    return &((*vec)[0]);
+}
+
 extern "C" void print_sep();
 //
 //template <typename T>

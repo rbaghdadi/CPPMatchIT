@@ -50,7 +50,7 @@ public:
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
                                     ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
         // build the body
-        eibb->set_loop_idx(loop_idx);//loop->get_loop_counter_basic_block()->get_loop_idx());
+        eibb->set_loop_idx(loop_idx);
         eibb->set_data(args[0]);
         eibb->codegen(jit);
         jit->get_builder().CreateBr(ecbb->get_basic_block());

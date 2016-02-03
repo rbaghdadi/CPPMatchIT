@@ -14,8 +14,7 @@ class MPrimType;
 class MStructType;
 class MPointerType;
 
-// eventually we would need all of the standard types...I think
-// TODO unsigned types? I don't think LLVM differentiates between the two
+
 typedef enum {
     mtype_null, // just for initial construction. not used for any actual type
     mtype_void,
@@ -96,6 +95,13 @@ struct mtype_of<double> {
     }
 };
 
+//template <typename T>
+//struct mtype_of<std::vector<T>> {
+//    operator mtype_code_t() {
+//        return mtype_vec;
+//    }
+//};
+
 // MType
 
 // TODO I probably don't need to create a new instance of this each time I use it because it all kind of stays the same
@@ -104,10 +110,6 @@ class MType {
 protected:
     mtype_code_t type_code;
     unsigned int bits;
-
-//    static const std::map<mtype_code_t, unsigned int> bits_map = {{mtype_void,0}, {mtype_char,8}, {mtype_short,16},
-//                                                            {mtype_int, 32}, {mtype_long, 64}, {mtype_float,32},
-//                                                            {mtype_double,64}, {mtype_struct, 0}};
 
     MType(mtype_code_t type_code) : type_code(type_code) {
         switch (type_code) {
@@ -252,7 +254,6 @@ public:
     MPointerType() {}
 
     // this is bits of the pointer_type_code
-//    MPointerType(MType *pointer_type) : MType(pointer_type->get_type_code(), 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
     MPointerType(MType *pointer_type) : MType(mtype_ptr, 64), pointer_type(pointer_type) { } // TODO 64 is platform specific
 
     ~MPointerType() {}
@@ -260,6 +261,7 @@ public:
     unsigned int get_alignment();
 
     llvm::Type *codegen();
+
 
 //    llvm::Type *codegen_constant_array();
 
@@ -273,93 +275,191 @@ public:
 
 namespace {
 
-    template <typename T>
-    struct create_type;
+template <typename T>
+struct create_type;
 
-    template <>
-    struct create_type<bool> {
-        operator MType*() {
-            return MType::bool_type;
-        }
-    };
-
-    template <>
-    struct create_type<char> {
-        operator MType*() {
-            return MType::char_type;
-        }
-    };
-
-    template <>
-    struct create_type<unsigned char> {
-        operator MType*() {
-            return MType::char_type;
-        }
-    };
-
-    template <>
-    struct create_type<short> {
-        operator MType*() {
-            return MType::short_type;
-        }
-    };
-
-    template <>
-    struct create_type<int> {
-        operator MType*() {
-            return MType::int_type;
-        }
-    };
-
-    template <>
-    struct create_type<long> {
-        operator MType*() {
-            return MType::long_type;
-        }
-    };
-
-    template <>
-    struct create_type<float> {
-        operator MType*() {
-            return MType::float_type;
-        }
-    };
-
-    template <>
-    struct create_type<double> {
-        operator MType*() {
-            return MType::double_type;
-        }
-    };
-
-    // a user type. needs to be a struct for now (class maybe works?)
-    template <typename T>
-    struct create_type {
-        operator MType*() {
-            std::cerr << "MType.h: Shouldn't be in here (create_type for typename T)!" << std::endl;
-            exit(1);
-
-        }
-    };
-
-    // TODO don't use new unless I can make sure I delete it
-    template <typename T>
-    struct create_type<T *> {
-        operator MPointerType*() {
-            MPointerType *ptr = new MPointerType(create_type<T>());
-            return ptr;
-        }
-    };
-
-    MStructType *create_struct_type(std::vector<MType *> field_types) {
-        return new MStructType(mtype_struct, field_types);
+template <>
+struct create_type<bool> {
+    operator MType*() {
+        return MType::bool_type;
     }
+};
 
-    MPointerType *create_struct_reference_type(std::vector<MType *> field_types) {
-        return new MPointerType(create_struct_type(field_types));
+template <>
+struct create_type<char> {
+    operator MType*() {
+        return MType::char_type;
     }
+};
 
+template <>
+struct create_type<unsigned char> {
+    operator MType*() {
+        return MType::char_type;
+    }
+};
+
+template <>
+struct create_type<short> {
+    operator MType*() {
+        return MType::short_type;
+    }
+};
+
+template <>
+struct create_type<int> {
+    operator MType*() {
+        return MType::int_type;
+    }
+};
+
+template <>
+struct create_type<size_t> {
+    operator MType*() {
+        return MType::int_type;
+    }
+};
+
+
+template <>
+struct create_type<long> {
+    operator MType*() {
+        return MType::long_type;
+    }
+};
+
+template <>
+struct create_type<float> {
+    operator MType*() {
+        return MType::float_type;
+    }
+};
+
+template <>
+struct create_type<double> {
+    operator MType*() {
+        return MType::double_type;
+    }
+};
+
+// a user type. needs to be a struct for now (class maybe works?)
+template <typename T>
+struct create_type {
+    operator MType*() {
+        std::cerr << "MType.h: Shouldn't be in here (create_type for typename T)!" << std::endl;
+        exit(1);
+
+    }
+};
+
+// TODO need a delete somewhere for all of these
+template <typename T>
+struct create_type<T *> {
+    operator MPointerType*() {
+        MPointerType *ptr = new MPointerType(create_type<T>());
+        return ptr;
+    }
+};
+
+//template <typename T>
+//struct create_type<BaseElement *> {
+//    operator MPointerType*() {
+//        MPointerType *ptr = new MPointerType(create_type<T>());
+//        return ptr;
+//    }
+//};
+
+//template <typename T>
+//struct create_type<mvecptr<T> > {
+//    operator MPointerType*() {
+//        MPointerType *ptr = new MPointerType(create_type<T>());
+//        return ptr;
+//    }
+//};
+
+MStructType *create_struct_type(std::vector<MType *> field_types) {
+    return new MStructType(mtype_struct, field_types);
 }
 
+MPointerType *create_struct_reference_type(std::vector<MType *> field_types) {
+    return new MPointerType(create_struct_type(field_types));
+}
+}
+
+/*
+ * the struct here would be something like
+ * struct S {
+ *  size_t *field_sizes; // this are the field sizes of the fields in the struct
+ *  struct X x;
+ * }
+ *
+ * and we would return S* from functions
+ */
+template <typename T>
+MPointerType *create_mvecptr_type(std::vector<MType *> user_field_types) {
+    MStructType *inner = create_struct_type(user_field_types);
+    std::vector<MType *> fields;
+    MType *int_ptr_type = create_type<int *>();
+    fields.push_back(int_ptr_type);
+    fields.push_back(inner);
+    return create_struct_reference_type(fields); // the outermost
+}
+
+/*
+ * the struct here would be something like
+ * struct S {
+ *  size_t *field_sizes; // this are the field sizes of the fields in the struct
+ *  X x;
+ * }
+ *
+ * and we would return S* from functions
+ */
+template <typename T>
+MPointerType *create_mvecptr_type() {
+    std::vector<MType *> fields;
+    MType *int_ptr_type = create_type<int *>();
+    MType *user_type = create_type<T>();
+    fields.push_back(int_ptr_type);
+    fields.push_back(user_type);
+    return create_struct_reference_type(fields); // the outermost
+}
+
+/*
+ * the struct here would be something like
+ * struct S {
+ *  size_t *field_sizes;
+ *  struct X *x;
+ * }
+ *
+ * and we would return S* from functions
+ */
+template <typename T>
+MPointerType *create_mvecptr_ref_type(std::vector<MType *> user_field_types) {
+    MPointerType *inner = create_struct_reference_type(user_field_types);
+    std::vector<MType *> fields;
+    MType *int_ptr_type = create_type<int *>();
+    fields.push_back(int_ptr_type);
+    fields.push_back(inner);
+    return create_struct_reference_type(fields); // the outermost
+}
+
+/*
+ * the struct here would be something like
+ * struct S {
+ *  size_t *field_sizes;
+ *  X *x;
+ * }
+ *
+ * and we would return S* from functions
+ */
+template <typename T>
+MPointerType *create_mvecptr_ref_type() {
+    std::vector<MType *> fields;
+    MType *int_ptr_type = create_type<int *>();
+    MType *user_type = create_type<T>();
+    fields.push_back(int_ptr_type);
+    fields.push_back(user_type);
+    return create_struct_reference_type(fields); // the outermost
+}
 
 #endif //MATCHIT_MTYPE_H

@@ -68,9 +68,9 @@ public:
     }
 
     ~ComparisonStage() {
-//        if (inner_loop) {
-//            delete inner_loop;
-//        }
+        if (inner_loop) {
+            delete inner_loop;
+        }
     }
 
     ComparisonStage(const ComparisonStage &that) : Stage(that) {
@@ -118,7 +118,7 @@ public:
         jit->get_builder().CreateBr(branch_to);
 
         // cleanup
-//        delete inner_eibb;
+        delete inner_eibb;
     }
 
     virtual llvm::BasicBlock *branch_to_after_store() {

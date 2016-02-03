@@ -7,7 +7,6 @@
 
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "./Stage.h"
-#include "./ImpureStage.h"
 #include "./InstructionBlock.h"
 
 using namespace CodegenUtils;
