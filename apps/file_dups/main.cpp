@@ -47,10 +47,17 @@ int main(int ac, char **av) {
         files.push_back(mfile);
     }
 
-//     Now I have my File objects
+    // Now I have my File objects
     Transform xform(transform, &jit);
+    Filter filt(llvm_filter, "llvm_filter", &jit);
+    HashCompare comp(compare, &jit);
+    CompFilter discard(match_filter, "match_filter", &jit);
+
     Pipeline pipeline;
+    pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
+    pipeline.register_stage(&comp);
+    pipeline.register_stage(&discard);
     pipeline.codegen(&jit, files.size());
     jit.dump();
     jit.add_module();

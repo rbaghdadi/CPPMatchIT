@@ -9,28 +9,73 @@
 #include <vector>
 #include "openssl/md5.h"
 #include "../../src/CompositeTypes.h"
-//#include "../../src/ComparisonStage.h"
-//#include "../../src/FilterStage.h"
-//#include "../../src/MType.h"
+#include "../../src/ComparisonStage.h"
+#include "../../src/FilterStage.h"
 #include "../../src/TransformStage.h"
 
+/*
+ * Transforms
+ */
 
 class IdentityTransform : public TransformStage<File *, File *> {
+
 public:
+
     IdentityTransform(File *(*transform)(File *), JIT *jit, std::vector<MType *> fields) :
             TransformStage(transform, "identity", jit, fields, fields) {}
+
 };
 
 extern "C" File *identity(File *file);
 
-
 class Transform : public TransformStage<File *, Element<unsigned char> *> {
+
 public:
+
     // TODO this isn't very nice for the user to have to write
     Transform(Element<unsigned char> *(*transform)(File *), JIT *jit) : TransformStage(transform, "transform", jit) {}
+
 };
 
 extern "C" Element<unsigned char> *transform(File *file);
+
+/*
+ * Filters
+ */
+
+class Filter : public FilterStage<File *> {
+
+public:
+
+    Filter(bool (*filter)(File *), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit) {}
+
+};
+
+extern "C" bool llvm_filter(File *file_path);
+
+class CompFilter : public FilterStage<ComparisonElement<unsigned char> *> {
+public:
+    CompFilter(bool (*filter)(ComparisonElement<unsigned char> *), std::string transform_name, JIT *jit) :
+            FilterStage(filter, transform_name, jit) {}
+};
+
+extern "C" bool match_filter(ComparisonElement<unsigned char> *comparison);
+
+/*
+ * Comparators
+ */
+
+class HashCompare : public ComparisonStage<Element<unsigned char> *, ComparisonElement<unsigned char> *> {
+public:
+    HashCompare(ComparisonElement<unsigned char> *(*compare)(Element<unsigned char> *, Element<unsigned char> *), JIT *jit) :
+            ComparisonStage(compare, "compare", jit) {}
+};
+
+extern "C" ComparisonElement<unsigned char> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2);
+
+
+
+
 
 //
 ///*

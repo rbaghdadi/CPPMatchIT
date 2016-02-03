@@ -38,25 +38,25 @@ public:
 //        for_loop_increment_basic_block_inner = new ForLoopIncrementBasicBlock();
 //        extern_init_basic_block_inner = new ExternInitBasicBlock();
 
-        MType *ret_type;
+        MType *ret_type = create_type<O>();
         // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
-        if (output_mtype_code == mtype_ptr && !output_struct_fields.empty()) {
-            ret_type = create_struct_reference_type(output_struct_fields);
-        } else if (output_mtype_code != mtype_struct) {
-            ret_type = create_type<O>();
-        } else {
-            ret_type = create_struct_type(output_struct_fields);
-        }
+//        if (output_mtype_code == mtype_ptr && !output_struct_fields.empty()) {
+//            ret_type = create_struct_reference_type(output_struct_fields);
+//        } else if (output_mtype_code != mtype_struct) {
+//            ret_type = create_type<O>();
+//        } else {
+//            ret_type = create_struct_type(output_struct_fields);
+//        }
 
-        MType *arg_type;
-        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
-        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
-            arg_type = create_struct_reference_type(input_struct_fields);
-        } else if (input_mtype_code != mtype_struct) {
-            arg_type = create_type<I>();
-        } else {
-            arg_type = create_struct_type(input_struct_fields);
-        }
+        MType *arg_type = create_type<I>();
+//        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
+//        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
+//            arg_type = create_struct_reference_type(input_struct_fields);
+//        } else if (input_mtype_code != mtype_struct) {
+//            arg_type = create_type<I>();
+//        } else {
+//            arg_type = create_struct_type(input_struct_fields);
+//        }
 
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);

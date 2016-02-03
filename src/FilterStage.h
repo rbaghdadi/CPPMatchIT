@@ -23,15 +23,15 @@ public:
 
     FilterStage(bool (*filter)(I), std::string filter_name, JIT *jit, std::vector<MType *> input_struct_fields = std::vector<MType *>()) :
             Stage(jit, mtype_of<I>(), mtype_bool, filter_name), input_struct_fields(input_struct_fields), filter(filter) {
-        MType *arg_type;
-        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
-        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
-            arg_type = create_struct_reference_type(input_struct_fields);
-        } else if (input_mtype_code != mtype_struct) {
-            arg_type = create_type<I>();
-        } else {
-            arg_type = create_struct_type(input_struct_fields);
-        }
+        MType *arg_type = create_type<I>();
+//        // TODO OH MY GOD THIS IS A PAINFUL HACK. The types need to be seriously revamped
+//        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
+//            arg_type = create_struct_reference_type(input_struct_fields);
+//        } else if (input_mtype_code != mtype_struct) {
+//            arg_type = create_type<I>();
+//        } else {
+//            arg_type = create_struct_type(input_struct_fields);
+//        }
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), arg_types, jit);

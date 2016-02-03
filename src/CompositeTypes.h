@@ -52,6 +52,7 @@ public:
         data[cur_idx++] = element;
     }
 
+    // TODO use a memcpy instead
     void add(const T* elements, int num_elements) {
         if (!data) {
             mmalloc(num_elements);
@@ -114,27 +115,29 @@ struct Element : BaseElement {
 
 template <typename T>
 struct SegmentedElement : BaseElement {
-    MArray<char> filepath;
-    MArray<T> data;
+    MArray<char> *filepath;
+    MArray<T> *data;
     unsigned int offset;
 };
 
 template <typename T>
 struct ComparisonElement : BaseElement {
-    MArray<char> filepath1;
-    MArray<char> filepath2;
-    MArray<T> data1;
-    MArray<T> data2;
+    MArray<char> *filepath1;
+    MArray<char> *filepath2;
+    MArray<T> *data1;
+    MArray<T> *data2;
+    bool is_match;
 };
 
 template <typename T>
 struct SegmentedComparisonElement : BaseElement {
-    MArray<char> filepath1;
-    MArray<char> filepath2;
-    MArray<T> data1;
-    MArray<T> data2;
-    unsigned int offset1;
-    unsigned int offset2;
+    MArray<char> *filepath1;
+    MArray<char> *filepath2;
+    MArray<T> *data1;
+    MArray<T> *data2;
+    unsigned int *offset1;
+    unsigned int *offset2;
+    bool is_match;
 };
 
 /*
@@ -164,6 +167,7 @@ struct BucketedComparisonElement : BaseElement {
     MArray<T> data2;
     int bucket1;
     int bucket2;
+    bool is_match;
 };
 
 template <typename T>
@@ -176,28 +180,23 @@ struct BucketedSegmentedComparisonElement : BaseElement {
     unsigned int offset2;
     int bucket1;
     int bucket2;
+    bool is_match;
 };
-//
-///*
-// * Initial input type
-// */
-////struct Input {
-////    MArray<File> inputs;
-////};
-//
-
-
 
 // TODO need a delete somewhere for all of these
 template <typename T>
 struct create_type<Element<T> *> {
     operator MPointerType*() {
-        std::vector<MType *> marray_char_field_types;
-        std::vector<MType *> marray_user_field_types;
-        std::vector<MType *> element_field_types;
         MType *user_type = create_type<T *>();
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
+        // types in the filepath marray class
+        std::vector<MType *> marray_char_field_types;
+        // types in the user data marray class
+        std::vector<MType *> marray_user_field_types;
+        // types in the Element struct
+        std::vector<MType *> element_field_types;
+        // add the fields
         marray_char_field_types.push_back(char_field);
         marray_char_field_types.push_back(int_field);
         marray_char_field_types.push_back(int_field);
@@ -206,6 +205,39 @@ struct create_type<Element<T> *> {
         marray_user_field_types.push_back(int_field);
         element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
         element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
+        // create our final type
+        MPointerType *ptr = create_struct_reference_type(element_field_types);
+        return ptr;
+    }
+};
+
+template <typename T>
+struct create_type<ComparisonElement<T> *> {
+    operator MPointerType*() {
+        MType *user_type = create_type<T *>();
+        MType *int_field = create_type<int>();
+        MType *char_field = create_type<char *>();
+        MType *bool_field = create_type<bool>();
+        // types in the filepath marray class
+        std::vector<MType *> marray_char_field_types;
+        // types in the user data marray class
+        std::vector<MType *> marray_user_field_types;
+        // types in the ComparisonElement struct
+        std::vector<MType *> element_field_types;
+        // add the fields
+        marray_char_field_types.push_back(char_field);
+        marray_char_field_types.push_back(int_field);
+        marray_char_field_types.push_back(int_field);
+        marray_user_field_types.push_back(user_type);
+        marray_user_field_types.push_back(int_field);
+        marray_user_field_types.push_back(int_field);
+        // duplicate each since there are two elements in a comparison
+        element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
+        element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
+        element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
+        element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
+        element_field_types.push_back(bool_field);
+        // create our final type
         MPointerType *ptr = create_struct_reference_type(element_field_types);
         return ptr;
     }
@@ -214,9 +246,10 @@ struct create_type<Element<T> *> {
 template <>
 struct create_type<File *> {
     operator MPointerType*() {
-        std::vector<MType *> marray_char_field_types;
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
+        // types in the filepath
+        std::vector<MType *> marray_char_field_types;
         marray_char_field_types.push_back(char_field);
         marray_char_field_types.push_back(int_field);
         marray_char_field_types.push_back(int_field);

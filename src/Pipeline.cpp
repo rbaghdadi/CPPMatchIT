@@ -84,15 +84,6 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         // allocate space and load the arguments
         llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(llvm::PointerType::get(m_extern_wrapper->get_arg_types()[iter_ctr]->codegen(), 0));
         alloc->setAlignment(alignment);
-//
-//        llvm::LoadInst *load_alloc = jit->get_builder().CreateLoad(alloc);
-//        llvm::Value *malloc_space = CodegenUtils::codegen_c_malloc_and_cast(jit, 16, alloc->getType());
-//        jit->get_builder().CreateStore(malloc_space, alloc);
-//        llvm::LoadInst *loaded_element = jit->get_builder().CreateLoad(iter);
-//        llvm::LoadInst *load_alloc = jit->get_builder().CreateLoad(alloc);
-//        CodegenUtils::codegen_llvm_memcpy(jit, loaded_element, load_alloc);
-
-
         llvm::StoreInst *store = jit->get_builder().CreateStore(iter, alloc);
         store->setAlignment(alignment);
         llvm::LoadInst *load = jit->get_builder().CreateLoad(alloc);
@@ -146,6 +137,8 @@ void Pipeline::codegen(JIT *jit, size_t size) {
             args.push_back(loaded_val);
         }
         args.push_back(loaded_idx);
+
+        jit->dump();
 
         call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());

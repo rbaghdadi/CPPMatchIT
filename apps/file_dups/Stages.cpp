@@ -38,7 +38,51 @@ extern "C" Element<unsigned char>* transform(File *file_path) {
     return md5_hash;
 }
 
-//
+extern "C" bool llvm_filter(File *file_path) {
+    // 0 => not in string, so we can keep it
+    std::cerr << "Running llvm_filter: " << file_path->get_underlying_array() << " ";
+    char *cmp = strstr(file_path->get_underlying_array(), ".ll");
+    if (cmp == NULL) {
+        std::cerr << "Keep me" << std::endl;
+        return true;
+    } else {
+        std::cerr << "Drop me" << std::endl;
+        return false;
+    }
+}
+
+extern "C" ComparisonElement<unsigned char> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2) {
+    std::cerr << "Comparing: " << file1->filepath->get_underlying_array() << " and " << file2->filepath->get_underlying_array();
+    bool is_match = true;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        if (file1->data->get_underlying_array()[i] != file2->data->get_underlying_array()[i]) {
+            is_match = false;
+            break;
+        }
+    }
+    ComparisonElement<unsigned char> *comparison = (ComparisonElement<unsigned char> *) malloc(sizeof(*comparison));
+    comparison->data1 = new MArray<unsigned char>(file1->data->get_num_elements());
+    comparison->data2 = new MArray<unsigned char>(file2->data->get_num_elements());
+    comparison->filepath1 = new MArray<char>(file1->filepath->get_num_elements());
+    comparison->filepath2 = new MArray<char>(file2->filepath->get_num_elements());
+    comparison->data1->add(file1->data->get_underlying_array(), file1->data->get_num_elements());
+    comparison->data2->add(file2->data->get_underlying_array(), file2->data->get_num_elements());
+    comparison->filepath1->add(file1->filepath->get_underlying_array(), file1->filepath->get_num_elements());
+    comparison->filepath2->add(file2->filepath->get_underlying_array(), file2->filepath->get_num_elements());
+    comparison->is_match = is_match;
+    std::cerr << " is match?: " << is_match << std::endl;
+    return comparison;
+}
+
+extern "C" bool match_filter(ComparisonElement<unsigned char> *comparison) {
+    if (comparison->is_match) {
+        std::cerr << "Final: " << comparison->filepath1->get_underlying_array() << " ### " << comparison->filepath2->get_underlying_array() << std::endl;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 //extern "C" FileHash *struct_check(FileHash *in) {
 //    std::cerr << "In struct_check. File path is " << in->file_path << std::endl;
 //    char md5_str[33];
