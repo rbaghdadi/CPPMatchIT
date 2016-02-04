@@ -52,7 +52,9 @@ public:
         llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr); // needed for resolving externs
         module->setDataLayout((*target_machine).createDataLayout());
 
-        // add in some intrinics functions that will be needed
+        // add some useful function wrappers
+        // TODO move this somewhere else so the constructor isn't so big
+
         std::vector<llvm::Type *> llvm_intr_memcpy_args;
         llvm_intr_memcpy_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
         llvm_intr_memcpy_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
@@ -63,19 +65,29 @@ public:
                                                                           llvm_intr_memcpy_args, false);
         module->getOrInsertFunction("llvm.memcpy.p0i8.p0i8.i32", llvm_intr_memcpy_ft);
 
-        // add in standard C functions that will be needed
-        std::vector<llvm::Type *> c_malloc_args;
-        c_malloc_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-        llvm::FunctionType *c_malloc_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
-                                                                  c_malloc_args, false);
-        module->getOrInsertFunction("malloc", c_malloc_ft);
+        // llvm is very strict, so we can't use the same malloc call for both 32 and 64 bit data
+        std::vector<llvm::Type *> c_malloc32_args;
+        c_malloc32_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_malloc32_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                    c_malloc32_args, false);
+        module->getOrInsertFunction("malloc_32", c_malloc32_ft);
 
-        std::vector<llvm::Type *> c_printf_args;
-        c_printf_args.push_back(llvm::PointerType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 8), 0));
-        llvm::FunctionType *c_printf_ft = llvm::FunctionType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 32), c_printf_args, true);
-        module->getOrInsertFunction("printf", c_printf_ft);
+        std::vector<llvm::Type *> c_malloc64_args;
+        c_malloc64_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_malloc64_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                    c_malloc64_args, false);
+        module->getOrInsertFunction("malloc_64", c_malloc64_ft);
 
-        // add in some of my custom functions
+//        std::vector<llvm::Type *> c_printf_args;
+//        c_printf_args.push_back(llvm::PointerType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 8), 0));
+//        llvm::FunctionType *c_printf_ft = llvm::FunctionType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 32), c_printf_args, true);
+//        module->getOrInsertFunction("printf", c_printf_ft);
+
+        std::vector<llvm::Type *> c_fprintf_args;
+        c_fprintf_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_fprintf_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), c_fprintf_args, true);
+        module->getOrInsertFunction("print_int", c_fprintf_ft);
+
         llvm::FunctionType *print_sep_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), std::vector<llvm::Type *>(), false);
         module->getOrInsertFunction("print_sep", print_sep_ft);
 

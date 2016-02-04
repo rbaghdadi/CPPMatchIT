@@ -26,8 +26,6 @@ public:
     // a simple all at once execution for right now
     void simple_execute(JIT *jit, const void **data);
 
-    void simple_execute(JIT *jit, std::vector<File *> data);
-
     // the main entry point to running the pipeline
     void codegen(JIT *jit, size_t size);
 

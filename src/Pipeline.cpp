@@ -19,25 +19,6 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
 }
 
-void Pipeline::simple_execute(JIT *jit, std::vector<File *> data) {
-//    std::cerr << data.size() << std::endl;
-//    char **void_data = (char**)malloc(sizeof(char*) * data.size());
-
-    std::vector<const void *> vecdata;
-
-    int ctr = 0;
-    for (std::vector<File *>::iterator iter = data.begin(); iter != data.end(); iter++) {
-//        void_data[ctr] = (char*)malloc(sizeof(char) * (*iter)->get_size());
-//        strcpy(void_data[ctr++], (*iter)->get_underlying_array());
-//        void_data[ctr++] = (*iter)->get_underlying_array();
-//        std::cerr << void_data[ctr - 1] << std::endl;
-
-        vecdata.push_back((*iter)->get_underlying_array());
-        std::cerr << (char*)vecdata[vecdata.size() - 1] << std::endl;
-    }
-    jit->run("pipeline", &(vecdata[0]));//(const void **)void_data);
-}
-
 void Pipeline::codegen(JIT *jit, size_t size) {
 
     assert(!stages.empty());

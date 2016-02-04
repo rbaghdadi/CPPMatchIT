@@ -61,7 +61,6 @@ public:
     void set_max_bound(llvm::Value *max_bound);
 
     void codegen(JIT *jit, bool no_insert = false);
-
 };
 
 class ReturnStructBasicBlock : public InstructionBlock  {
@@ -234,10 +233,11 @@ private:
     llvm::AllocaInst *return_struct;
     llvm::AllocaInst *return_idx;
     llvm::AllocaInst *data_to_store;
+//    llvm::AllocaInst *(*sizeify)(MType *,llvm::AllocaInst*,JIT*);
 
 public:
 
-    ExternCallStoreBasicBlock() {
+    ExternCallStoreBasicBlock() {//llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) : sizeify(sizeify) {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store");
     }
 
@@ -250,6 +250,10 @@ public:
     void set_return_idx(llvm::AllocaInst *return_idx);
 
     void set_data_to_store(llvm::AllocaInst *extern_call_result);
+
+//    void set_sizeify(llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) {
+//        this->sizeify = sizeify;
+//    }
 
     void codegen(JIT *jit, bool no_insert = false);
 

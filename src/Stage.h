@@ -73,6 +73,8 @@ public:
 
     virtual void base_codegen();
 
+//    virtual llvm::AllocaInst *get_ret_type_size(MType *mtype, llvm::AllocaInst *alloc_struct, JIT *jit);
+
 //    virtual void get_input_element_size_in_bytes() = 0;
 //
 //    virtual void get_output_element_size_in_bytes() = 0;

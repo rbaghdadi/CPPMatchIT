@@ -16,18 +16,20 @@ class MPointerType;
 
 
 typedef enum {
-    mtype_null, // just for initial construction. not used for any actual type
-    mtype_void,
-    mtype_bool,
-    mtype_char,
-    mtype_short,
-    mtype_int,
-    mtype_long,
-    mtype_float,
-    mtype_double,
-    mtype_struct,
-    mtype_ptr,
-    mtype_class
+    mtype_null, // 0
+    mtype_void, // 1
+    mtype_bool, // 2
+    mtype_char, // 3
+    mtype_short, // 4
+    mtype_int, // 5
+    mtype_long, // 6
+    mtype_float, // 7
+    mtype_double, // 8
+    mtype_struct, // 9
+    mtype_ptr, // 10
+    mtype_element, // 11
+    mtype_comparison_element, // 12
+    mtype_file // 13
 } mtype_code_t;
 
 // modeled after halide
@@ -95,15 +97,6 @@ struct mtype_of<double> {
     }
 };
 
-//template <typename T>
-//struct mtype_of<std::vector<T>> {
-//    operator mtype_code_t() {
-//        return mtype_vec;
-//    }
-//};
-
-// MType
-
 // TODO I probably don't need to create a new instance of this each time I use it because it all kind of stays the same
 class MType {
 
@@ -127,15 +120,7 @@ protected:
                 bits = 32;
             case mtype_double:
                 bits = 64;
-            case mtype_struct:
-                bits = 0;
-            case mtype_void:
-                bits = 0;
-            case mtype_null:
-                bits = 0;
-            case mtype_ptr:
-                bits = 0;
-            case mtype_class:
+            default:
                 bits = 0;
         }
     }
@@ -143,6 +128,8 @@ protected:
     MType(mtype_code_t type_code, unsigned int bits) : type_code(type_code), bits(bits) {}
 
 public:
+
+    // TODO why do I have these? they aren't even initialized with anything???
 
     static MType *bool_type;
     static MType *char_type;
@@ -164,7 +151,9 @@ public:
 
     void set_bits(unsigned int bits);
 
-    virtual llvm::Type *codegen() =0;
+    virtual llvm::Type *codegen() = 0;
+
+    virtual void dump() = 0;
 
     bool is_prim_type();
 
@@ -201,6 +190,10 @@ public:
 
     llvm::Type *codegen();
 
+    void dump() {
+        std::cerr << "MPrimType with type code: " << type_code << std::endl;
+    }
+
 //    llvm::Type *codegen_constant_array();
 
 };
@@ -235,13 +228,19 @@ public:
 
 //    llvm::Type *codegen_constant_array();
 
+    void dump() {
+        std::cerr << "MStructType with type code: " << type_code << " and field types " << std::endl;
+        for (std::vector<MType *>::iterator iter = field_types.begin(); iter != field_types.end(); iter++) {
+            (*iter)->dump();
+        }
+    }
+
 };
 
 /*
  * MPointerType
  */
 
-// TODO this will break if you try to make a pointer of a non-primitive (so like pointer of structs)
 class MPointerType : public MType {
 
 private:
@@ -262,16 +261,20 @@ public:
 
     llvm::Type *codegen();
 
+    MType *get_pointer_type() {
+        return pointer_type;
+    }
 
-//    llvm::Type *codegen_constant_array();
+    void dump() {
+        std::cerr << "MPointerType pointing to: " << std::endl;
+        pointer_type->dump();
+    }
 
 };
 
 /*
  * Premade types
  */
-
-
 
 namespace {
 
@@ -361,105 +364,98 @@ struct create_type<T *> {
     }
 };
 
-//template <typename T>
-//struct create_type<BaseElement *> {
-//    operator MPointerType*() {
-//        MPointerType *ptr = new MPointerType(create_type<T>());
-//        return ptr;
-//    }
-//};
-
-//template <typename T>
-//struct create_type<mvecptr<T> > {
-//    operator MPointerType*() {
-//        MPointerType *ptr = new MPointerType(create_type<T>());
-//        return ptr;
-//    }
-//};
-
 MStructType *create_struct_type(std::vector<MType *> field_types) {
     return new MStructType(mtype_struct, field_types);
+}
+
+MStructType *create_struct_type(mtype_code_t struct_type, std::vector<MType *> field_types) {
+    return new MStructType(struct_type, field_types);
 }
 
 MPointerType *create_struct_reference_type(std::vector<MType *> field_types) {
     return new MPointerType(create_struct_type(field_types));
 }
+
+MPointerType *create_struct_reference_type(mtype_code_t struct_type, std::vector<MType *> field_types) {
+    return new MPointerType(create_struct_type(struct_type, field_types));
 }
 
-/*
- * the struct here would be something like
- * struct S {
- *  size_t *field_sizes; // this are the field sizes of the fields in the struct
- *  struct X x;
- * }
- *
- * and we would return S* from functions
- */
-template <typename T>
-MPointerType *create_mvecptr_type(std::vector<MType *> user_field_types) {
-    MStructType *inner = create_struct_type(user_field_types);
-    std::vector<MType *> fields;
-    MType *int_ptr_type = create_type<int *>();
-    fields.push_back(int_ptr_type);
-    fields.push_back(inner);
-    return create_struct_reference_type(fields); // the outermost
 }
-
-/*
- * the struct here would be something like
- * struct S {
- *  size_t *field_sizes; // this are the field sizes of the fields in the struct
- *  X x;
- * }
- *
- * and we would return S* from functions
- */
-template <typename T>
-MPointerType *create_mvecptr_type() {
-    std::vector<MType *> fields;
-    MType *int_ptr_type = create_type<int *>();
-    MType *user_type = create_type<T>();
-    fields.push_back(int_ptr_type);
-    fields.push_back(user_type);
-    return create_struct_reference_type(fields); // the outermost
-}
-
-/*
- * the struct here would be something like
- * struct S {
- *  size_t *field_sizes;
- *  struct X *x;
- * }
- *
- * and we would return S* from functions
- */
-template <typename T>
-MPointerType *create_mvecptr_ref_type(std::vector<MType *> user_field_types) {
-    MPointerType *inner = create_struct_reference_type(user_field_types);
-    std::vector<MType *> fields;
-    MType *int_ptr_type = create_type<int *>();
-    fields.push_back(int_ptr_type);
-    fields.push_back(inner);
-    return create_struct_reference_type(fields); // the outermost
-}
-
-/*
- * the struct here would be something like
- * struct S {
- *  size_t *field_sizes;
- *  X *x;
- * }
- *
- * and we would return S* from functions
- */
-template <typename T>
-MPointerType *create_mvecptr_ref_type() {
-    std::vector<MType *> fields;
-    MType *int_ptr_type = create_type<int *>();
-    MType *user_type = create_type<T>();
-    fields.push_back(int_ptr_type);
-    fields.push_back(user_type);
-    return create_struct_reference_type(fields); // the outermost
-}
+//
+///*
+// * the struct here would be something like
+// * struct S {
+// *  size_t *field_sizes; // this are the field sizes of the fields in the struct
+// *  struct X x;
+// * }
+// *
+// * and we would return S* from functions
+// */
+//template <typename T>
+//MPointerType *create_mvecptr_type(std::vector<MType *> user_field_types) {
+//    MStructType *inner = create_struct_type(user_field_types);
+//    std::vector<MType *> fields;
+//    MType *int_ptr_type = create_type<int *>();
+//    fields.push_back(int_ptr_type);
+//    fields.push_back(inner);
+//    return create_struct_reference_type(fields); // the outermost
+//}
+//
+///*
+// * the struct here would be something like
+// * struct S {
+// *  size_t *field_sizes; // this are the field sizes of the fields in the struct
+// *  X x;
+// * }
+// *
+// * and we would return S* from functions
+// */
+//template <typename T>
+//MPointerType *create_mvecptr_type() {
+//    std::vector<MType *> fields;
+//    MType *int_ptr_type = create_type<int *>();
+//    MType *user_type = create_type<T>();
+//    fields.push_back(int_ptr_type);
+//    fields.push_back(user_type);
+//    return create_struct_reference_type(fields); // the outermost
+//}
+//
+///*
+// * the struct here would be something like
+// * struct S {
+// *  size_t *field_sizes;
+// *  struct X *x;
+// * }
+// *
+// * and we would return S* from functions
+// */
+//template <typename T>
+//MPointerType *create_mvecptr_ref_type(std::vector<MType *> user_field_types) {
+//    MPointerType *inner = create_struct_reference_type(user_field_types);
+//    std::vector<MType *> fields;
+//    MType *int_ptr_type = create_type<int *>();
+//    fields.push_back(int_ptr_type);
+//    fields.push_back(inner);
+//    return create_struct_reference_type(fields); // the outermost
+//}
+//
+///*
+// * the struct here would be something like
+// * struct S {
+// *  size_t *field_sizes;
+// *  X *x;
+// * }
+// *
+// * and we would return S* from functions
+// */
+//template <typename T>
+//MPointerType *create_mvecptr_ref_type() {
+//    std::vector<MType *> fields;
+//    MType *int_ptr_type = create_type<int *>();
+//    MType *user_type = create_type<T>();
+//    fields.push_back(int_ptr_type);
+//    fields.push_back(user_type);
+//    return create_struct_reference_type(fields); // the outermost
+//}
 
 #endif //MATCHIT_MTYPE_H

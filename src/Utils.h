@@ -19,6 +19,13 @@ T* as_array(std::vector<T> *vec) {
 }
 
 extern "C" void print_sep();
+
+extern "C" void print_int(int x);
+
+extern "C" void *malloc_32(size_t size);
+
+extern "C" void *malloc_64(size_t size);
+
 //
 //template <typename T>
 //int get_size_in_bytes(T element) {

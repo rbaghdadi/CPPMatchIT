@@ -7,6 +7,7 @@
 
 #include "Stage.h"
 #include "./CodegenUtils.h"
+#include "./CompositeTypes.h"
 #include "./MFunc.h"
 #include "./MType.h"
 #include "./ForLoop.h"
@@ -17,37 +18,14 @@ class TransformStage : public Stage {
 
 private:
 
-    // TODO this doesn't allow structs of structs...or does it?
-    std::vector<MType *> input_struct_fields;
-    std::vector<MType *> output_struct_fields;
     O (*transform)(I);
 
 public:
 
-    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit, std::vector<MType *> input_struct_fields = std::vector<MType *>(),
-                   std::vector<MType *> output_struct_fields = std::vector<MType *>()) :
-            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), input_struct_fields(input_struct_fields),
-            output_struct_fields(output_struct_fields), transform(transform) {
+    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit) :
+            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform) {
         MType *ret_type = create_type<O>();
-
-
-//        if (output_mtype_code == mtype_ptr && !output_struct_fields.empty()) {
-//            ret_type = create_struct_reference_type(output_struct_fields); // the output of the stage is a pointer to a struct
-//        } else if (output_mtype_code != mtype_struct) {
-//            ret_type = create_type<O>();
-//        } else {
-//            ret_type = create_struct_type(output_struct_fields);
-//        }
-
         MType *arg_type = create_type<I>();
-//        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
-//            arg_type = create_struct_reference_type(input_struct_fields);
-//        } else if (input_mtype_code != mtype_struct) {
-//            arg_type = create_type<I>();
-//        } else {
-//            arg_type = create_struct_type(input_struct_fields);
-//        }
-
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
@@ -56,42 +34,10 @@ public:
         func->codegen_extern_wrapper_proto();
     }
 
-//    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit, std::vector<MType *> input_struct_fields = std::vector<MType *>(),
-//                   std::vector<MType *> output_struct_fields = std::vector<MType *>()) :
-//            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), input_struct_fields(input_struct_fields),
-//            output_struct_fields(output_struct_fields), transform(transform) {
-//        MType *ret_type;
-//        if (output_mtype_code == mtype_ptr && !output_struct_fields.empty()) {
-//            ret_type = create_struct_reference_type(output_struct_fields); // the output of the stage is a pointer to a struct
-//        } else if (output_mtype_code != mtype_struct) {
-//            ret_type = create_type<O>();
-//        } else {
-//            ret_type = create_struct_type(output_struct_fields);
-//        }
-//
-//        MType *arg_type;
-//        if(input_mtype_code == mtype_ptr && !input_struct_fields.empty()) {
-//            arg_type = create_struct_reference_type(input_struct_fields);
-//        } else if (input_mtype_code != mtype_struct) {
-//            arg_type = create_type<I>();
-//        } else {
-//            arg_type = create_struct_type(input_struct_fields);
-//        }
-//
-//        std::vector<MType *> arg_types;
-//        arg_types.push_back(arg_type);
-//        MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
-//        set_function(func);
-//        func->codegen_extern_proto();
-//        func->codegen_extern_wrapper_proto();
-//    }
-
     ~TransformStage() { }
 
     // TODO need either a copy constructor for MType since this is the same pointer getting copied over, or just a single MType copy, ever (like the llvm get function)
     TransformStage(const TransformStage &that) : Stage(that) {
-        input_struct_fields = std::vector<MType *>(that.input_struct_fields);
-        output_struct_fields = std::vector<MType *>(that.output_struct_fields);
         transform = that.transform;
     }
 
@@ -99,9 +45,9 @@ public:
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
                                 ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
         // build the body
-        eibb->set_loop_idx(loop_idx);//loop->get_loop_counter_basic_block()->get_loop_idx());
+        eibb->set_loop_idx(loop_idx);
         eibb->set_data(args[0]);
-        eibb->codegen(jit);
+        eibb->codegen(jit, false);
         jit->get_builder().CreateBr(ecbb->get_basic_block());
 
         // create the call
@@ -109,9 +55,13 @@ public:
         std::vector<llvm::Value *> sliced;
         sliced.push_back(eibb->get_element());
         ecbb->set_extern_args(sliced);
-        ecbb->codegen(jit);
+        ecbb->codegen(jit, false);
         jit->get_builder().CreateBr(branch_to);
     }
+
+//    llvm::AllocaInst *get_ret_type_size(MType *mtype, llvm::AllocaInst *alloc_struct, JIT *jit) {
+//        codegen_element_size<O>(mtype, alloc_struct, jit);
+//    }
 
 };
 

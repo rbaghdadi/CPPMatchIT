@@ -84,25 +84,8 @@ public:
 
 struct BaseElement {
     virtual std::vector<MType *> get_struct_fields() = 0;
+    virtual ~BaseElement();
 };
-
-//template <typename T>
-//struct TestElement : BaseElement {
-//private:
-//
-//public:
-//
-//    TestElement() {}
-//    T element;
-//
-//
-//
-//};
-
-
-//struct File : BaseElement {
-//    MArray<char> *filepath;
-//};
 
 typedef MArray<char> File;
 
@@ -206,7 +189,7 @@ struct create_type<Element<T> *> {
         element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
         element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
         // create our final type
-        MPointerType *ptr = create_struct_reference_type(element_field_types);
+        MPointerType *ptr = create_struct_reference_type(mtype_element, element_field_types);
         return ptr;
     }
 };
@@ -238,7 +221,7 @@ struct create_type<ComparisonElement<T> *> {
         element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
         element_field_types.push_back(bool_field);
         // create our final type
-        MPointerType *ptr = create_struct_reference_type(element_field_types);
+        MPointerType *ptr = create_struct_reference_type(mtype_comparison_element, element_field_types);
         return ptr;
     }
 };
@@ -253,10 +236,30 @@ struct create_type<File *> {
         marray_char_field_types.push_back(char_field);
         marray_char_field_types.push_back(int_field);
         marray_char_field_types.push_back(int_field);
-        MPointerType *ptr = create_struct_reference_type(marray_char_field_types);
+        MPointerType *ptr = create_struct_reference_type(mtype_file, marray_char_field_types);
         return ptr;
     }
 };
 
+template <typename T>
+struct mtype_of<Element<T> > {
+    operator mtype_code_t() {
+        return mtype_element;
+    }
+};
+
+template <typename T>
+struct mtype_of<ComparisonElement<T> > {
+    operator mtype_code_t() {
+        return mtype_comparison_element;
+    }
+};
+
+template <>
+struct mtype_of<File> {
+    operator mtype_code_t() {
+        return mtype_file;
+    }
+};
 
 #endif //MATCHIT_COMPOSITETYPES_H

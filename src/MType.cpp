@@ -59,7 +59,7 @@ bool MType::is_ptr_type() {
 }
 
 bool MType::is_struct_type() {
-    return type_code == mtype_struct;
+    return type_code == mtype_struct || type_code == mtype_file || type_code == mtype_element || type_code == mtype_comparison_element;
 }
 
 MType *MType::bool_type = new MPrimType(mtype_bool, 1);

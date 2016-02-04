@@ -62,7 +62,7 @@ void Stage::base_codegen() {
     // initialize the function args
     extern_arg_prep_basic_block->set_function(mfunction);
     extern_arg_prep_basic_block->set_extern_function(mfunction);
-    extern_arg_prep_basic_block->codegen(jit);
+    extern_arg_prep_basic_block->codegen(jit, false);
     jit->get_builder().CreateBr(loop->get_loop_counter_basic_block()->get_basic_block());
 
     // loop components
@@ -87,7 +87,7 @@ void Stage::base_codegen() {
         return_struct_basic_block->set_max_num_ret_elements(loop->get_loop_counter_basic_block()->get_loop_bound());
     }
     return_struct_basic_block->set_stage_return_type(mfunction->get_extern_wrapper_data_ret_type());
-    return_struct_basic_block->codegen(jit);
+    return_struct_basic_block->codegen(jit, false);
     jit->get_builder().CreateBr(loop->get_for_loop_condition_basic_block()->get_basic_block());
 
     // codegen the body for the appropriate stage
@@ -102,14 +102,14 @@ void Stage::base_codegen() {
     extern_call_store_basic_block->set_data_to_store(extern_call_basic_block->get_data_to_return());
     extern_call_store_basic_block->set_return_idx(loop->get_loop_counter_basic_block()->get_return_idx());
     extern_call_store_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
-    extern_call_store_basic_block->codegen(jit);
+    extern_call_store_basic_block->codegen(jit, false);
     jit->get_builder().CreateBr(branch_to_after_store());
 
     // return the data
     for_loop_end_basic_block->set_function(mfunction);
     for_loop_end_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
     for_loop_end_basic_block->set_return_idx(loop->get_loop_counter_basic_block()->get_return_idx());
-    for_loop_end_basic_block->codegen(jit);
+    for_loop_end_basic_block->codegen(jit, false);
 
     mfunction->verify_wrapper();
 }

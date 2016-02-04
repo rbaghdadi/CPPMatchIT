@@ -7,3 +7,15 @@
 extern "C" void print_sep() {
     fprintf(stderr, "===========================================\n");
 }
+
+extern "C" void print_int(int x) {
+    fprintf(stderr, "%d\n", x);
+}
+
+extern "C" void *malloc_32(size_t size) {
+    return malloc(size);
+}
+
+extern "C" void *malloc_64(size_t size) {
+    return malloc(size);
+}
