@@ -5,6 +5,7 @@
 #include "./CodegenUtils.h"
 #include "./CompositeTypes.h"
 #include "./MFunc.h"
+#include "./InstructionBlock.h"
 
 namespace CodegenUtils {
 
@@ -59,7 +60,7 @@ FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::A
 // ret type is the actual return type of the data
 // TODO make extern_mfunc a pointer
 FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc,
-                                    llvm::Value *max_num_ret_elements) {
+                                    llvm::Value *max_num_ret_elements, llvm::AllocaInst *malloc_size) {
     llvm::Type *return_type = extern_mfunc.get_extern_wrapper()->getReturnType();
     // we return a pointer from the wrapper function
     llvm::PointerType::get(return_type, 0);
@@ -90,9 +91,14 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
     llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(gep_ret_dat);
     ret_data_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
     gep_ret_dat = jit->get_builder().CreateInBoundsGEP(loaded_ret_struct, ret_data_idx);
-
     // now store the malloc data in the alloc space
     jit->get_builder().CreateStore(malloc_data, gep_ret_dat);
+
+    // update malloc_size to have the current number of elements we malloc'd space for
+    llvm::LoadInst *loaded_malloc_size = jit->get_builder().CreateLoad(malloc_size);
+    loaded_malloc_size->setAlignment(8);
+    llvm::Value *inc_malloc_size = jit->get_builder().CreateAdd(loaded_malloc_size, load_bound);
+    jit->get_builder().CreateStore(inc_malloc_size, malloc_size)->setAlignment(8);
 
     // TODO figure out the appropriate alignment
     return FuncComp(alloc);
@@ -100,62 +106,72 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
 
 // ret type is the user data type that will be returned. Ex: If transform block, this is the type that comes out of the extern call
 // If this is a filter block, this is the type of input data, since that is actually what is returned (not the bool that comes from the extern call)
-void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
-                         llvm::AllocaInst *extern_call_res) {
+void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret_struct, llvm::Value *ret_idx,
+                         llvm::AllocaInst *extern_call_res, llvm::Function *insert_into, llvm::AllocaInst *malloc_size,
+                         llvm::BasicBlock *extern_call_store_basic_block) {
     // So in here when we are accessing the return type with the i64 index, we need to make sure i64 is not
     // greater than the max loop bound. If it is, then we need to make ret bigger. Actually, we kind of need a
     // current size field (this can just go in the entry block). We commpare our index to that, reallocing
     // if necessary. Then, we copy the realloced space over the original and then do our normal thing (hopefully
     // this doesn't wipe out our already stored data?--it doesn't in normal C)
 
-    // first, we need to load the return struct and then pull out the correct field to store the computed result
-    llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(ret); // { X*, i64 }
-    std::vector<llvm::Value *> field_index;
-    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    llvm::Value *field_gep = jit->get_builder().CreateInBoundsGEP(loaded_ret_struct, field_index); // address of X*
-    llvm::LoadInst *loaded_field = jit->get_builder().CreateLoad(field_gep);
-    // now get the correct index into X* (this is where we store the data)
-    llvm::LoadInst *loaded_idx = jit->get_builder().CreateLoad(ret_idx);
-    loaded_idx->setAlignment(8);
-    std::vector<llvm::Value *> idx;
-    idx.push_back(loaded_idx);
-    llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
-    // if the user's extern function returns a pointer, we need to allocate space for that and then use a memcpy
-    if (ret_type->is_ptr_type()) {
-        mtype_code_t underlying_type = ((MPointerType*)(ret_type))->get_underlying_type()->get_type_code();
-        llvm::Value *ret_type_size;
-        // find out the marray/struct size (in bytes)
-        switch (underlying_type) {
-            case mtype_element:
-                ret_type_size = codegen_element_size(ret_type, extern_call_res, jit);
-                break;
-            case mtype_file:
-                ret_type_size = codegen_file_size(extern_call_res, jit);
-                break;
-            case mtype_comparison_element:
-                ret_type_size = codegen_comparison_element_size(ret_type, extern_call_res, jit);
-                break;
-            default:
-                std::cerr << "Unknown mtype!" << std::endl;
-                ret_type->dump();
-                exit(9);
-        }
-        llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(ret_type_size, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8)); // 8
-        // malloc space for the outer struct (8 byte pointer)
-        llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, ptr_struct_bytes, ret_type->codegen());
-        jit->get_builder().CreateStore(struct_malloc_space, idx_gep);
-        llvm::LoadInst *dest = jit->get_builder().CreateLoad(idx_gep);
-        llvm::LoadInst *src = jit->get_builder().CreateLoad(extern_call_res);
-        codegen_llvm_memcpy(jit, dest, src, ptr_struct_bytes);
+    if (((MPointerType*)(ret_type))->get_underlying_type()->get_type_code() == mtype_file) {
+        std::cerr << "In the mtype_file store" << std::endl;
+        codegen_file_store(llvm::cast<llvm::AllocaInst>(ret_struct), llvm::cast<llvm::AllocaInst>(ret_idx), ret_type,
+                           malloc_size, extern_call_res, jit, insert_into);
+//        jit->get_builder().CreateBr(extern_call_store_basic_block);
     } else {
-        // just copy it into the alloca space
-        jit->get_builder().CreateStore(extern_call_res, idx_gep);
+
+        // first, we need to load the return struct and then pull out the correct field to store the computed result
+        llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(ret_struct); // { X*, i64 }
+        std::vector<llvm::Value *> field_index;
+        field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+        field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+        llvm::Value *field_gep = jit->get_builder().CreateInBoundsGEP(loaded_ret_struct, field_index); // address of X*
+        llvm::LoadInst *loaded_field = jit->get_builder().CreateLoad(field_gep);
+        // now get the correct index into X* (this is where we store the data)
+        llvm::LoadInst *loaded_idx = jit->get_builder().CreateLoad(ret_idx);
+        loaded_idx->setAlignment(8);
+        std::vector<llvm::Value *> idx;
+        idx.push_back(loaded_idx);
+        llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
+        // if the user's extern function returns a pointer, we need to allocate space for that and then use a memcpy
+        if (ret_type->is_ptr_type()) {
+            mtype_code_t underlying_type = ((MPointerType *) (ret_type))->get_underlying_type()->get_type_code();
+            llvm::Value *ret_type_size;
+            // find out the marray/struct size (in bytes)
+            switch (underlying_type) {
+                case mtype_element:
+                    ret_type_size = codegen_element_size(ret_type, extern_call_res, jit);
+                    break;
+                case mtype_file:
+                    ret_type_size = codegen_file_size(extern_call_res, jit);
+                    break;
+                case mtype_comparison_element:
+                    ret_type_size = codegen_comparison_element_size(ret_type, extern_call_res, jit);
+                    break;
+                default:
+                    std::cerr << "Unknown mtype!" << std::endl;
+                    ret_type->dump();
+                    exit(9);
+            }
+            llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(ret_type_size, llvm::ConstantInt::get(
+                    llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8)); // 8
+            // malloc space for the outer struct (8 byte pointer)
+            llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, ptr_struct_bytes, ret_type->codegen());
+            jit->get_builder().CreateStore(struct_malloc_space, idx_gep);
+            llvm::LoadInst *dest = jit->get_builder().CreateLoad(idx_gep);
+            llvm::LoadInst *src = jit->get_builder().CreateLoad(extern_call_res);
+            codegen_llvm_memcpy(jit, dest, src, ptr_struct_bytes);
+        } else {
+            // just copy it into the alloca space
+            jit->get_builder().CreateStore(extern_call_res, idx_gep);
+        }
+        // increment the return idx
+        llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+        llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
+        store_ret_idx->setAlignment(8);
     }
-    // increment the return idx
-    llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
-    llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
-    store_ret_idx->setAlignment(8);
 }
 
 // load up the input data
@@ -341,3 +357,81 @@ llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *all
     return jit->get_builder().CreateAdd(marray1_size, jit->get_builder().CreateAdd(marray2_size, marray3_size));
 }
 
+// create the code that defines how to store an output of type File in the overall return structure
+// assumes the initial store has happened already
+void codegen_file_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+                        llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+                        JIT *jit, llvm::Function *insert_into) {
+    // first we will check to see if we have enough allocated space in the return struct. we will realloc if there isn't enough
+    llvm::LoadInst *loaded_ret_idx = jit->get_builder().CreateLoad(ret_idx);
+    loaded_ret_idx->setAlignment(8);
+    llvm::LoadInst *loaded_malloc_size = jit->get_builder().CreateLoad(malloc_size);
+    llvm::Value *is_enough = jit->get_builder().CreateICmpSLT(loaded_ret_idx, loaded_malloc_size);
+    llvm::BasicBlock *realloc_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), "realloc", insert_into);
+    llvm::BasicBlock *store_it_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store_it", insert_into);
+    jit->get_builder().CreateCondBr(is_enough, store_it_block, realloc_block);
+
+
+    jit->get_builder().SetInsertPoint(realloc_block);
+    llvm::Function *c_realloc = jit->get_module()->getFunction("realloc_64");
+    assert(c_realloc);
+    // TODO how much to increase space by?
+    // get the correct spot to store this in
+    std::vector<llvm::Value *> ret_data_idx;
+    ret_data_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    llvm::Value *gep_ret_dat = jit->get_builder().CreateInBoundsGEP(return_struct, ret_data_idx);
+    llvm::LoadInst *loaded_return_struct_realloc_block = jit->get_builder().CreateLoad(gep_ret_dat);
+    ret_data_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    gep_ret_dat = jit->get_builder().CreateInBoundsGEP(loaded_return_struct_realloc_block, ret_data_idx);
+    llvm::LoadInst *loaded_ret_struct_pos = jit->get_builder().CreateLoad(gep_ret_dat);
+    // store it
+    std::vector<llvm::Value *> realloc_args;
+    llvm::Value *inc_malloc_size = jit->get_builder().CreateAdd(loaded_malloc_size, loaded_malloc_size);
+    realloc_args.push_back(jit->get_builder().CreateBitCast(loaded_ret_struct_pos, llvm::Type::getInt8PtrTy(llvm::getGlobalContext())));
+    realloc_args.push_back(inc_malloc_size);
+    llvm::Value *malloc_field = jit->get_builder().CreateCall(c_realloc, realloc_args);
+    // store the realloc over the previous space
+    llvm::Value *the_cast = jit->get_builder().CreateBitCast(malloc_field, loaded_ret_struct_pos->getType());
+    jit->get_builder().CreateStore(the_cast, gep_ret_dat);
+    // update malloc size to have the current number of spaces
+    jit->get_builder().CreateStore(inc_malloc_size, malloc_size)->setAlignment(8);
+    jit->get_builder().CreateBr(store_it_block);
+
+    // store the value
+    jit->get_builder().SetInsertPoint(store_it_block);
+    // figure out where to store the result
+    std::vector<llvm::Value *> field_index;
+    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+
+    std::vector<llvm::Value *> storeit_ret_data_idx;
+    storeit_ret_data_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    llvm::Value *storeit_gep_ret_dat = jit->get_builder().CreateInBoundsGEP(return_struct, storeit_ret_data_idx);
+    llvm::LoadInst *loaded_return_struct_storeit_block = jit->get_builder().CreateLoad(storeit_gep_ret_dat);
+
+    llvm::Value *field_gep = jit->get_builder().CreateInBoundsGEP(loaded_return_struct_storeit_block, field_index); // address of X*
+    llvm::LoadInst *loaded_field = jit->get_builder().CreateLoad(field_gep);
+    // now get the correct index into X* (this is where we store the data)
+    llvm::LoadInst *loaded_idx = jit->get_builder().CreateLoad(ret_idx);
+    loaded_idx->setAlignment(8);
+    std::vector<llvm::Value *> idx;
+    idx.push_back(loaded_idx);
+    llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
+
+    // now define how to store this particular type
+
+    llvm::Value *ret_type_size = codegen_file_size(extern_call_res, jit);
+    llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(ret_type_size, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8));
+    // malloc space for the outer struct (8 byte pointer)
+    llvm::Value *struct_malloc_space = CodegenUtils::codegen_c_malloc32_and_cast(jit, ptr_struct_bytes, ret_type->codegen());
+    jit->get_builder().CreateStore(struct_malloc_space, idx_gep);
+    llvm::LoadInst *dest = jit->get_builder().CreateLoad(idx_gep);
+    llvm::LoadInst *src = jit->get_builder().CreateLoad(extern_call_res);
+    CodegenUtils::codegen_llvm_memcpy(jit, dest, src, ptr_struct_bytes);
+
+    // increment the return idx
+    llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+    llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
+    store_ret_idx->setAlignment(8);
+
+}

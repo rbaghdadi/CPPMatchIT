@@ -40,6 +40,7 @@ private:
     llvm::AllocaInst *loop_idx;
     llvm::AllocaInst *loop_bound;
     llvm::AllocaInst *return_idx;
+    llvm::AllocaInst *malloc_size;
     // values needed for this block
     llvm::Value *max_bound;
 
@@ -51,12 +52,13 @@ public:
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.loop_counters");
     }
 
-
     llvm::AllocaInst *get_loop_idx();
 
     llvm::AllocaInst *get_loop_bound();
 
     llvm::AllocaInst *get_return_idx();
+
+    llvm::AllocaInst *get_malloc_size();
 
     void set_max_bound(llvm::Value *max_bound);
 
@@ -73,6 +75,7 @@ private:
     MType *stage_return_type;
     MFunc *extern_function;
     llvm::AllocaInst *max_num_ret_elements;
+    llvm::AllocaInst *malloc_size;
 
 public:
 
@@ -89,6 +92,8 @@ public:
     void set_extern_function(MFunc *extern_function);
 
     void set_max_num_ret_elements(llvm::AllocaInst *max_num_ret_elements);
+
+    void set_malloc_size(llvm::AllocaInst *malloc_size);
 
     void codegen(JIT *jit, bool no_insert = false);
 
@@ -233,11 +238,11 @@ private:
     llvm::AllocaInst *return_struct;
     llvm::AllocaInst *return_idx;
     llvm::AllocaInst *data_to_store;
-//    llvm::AllocaInst *(*sizeify)(MType *,llvm::AllocaInst*,JIT*);
+    llvm::AllocaInst *malloc_size;
 
 public:
 
-    ExternCallStoreBasicBlock() {//llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) : sizeify(sizeify) {
+    ExternCallStoreBasicBlock() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store");
     }
 
@@ -251,9 +256,7 @@ public:
 
     void set_data_to_store(llvm::AllocaInst *extern_call_result);
 
-//    void set_sizeify(llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) {
-//        this->sizeify = sizeify;
-//    }
+    void set_malloc_size(llvm::AllocaInst *malloc_size);
 
     void codegen(JIT *jit, bool no_insert = false);
 

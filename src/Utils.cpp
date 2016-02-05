@@ -19,3 +19,11 @@ extern "C" void *malloc_32(size_t size) {
 extern "C" void *malloc_64(size_t size) {
     return malloc(size);
 }
+
+extern "C" void *realloc_32(void *structure, size_t size) {
+    return realloc(structure, size);
+}
+
+extern "C" void *realloc_64(void *structure, size_t size) {
+    return realloc(structure, size);
+}

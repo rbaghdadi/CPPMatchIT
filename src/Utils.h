@@ -26,6 +26,10 @@ extern "C" void *malloc_32(size_t size);
 
 extern "C" void *malloc_64(size_t size);
 
+extern "C" void *realloc_32(void *structure, size_t size);
+
+extern "C" void *realloc_64(void *structure, size_t size);
+
 //
 //template <typename T>
 //int get_size_in_bytes(T element) {

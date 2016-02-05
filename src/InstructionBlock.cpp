@@ -35,6 +35,10 @@ llvm::AllocaInst *LoopCounterBasicBlock::get_return_idx() {
     return return_idx;
 }
 
+llvm::AllocaInst *LoopCounterBasicBlock::get_malloc_size() {
+    return malloc_size;
+}
+
 void LoopCounterBasicBlock::set_max_bound(llvm::Value *max_bound) {
     this->max_bound = max_bound;
 }
@@ -43,10 +47,10 @@ void LoopCounterBasicBlock::codegen(JIT *jit, bool no_insert) {
     assert(max_bound);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    loop_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
-    loop_bound = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
-    return_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit).get_result());
-
+    loop_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "loop_idx").get_result());
+    loop_bound = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "loop_bound").get_result());
+    return_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "return_idx").get_result());
+    malloc_size = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "cur_malloc_size").get_result());
     llvm::LoadInst *load = jit->get_builder().CreateLoad(max_bound);
     load->setAlignment(8);
     jit->get_builder().CreateStore(load, loop_bound)->setAlignment(8);
@@ -73,12 +77,17 @@ void ReturnStructBasicBlock::set_max_num_ret_elements(llvm::AllocaInst *max_num_
     this->max_num_ret_elements = max_num_ret_elements;
 }
 
+void ReturnStructBasicBlock::set_malloc_size(llvm::AllocaInst *malloc_size) {
+    this->malloc_size = malloc_size;
+}
+
 void ReturnStructBasicBlock::codegen(JIT *jit, bool no_insert) {
     assert(stage_return_type && extern_function && max_num_ret_elements);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    return_struct = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_return_data_structure(jit, stage_return_type, *extern_function,
-                                                                                          max_num_ret_elements).get_result());
+    return_struct = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_return_data_structure(jit, stage_return_type,
+                                                                                          *extern_function,
+                                                                                          max_num_ret_elements, malloc_size).get_result());
     codegen_done = true;
 }
 
@@ -215,14 +224,20 @@ void ExternCallStoreBasicBlock::set_data_to_store(llvm::AllocaInst *extern_call_
     this->data_to_store = extern_call_result;
 }
 
+void ExternCallStoreBasicBlock::set_malloc_size(llvm::AllocaInst *malloc_size) {
+    this->malloc_size = malloc_size;
+}
+
 void ExternCallStoreBasicBlock::codegen(JIT *jit, bool no_insert) {
     assert(return_type);
     assert(return_struct);
     assert(return_idx);
     assert(data_to_store);
+    assert(malloc_size);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    CodegenUtils::store_extern_result(jit, return_type, return_struct, return_idx, data_to_store);
+    CodegenUtils::store_extern_result(jit, return_type, return_struct, return_idx, data_to_store, bb->getParent(),
+                                      malloc_size, bb);
     codegen_done = true;
 }
 

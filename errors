@@ -2,3 +2,26 @@
 Solutions:
     a) You are feeding in the wrong type because of a bug in your LLVM code
     b) The stages in your pipeline do not match up in terms of their input and output types
+
+2. Assertion failed: (MBB != &MF->front() && "Can't find reaching def for virtreg"), function MarkVirtRegAliveInBlock, file /Users/JRay/llvm-build/llvm-3.7.0.src/lib/CodeGen/LiveVariables.cpp, line 114.
+Solutions:
+    a) I had a conditional branch and in the true branch block, I was trying to call a variable from the false branch block. This was obviously a problem because
+    the false branch won't execute when it's true, so that value isn't there.
+
+    realloc:                                          ; preds = %store
+      %35 = getelementptr inbounds { { i8*, i32, i32 }**, i64 }*, { { i8*, i32, i32 }**, i64 }** %8, i32 0
+      ; VALUE LOADED IN THE FALSE BLOCK
+      %36 = load { { i8*, i32, i32 }**, i64 }*, { { i8*, i32, i32 }**, i64 }** %35
+      %37 = getelementptr inbounds { { i8*, i32, i32 }**, i64 }, { { i8*, i32, i32 }**, i64 }* %36, i32 0, i32 0
+      %38 = load { i8*, i32, i32 }**, { i8*, i32, i32 }*** %37
+      %39 = add i64 %33, %33
+      %40 = bitcast { i8*, i32, i32 }** %38 to i8*
+      %41 = call i8* @realloc_64(i8* %40, i64 %39)
+      %42 = bitcast i8* %41 to { i8*, i32, i32 }**
+      store { i8*, i32, i32 }** %42, { i8*, i32, i32 }*** %37
+      store i64 %39, i64* %cur_malloc_size, align 8
+      br label %store_it
+
+    store_it:                                         ; preds = %realloc, %store
+    ; IN THE TRUE BLOCK TRYING TO LOAD A VALUE IN THE FALSE BLOCK
+      %43 = getelementptr inbounds { { i8*, i32, i32 }**, i64 }, { { i8*, i32, i32 }**, i64 }* %36, i32 0, i32 0

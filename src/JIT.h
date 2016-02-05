@@ -78,10 +78,20 @@ public:
                                                                     c_malloc64_args, false);
         module->getOrInsertFunction("malloc_64", c_malloc64_ft);
 
-//        std::vector<llvm::Type *> c_printf_args;
-//        c_printf_args.push_back(llvm::PointerType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 8), 0));
-//        llvm::FunctionType *c_printf_ft = llvm::FunctionType::get(llvm::IntegerType::get(llvm::getGlobalContext(), 32), c_printf_args, true);
-//        module->getOrInsertFunction("printf", c_printf_ft);
+        // llvm is very strict, so we can't use the same realloc call for both 32 and 64 bit data
+        std::vector<llvm::Type *> c_realloc32_args;
+        c_realloc32_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+        c_realloc32_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_realloc32_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                    c_realloc32_args, false);
+        module->getOrInsertFunction("realloc_32", c_realloc32_ft);
+
+        std::vector<llvm::Type *> c_realloc64_args;
+        c_realloc64_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+        c_realloc64_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_realloc64_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                    c_realloc64_args, false);
+        module->getOrInsertFunction("realloc_64", c_realloc64_ft);
 
         std::vector<llvm::Type *> c_fprintf_args;
         c_fprintf_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));

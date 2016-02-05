@@ -113,6 +113,7 @@ llvm::Value *codegen_marray_size_ptr(JIT *jit, llvm::LoadInst *loaded_marray, ll
  */
 
 // TODO restrict T so that it has to be one of my primitive types (and maybe a complex type)
+// TODO there is a lot of mixing of templates and mtypes here and in other parts of the code (like the functions that generate code for each of these)
 typedef MArray<char> File;
 
 struct BaseElement {
