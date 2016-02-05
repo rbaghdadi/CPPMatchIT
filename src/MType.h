@@ -162,6 +162,10 @@ public:
         return get_bits();
     }
 
+    virtual MType *get_underlying_type() {
+        return this;
+    }
+
     bool is_prim_type();
 
     bool is_bool_type();
@@ -277,12 +281,16 @@ public:
 
     llvm::Type *codegen();
 
-    MType *get_pointer_type() {
-        return pointer_type;
-    }
+//    MType *get_pointer_type() {
+//        return pointer_type;
+//    }
 
     unsigned int get_pointer_type_bits() {
         return pointer_type->get_bits();
+    }
+
+    MType *get_underlying_type() {
+        return pointer_type;
     }
 
     void dump() {

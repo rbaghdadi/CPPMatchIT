@@ -52,25 +52,25 @@ public:
 
 extern "C" bool llvm_filter(File *file_path);
 
-class CompFilter : public FilterStage<ComparisonElement<unsigned char> *> {
+class CompFilter : public FilterStage<ComparisonElement<bool> *> {
 public:
-    CompFilter(bool (*filter)(ComparisonElement<unsigned char> *), std::string transform_name, JIT *jit) :
+    CompFilter(bool (*filter)(ComparisonElement<bool> *), std::string transform_name, JIT *jit) :
             FilterStage(filter, transform_name, jit) {}
 };
 
-extern "C" bool match_filter(ComparisonElement<unsigned char> *comparison);
+extern "C" bool match_filter(ComparisonElement<bool> *comparison);
 
 /*
  * Comparators
  */
 
-class HashCompare : public ComparisonStage<Element<unsigned char> *, ComparisonElement<unsigned char> *> {
+class HashCompare : public ComparisonStage<Element<unsigned char> *, ComparisonElement<bool> *> {
 public:
-    HashCompare(ComparisonElement<unsigned char> *(*compare)(Element<unsigned char> *, Element<unsigned char> *), JIT *jit) :
+    HashCompare(ComparisonElement<bool> *(*compare)(Element<unsigned char> *, Element<unsigned char> *), JIT *jit) :
             ComparisonStage(compare, "compare", jit) {}
 };
 
-extern "C" ComparisonElement<unsigned char> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2);
+extern "C" ComparisonElement<bool> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2);
 
 
 

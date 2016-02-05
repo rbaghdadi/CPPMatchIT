@@ -15,6 +15,7 @@
 
 llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
 llvm::Value *codegen_file_size(llvm::AllocaInst *alloc_ret_data, JIT *jit);
+llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
 
 namespace CodegenUtils {
 // A component of a function. Can be anything really

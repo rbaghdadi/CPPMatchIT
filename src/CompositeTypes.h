@@ -104,7 +104,6 @@ llvm::Value *codegen_marray_size_ptr(JIT *jit, llvm::LoadInst *loaded_marray, ll
     size_field->setAlignment(8);
     llvm::Value *mul = jit->get_builder().CreateMul(size_field, data_type_size);
     llvm::Value *final_size = jit->get_builder().CreateAdd(mul, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 16)); // add on 16 for size of MArray
-    CodegenUtils::codegen_fprintf_int(jit, size_field);
     return final_size;
 }
 }
@@ -136,9 +135,8 @@ template <typename T>
 struct ComparisonElement : BaseElement {
     MArray<char> *filepath1;
     MArray<char> *filepath2;
-    MArray<T> *data1;
-    MArray<T> *data2;
-    bool is_match;
+    // This could just be a single boolean--should that be a different struct or should they just store a single element bool MArray?
+    MArray<T> *comparison;
 };
 
 template <typename T>
@@ -229,7 +227,6 @@ struct create_type<ComparisonElement<T> *> {
         MType *user_type = create_type<T *>();
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
-        MType *bool_field = create_type<bool>();
         // types in the filepath marray class
         std::vector<MType *> marray_char_field_types;
         // types in the user data marray class
@@ -247,8 +244,6 @@ struct create_type<ComparisonElement<T> *> {
         element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
         element_field_types.push_back(create_struct_reference_type(marray_char_field_types));
         element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
-        element_field_types.push_back(create_struct_reference_type(marray_user_field_types));
-        element_field_types.push_back(bool_field);
         // create our final type
         MPointerType *ptr = create_struct_reference_type(mtype_comparison_element, element_field_types);
         return ptr;

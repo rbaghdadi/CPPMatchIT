@@ -18,6 +18,7 @@ class ComparisonStage : public Stage {
 private:
 
     O (*compare)(I,I);
+    // loop over the second input stream of data
     ForLoop *inner_loop;
 
 public:
@@ -51,7 +52,8 @@ public:
         inner_loop = new ForLoop(jit, mfunction);
 
         // build the body
-        eibb->set_loop_idx(loop_idx);//loop->get_loop_counter_basic_block()->get_loop_idx());
+        // outer loop
+        eibb->set_loop_idx(loop_idx);
         eibb->set_data(args[0]);
         eibb->codegen(jit, false);
         jit->get_builder().CreateBr(inner_loop->get_loop_counter_basic_block()->get_basic_block());

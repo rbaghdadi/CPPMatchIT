@@ -60,7 +60,7 @@ int main(int ac, char **av) {
     pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
 //    pipeline.register_stage(&ixform);
-//    pipeline.register_stage(&comp);
+    pipeline.register_stage(&comp);
 //    pipeline.register_stage(&discard);
     pipeline.codegen(&jit, files.size());
     jit.dump();

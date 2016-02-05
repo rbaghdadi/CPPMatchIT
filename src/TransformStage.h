@@ -59,10 +59,6 @@ public:
         jit->get_builder().CreateBr(branch_to);
     }
 
-//    llvm::AllocaInst *get_ret_type_size(MType *mtype, llvm::AllocaInst *alloc_struct, JIT *jit) {
-//        codegen_element_size<O>(mtype, alloc_struct, jit);
-//    }
-
 };
 
 #endif //MATCHIT_TRANSFORMSTAGE_H

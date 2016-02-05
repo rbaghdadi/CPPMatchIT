@@ -15,31 +15,13 @@ FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value
     for (std::vector<llvm::Value *>::iterator iter = extern_function_arg_allocs.begin();
          iter != extern_function_arg_allocs.end(); iter++) {
         llvm::LoadInst *loaded = jit->get_builder().CreateLoad(*iter);
-//        loaded->setAlignment(N);
+        loaded->setAlignment(8);
         loaded_args.push_back(loaded);
     }
     llvm::CallInst *call = jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args);
-
-//    // DEBUG
-//    std::vector<llvm::Value *> field_index;
-//    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//    llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(call, field_index);
-//    llvm::LoadInst *l = jit->get_builder().CreateLoad(idx_gep);
-//
-//    std::vector<llvm::Value *> marray1_gep_idx;
-//    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
-//    llvm::Value *marray1_gep = jit->get_builder().CreateInBoundsGEP(l, marray1_gep_idx);
-//    llvm::LoadInst *l2 = jit->get_builder().CreateLoad(marray1_gep);
-//    codegen_fprintf_int(jit, 99);
-//    codegen_fprintf_int(jit, l2);
-//    // END DEBUG
-
-
     llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(call->getType());
     jit->get_builder().CreateStore(call, alloc);
-    return FuncComp(alloc);//FuncComp(jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args));
+    return FuncComp(alloc);
 }
 
 FuncComp init_idx(JIT *jit, int start_idx, std::string name) {
@@ -119,9 +101,13 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
 // ret type is the user data type that will be returned. Ex: If transform block, this is the type that comes out of the extern call
 // If this is a filter block, this is the type of input data, since that is actually what is returned (not the bool that comes from the extern call)
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
-                         llvm::AllocaInst *extern_call_res) { //llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) {
+                         llvm::AllocaInst *extern_call_res) {
+    // So in here when we are accessing the return type with the i64 index, we need to make sure i64 is not
+    // greater than the max loop bound. If it is, then we need to make ret bigger. Actually, we kind of need a
+    // current size field (this can just go in the entry block). We commpare our index to that, reallocing
+    // if necessary. Then, we copy the realloced space over the original and then do our normal thing (hopefully
+    // this doesn't wipe out our already stored data?--it doesn't in normal C)
 
-    // TODO user type alignments
     // first, we need to load the return struct and then pull out the correct field to store the computed result
     llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(ret); // { X*, i64 }
     std::vector<llvm::Value *> field_index;
@@ -136,10 +122,8 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
     idx.push_back(loaded_idx);
     llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
     // if the user's extern function returns a pointer, we need to allocate space for that and then use a memcpy
-
-
     if (ret_type->is_ptr_type()) {
-        mtype_code_t underlying_type = ((MPointerType*)(ret_type))->get_pointer_type()->get_type_code();
+        mtype_code_t underlying_type = ((MPointerType*)(ret_type))->get_underlying_type()->get_type_code();
         llvm::Value *ret_type_size;
         // find out the marray/struct size (in bytes)
         switch (underlying_type) {
@@ -149,13 +133,14 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
             case mtype_file:
                 ret_type_size = codegen_file_size(extern_call_res, jit);
                 break;
+            case mtype_comparison_element:
+                ret_type_size = codegen_comparison_element_size(ret_type, extern_call_res, jit);
+                break;
             default:
+                std::cerr << "Unknown mtype!" << std::endl;
                 ret_type->dump();
                 exit(9);
         }
-
-//        ret_type_size = llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 500);
-
         llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(ret_type_size, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8)); // 8
         // malloc space for the outer struct (8 byte pointer)
         llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, ptr_struct_bytes, ret_type->codegen());
@@ -167,7 +152,6 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
         // just copy it into the alloca space
         jit->get_builder().CreateStore(extern_call_res, idx_gep);
     }
-
     // increment the return idx
     llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(loaded_idx, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
     llvm::StoreInst *store_ret_idx = jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
@@ -305,39 +289,55 @@ llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type
 
 }
 
+// helper function for the size functions that follow
+llvm::LoadInst *get_struct_in_struct(int struct_index, llvm::AllocaInst *initial_struct, JIT *jit) {
+    llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(initial_struct);
+    load_initial->setAlignment(8);
+    std::vector<llvm::Value *> marray1_gep_idx;
+    // dereference the initial pointer to get the underlying type
+    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    // now pull out the actual truct
+    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), struct_index));
+    llvm::Value *marray1_gep = jit->get_builder().CreateInBoundsGEP(load_initial, marray1_gep_idx);
+    llvm::LoadInst *marray1 = jit->get_builder().CreateLoad(marray1_gep);
+    marray1->setAlignment(8);
+    return marray1;
+}
+
 llvm::Value *codegen_file_size(llvm::AllocaInst *alloc_ret_data, JIT *jit) {
-    // dereference
     llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(alloc_ret_data);
     llvm::Value *final_size = codegen_marray_size_ptr(jit, load_initial, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
     return final_size;
 }
 
 llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit) {
-
     // TODO this is super hacky, but I just want to get it working for now. I want to cry
-    unsigned int num_bytes = ((MPointerType*)((MStructType*)((MPointerType*)((MStructType*)(((MPointerType*)mtype)->get_pointer_type()))->get_field_types()[1])->get_pointer_type())->get_field_types()[0])->get_pointer_type()->get_bits() / 8;
-    // get the first marray
-    llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(alloc_ret_data);
-    load_initial->setAlignment(8);
-    std::vector<llvm::Value *> marray1_gep_idx;
-    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    llvm::Value *marray1_gep = jit->get_builder().CreateInBoundsGEP(load_initial, marray1_gep_idx);
-    llvm::LoadInst *marray1 = jit->get_builder().CreateLoad(marray1_gep);
-    marray1->setAlignment(8);
-    llvm::Value *marray1_size = codegen_marray_size_ptr(jit, marray1, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), num_bytes));
-
-
+    // bytes per element
+    // in an Element, we need to access the 2nd field (the user type struct) and then the first field
+    unsigned int num_bytes = ((MPointerType*)((MStructType*)((MPointerType*)((MStructType*)(((MPointerType*)mtype)->get_underlying_type()))->get_field_types()[1])->get_underlying_type())->get_field_types()[0])->get_underlying_type()->get_bits() / 8;
+    // get the first marray (always char*)
+    llvm::LoadInst *marray1 = get_struct_in_struct(0, alloc_ret_data, jit);
+    llvm::Value *marray1_size = codegen_marray_size_ptr(jit, marray1, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
     // get the second marray
-    std::vector<llvm::Value *> marray2_gep_idx;
-    marray2_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    marray2_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
-    llvm::Value *marray2_gep = jit->get_builder().CreateInBoundsGEP(load_initial, marray2_gep_idx);
-    llvm::LoadInst *marray2 = jit->get_builder().CreateLoad(marray2_gep);
-    marray2->setAlignment(8);
+    llvm::LoadInst *marray2 = get_struct_in_struct(1, alloc_ret_data, jit);
     llvm::Value *marray2_size = codegen_marray_size_ptr(jit, marray2, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), num_bytes));
     // add on 16 for size of Element
-// TODO change back to marray2_size
-    return jit->get_builder().CreateAdd(jit->get_builder().CreateAdd(marray1_size, marray1_size), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 16));
+    return jit->get_builder().CreateAdd(jit->get_builder().CreateAdd(marray1_size, marray2_size), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 16));
+}
+
+llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit) {
+    // TODO this is super hacky, but I just want to get it working for now. I want to cry
+    // bytes per element
+    unsigned int num_bytes = ((MPointerType*)((MStructType*)((MPointerType*)((MStructType*)(((MPointerType*)mtype)->get_underlying_type()))->get_field_types()[2])->get_underlying_type())->get_field_types()[0])->get_underlying_type()->get_bits() / 8;
+    // get the first marray (always char*)
+    llvm::LoadInst *marray1 = get_struct_in_struct(0, alloc_ret_data, jit);
+    llvm::Value *marray1_size = codegen_marray_size_ptr(jit, marray1, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+    // get the second marray (always char*)
+    llvm::LoadInst *marray2 = get_struct_in_struct(1, alloc_ret_data, jit);
+    llvm::Value *marray2_size = codegen_marray_size_ptr(jit, marray2, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+    // get the third marray
+    llvm::LoadInst *marray3 = get_struct_in_struct(2, alloc_ret_data, jit);
+    llvm::Value *marray3_size = codegen_marray_size_ptr(jit, marray3, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), num_bytes));
+    return jit->get_builder().CreateAdd(marray1_size, jit->get_builder().CreateAdd(marray2_size, marray3_size));
 }
 

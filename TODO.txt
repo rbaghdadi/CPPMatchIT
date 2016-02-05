@@ -1,0 +1,10 @@
+
+
+- get rid of usage of malloc and new explicitly on the user's side. that kind of stuff
+should just happen automatically I think (but this is further down the road)
+- Add SegmentStage
+    - flatten the segments so they can be processed individually
+- Allow merging with compare block
+- Add convenience methods so users don't need to keep calling get_underlying_data. Also don't require them to malloc stuff
+- move the extern_wrapper_ret_type initialization to the stage constructors. I can get rid of the if/else if I just do it in the stage since
+I know what the correct ret type should be

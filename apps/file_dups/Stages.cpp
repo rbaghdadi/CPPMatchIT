@@ -58,31 +58,27 @@ extern "C" bool llvm_filter(File *file_path) {
     }
 }
 
-extern "C" ComparisonElement<unsigned char> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2) {
-//    std::cerr << "Comparing: " << file1->filepath->get_underlying_array() << " and " << file2->filepath->get_underlying_array();
-//    bool is_match = true;
-//    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-//        if (file1->data->get_underlying_array()[i] != file2->data->get_underlying_array()[i]) {
-//            is_match = false;
-//            break;
-//        }
-//    }
-//    ComparisonElement<unsigned char> *comparison = (ComparisonElement<unsigned char> *) malloc(sizeof(*comparison));
-//    comparison->data1 = new MArray<unsigned char>(file1->data->get_num_elements());
-//    comparison->data2 = new MArray<unsigned char>(file2->data->get_num_elements());
-//    comparison->filepath1 = new MArray<char>(file1->filepath->get_num_elements());
-//    comparison->filepath2 = new MArray<char>(file2->filepath->get_num_elements());
-//    comparison->data1->add(file1->data->get_underlying_array(), file1->data->get_num_elements());
-//    comparison->data2->add(file2->data->get_underlying_array(), file2->data->get_num_elements());
-//    comparison->filepath1->add(file1->filepath->get_underlying_array(), file1->filepath->get_num_elements());
-//    comparison->filepath2->add(file2->filepath->get_underlying_array(), file2->filepath->get_num_elements());
-//    comparison->is_match = is_match;
-//    std::cerr << " is match?: " << is_match << std::endl;
-//    return comparison;
+extern "C" ComparisonElement<bool> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2) {
+    std::cerr << "Comparing: " << file1->filepath->get_underlying_array() << " and " << file2->filepath->get_underlying_array();
+    bool is_match = true;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        if (file1->data->get_underlying_array()[i] != file2->data->get_underlying_array()[i]) {
+            is_match = false;
+            break;
+        }
+    }
+    ComparisonElement<bool> *comparison = (ComparisonElement<bool> *) malloc(sizeof(*comparison));
+    comparison->filepath1 = new MArray<char>(file1->filepath->get_num_elements());
+    comparison->filepath2 = new MArray<char>(file2->filepath->get_num_elements());
+    comparison->filepath1->add(file1->filepath->get_underlying_array(), file1->filepath->get_num_elements());
+    comparison->filepath2->add(file2->filepath->get_underlying_array(), file2->filepath->get_num_elements());
+    comparison->comparison = new MArray<bool>(1);
+    std::cerr << " is match?: " << is_match << std::endl;
+    return comparison;
 }
 
-extern "C" bool match_filter(ComparisonElement<unsigned char> *comparison) {
-    if (comparison->is_match) {
+extern "C" bool match_filter(ComparisonElement<bool> *comparison) {
+    if (comparison->comparison->get_underlying_array()[0]) {
         std::cerr << "Final: " << comparison->filepath1->get_underlying_array() << " ### " << comparison->filepath2->get_underlying_array() << std::endl;
         return true;
     } else {

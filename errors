@@ -1,0 +1,4 @@
+1. calling a function with a bad signature
+Solutions:
+    a) You are feeding in the wrong type because of a bug in your LLVM code
+    b) The stages in your pipeline do not match up in terms of their input and output types
