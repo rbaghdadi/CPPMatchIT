@@ -155,6 +155,13 @@ public:
 
     virtual void dump() = 0;
 
+    // for pointer types, get bits in their base type (so what they are pointing to basically)
+    // ex: Foo* => base type is Foo
+    // ex: Bar** => base type is bar
+    virtual unsigned int get_underlying_type_bits() {
+        return get_bits();
+    }
+
     bool is_prim_type();
 
     bool is_bool_type();
@@ -232,7 +239,16 @@ public:
         std::cerr << "MStructType with type code: " << type_code << " and field types " << std::endl;
         for (std::vector<MType *>::iterator iter = field_types.begin(); iter != field_types.end(); iter++) {
             (*iter)->dump();
-        }
+            std::cerr << "###" << std::endl;
+         }
+    }
+
+    std::vector<MType *> get_field_types() {
+        return field_types;
+    }
+
+    unsigned int get_underlying_type_bits() {
+        return get_bits();
     }
 
 };
@@ -263,6 +279,10 @@ public:
 
     MType *get_pointer_type() {
         return pointer_type;
+    }
+
+    unsigned int get_pointer_type_bits() {
+        return pointer_type->get_bits();
     }
 
     void dump() {
@@ -381,81 +401,5 @@ MPointerType *create_struct_reference_type(mtype_code_t struct_type, std::vector
 }
 
 }
-//
-///*
-// * the struct here would be something like
-// * struct S {
-// *  size_t *field_sizes; // this are the field sizes of the fields in the struct
-// *  struct X x;
-// * }
-// *
-// * and we would return S* from functions
-// */
-//template <typename T>
-//MPointerType *create_mvecptr_type(std::vector<MType *> user_field_types) {
-//    MStructType *inner = create_struct_type(user_field_types);
-//    std::vector<MType *> fields;
-//    MType *int_ptr_type = create_type<int *>();
-//    fields.push_back(int_ptr_type);
-//    fields.push_back(inner);
-//    return create_struct_reference_type(fields); // the outermost
-//}
-//
-///*
-// * the struct here would be something like
-// * struct S {
-// *  size_t *field_sizes; // this are the field sizes of the fields in the struct
-// *  X x;
-// * }
-// *
-// * and we would return S* from functions
-// */
-//template <typename T>
-//MPointerType *create_mvecptr_type() {
-//    std::vector<MType *> fields;
-//    MType *int_ptr_type = create_type<int *>();
-//    MType *user_type = create_type<T>();
-//    fields.push_back(int_ptr_type);
-//    fields.push_back(user_type);
-//    return create_struct_reference_type(fields); // the outermost
-//}
-//
-///*
-// * the struct here would be something like
-// * struct S {
-// *  size_t *field_sizes;
-// *  struct X *x;
-// * }
-// *
-// * and we would return S* from functions
-// */
-//template <typename T>
-//MPointerType *create_mvecptr_ref_type(std::vector<MType *> user_field_types) {
-//    MPointerType *inner = create_struct_reference_type(user_field_types);
-//    std::vector<MType *> fields;
-//    MType *int_ptr_type = create_type<int *>();
-//    fields.push_back(int_ptr_type);
-//    fields.push_back(inner);
-//    return create_struct_reference_type(fields); // the outermost
-//}
-//
-///*
-// * the struct here would be something like
-// * struct S {
-// *  size_t *field_sizes;
-// *  X *x;
-// * }
-// *
-// * and we would return S* from functions
-// */
-//template <typename T>
-//MPointerType *create_mvecptr_ref_type() {
-//    std::vector<MType *> fields;
-//    MType *int_ptr_type = create_type<int *>();
-//    MType *user_type = create_type<T>();
-//    fields.push_back(int_ptr_type);
-//    fields.push_back(user_type);
-//    return create_struct_reference_type(fields); // the outermost
-//}
 
 #endif //MATCHIT_MTYPE_H

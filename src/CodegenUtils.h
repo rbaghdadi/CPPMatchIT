@@ -7,11 +7,14 @@
 #ifndef MATCHIT_CODEGENUTILS_H
 #define MATCHIT_CODEGENUTILS_H
 
+#include "llvm/IR/Value.h"
+#include "llvm/IR/Instructions.h"
+#include "./MType.h"
 #include "./JIT.h"
 #include "./MFunc.h"
 
-llvm::AllocaInst *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
-llvm::AllocaInst *codegen_file_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
+llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
+llvm::Value *codegen_file_size(llvm::AllocaInst *alloc_ret_data, JIT *jit);
 
 namespace CodegenUtils {
 // A component of a function. Can be anything really
@@ -95,6 +98,8 @@ llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, size_t size, llvm::Type *cast
 llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to);
 
 void codegen_fprintf_int(JIT *jit, llvm::Value *the_int);
+
+void codegen_fprintf_int(JIT *jit, int the_int);
 
 }
 

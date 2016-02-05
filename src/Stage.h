@@ -24,6 +24,8 @@ protected:
     std::string function_name;
     mtype_code_t input_mtype_code;
     mtype_code_t output_mtype_code;
+    mtype_code_t base_input_mtype_code;
+    mtype_code_t base_output_mtype_code;
     ForLoop *loop;
 
     ReturnStructBasicBlock *return_struct_basic_block;
@@ -73,17 +75,15 @@ public:
 
     virtual void base_codegen();
 
-//    virtual llvm::AllocaInst *get_ret_type_size(MType *mtype, llvm::AllocaInst *alloc_struct, JIT *jit);
-
-//    virtual void get_input_element_size_in_bytes() = 0;
-//
-//    virtual void get_output_element_size_in_bytes() = 0;
-
     void set_for_loop(ForLoop *loop);
 
     mtype_code_t get_input_mtype_code();
 
     mtype_code_t get_output_mtype_code();
+
+    mtype_code_t get_base_input_mtype_code();
+
+    mtype_code_t get_base_output_mtype_code();
 
     JIT *get_jit();
 

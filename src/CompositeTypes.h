@@ -7,7 +7,11 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include "llvm/IR/Value.h"
+#include "./JIT.h"
+#include "./CodegenUtils.h"
 #include "./MType.h"
+
 
 // use this instead of an array
 template <typename T>
@@ -78,22 +82,47 @@ public:
 
 };
 
+namespace {
+//llvm::Value *codegen_marray_size(JIT *jit, llvm::LoadInst *loaded_marray, llvm::Value *data_type_size) {
+//    std::vector<llvm::Value *> gep_size_field_idx;
+//    gep_size_field_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+//    llvm::Value *gep_size_field = jit->get_builder().CreateInBoundsGEP(loaded_marray, gep_size_field_idx);
+//    llvm::LoadInst *size_field = jit->get_builder().CreateLoad(gep_size_field);
+//    llvm::Value *final_size = jit->get_builder().CreateAdd(jit->get_builder().CreateMul(size_field, data_type_size),
+//                                                           llvm::ConstantInt::get(
+//                                                                   llvm::Type::getInt32Ty(llvm::getGlobalContext()),
+//                                                                   16)); // add on 16 for size of MArray
+//    return final_size;
+//}
+
+llvm::Value *codegen_marray_size_ptr(JIT *jit, llvm::LoadInst *loaded_marray, llvm::Value *data_type_size) {
+    std::vector<llvm::Value *> gep_size_field_idx;
+    gep_size_field_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    gep_size_field_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+    llvm::Value *gep_size_field = jit->get_builder().CreateInBoundsGEP(loaded_marray, gep_size_field_idx);
+    llvm::LoadInst *size_field = jit->get_builder().CreateLoad(gep_size_field);
+    size_field->setAlignment(8);
+    llvm::Value *mul = jit->get_builder().CreateMul(size_field, data_type_size);
+    llvm::Value *final_size = jit->get_builder().CreateAdd(mul, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 16)); // add on 16 for size of MArray
+    CodegenUtils::codegen_fprintf_int(jit, size_field);
+    return final_size;
+}
+}
+
 /*
  * Data types available for the user
  */
 
-struct BaseElement {
-    virtual std::vector<MType *> get_struct_fields() = 0;
-    virtual ~BaseElement();
-};
-
+// TODO restrict T so that it has to be one of my primitive types (and maybe a complex type)
 typedef MArray<char> File;
+
+struct BaseElement {
+};
 
 template <typename T>
 struct Element : BaseElement {
     MArray<char> *filepath;
     MArray<T> *data;
-
 };
 
 template <typename T>
@@ -169,7 +198,7 @@ struct BucketedSegmentedComparisonElement : BaseElement {
 // TODO need a delete somewhere for all of these
 template <typename T>
 struct create_type<Element<T> *> {
-    operator MPointerType*() {
+    operator MPointerType *() {
         MType *user_type = create_type<T *>();
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
@@ -196,7 +225,7 @@ struct create_type<Element<T> *> {
 
 template <typename T>
 struct create_type<ComparisonElement<T> *> {
-    operator MPointerType*() {
+    operator MPointerType *() {
         MType *user_type = create_type<T *>();
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
@@ -228,7 +257,7 @@ struct create_type<ComparisonElement<T> *> {
 
 template <>
 struct create_type<File *> {
-    operator MPointerType*() {
+    operator MPointerType *() {
         MType *int_field = create_type<int>();
         MType *char_field = create_type<char *>();
         // types in the filepath
@@ -261,5 +290,6 @@ struct mtype_of<File> {
         return mtype_file;
     }
 };
+
 
 #endif //MATCHIT_COMPOSITETYPES_H

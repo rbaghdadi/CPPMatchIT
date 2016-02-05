@@ -17,22 +17,21 @@
  * Transforms
  */
 
-class IdentityTransform : public TransformStage<File *, File *> {
+class IdentityTransform : public TransformStage<Element<unsigned char> *, Element<unsigned char> *> {
 
 public:
 
-    IdentityTransform(File *(*transform)(File *), JIT *jit, std::vector<MType *> fields) :
-            TransformStage(transform, "identity", jit, fields, fields) {}
+    IdentityTransform(Element<unsigned char> *(*transform)(Element<unsigned char> *), JIT *jit) :
+            TransformStage(transform, "identity", jit) {}
 
 };
 
-extern "C" File *identity(File *file);
+extern "C" Element<unsigned char> *identity(Element<unsigned char> *file);
 
 class Transform : public TransformStage<File *, Element<unsigned char> *> {
 
 public:
 
-    // TODO this isn't very nice for the user to have to write
     Transform(Element<unsigned char> *(*transform)(File *), JIT *jit) : TransformStage(transform, "transform", jit) {}
 
 };

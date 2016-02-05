@@ -19,6 +19,24 @@ FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value
         loaded_args.push_back(loaded);
     }
     llvm::CallInst *call = jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args);
+
+//    // DEBUG
+//    std::vector<llvm::Value *> field_index;
+//    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+//    field_index.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+//    llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(call, field_index);
+//    llvm::LoadInst *l = jit->get_builder().CreateLoad(idx_gep);
+//
+//    std::vector<llvm::Value *> marray1_gep_idx;
+//    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+//    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+//    llvm::Value *marray1_gep = jit->get_builder().CreateInBoundsGEP(l, marray1_gep_idx);
+//    llvm::LoadInst *l2 = jit->get_builder().CreateLoad(marray1_gep);
+//    codegen_fprintf_int(jit, 99);
+//    codegen_fprintf_int(jit, l2);
+//    // END DEBUG
+
+
     llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(call->getType());
     jit->get_builder().CreateStore(call, alloc);
     return FuncComp(alloc);//FuncComp(jit->get_builder().CreateCall(extern_func.get_extern(), loaded_args));
@@ -102,6 +120,7 @@ FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern
 // If this is a filter block, this is the type of input data, since that is actually what is returned (not the bool that comes from the extern call)
 void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Value *ret_idx,
                          llvm::AllocaInst *extern_call_res) { //llvm::AllocaInst *(sizeify)(MType *, llvm::AllocaInst *, JIT *)) {
+
     // TODO user type alignments
     // first, we need to load the return struct and then pull out the correct field to store the computed result
     llvm::LoadInst *loaded_ret_struct = jit->get_builder().CreateLoad(ret); // { X*, i64 }
@@ -116,69 +135,34 @@ void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret, llvm::Valu
     std::vector<llvm::Value *> idx;
     idx.push_back(loaded_idx);
     llvm::Value *idx_gep = jit->get_builder().CreateInBoundsGEP(loaded_field, idx); // address of X[ret_idx]
-
     // if the user's extern function returns a pointer, we need to allocate space for that and then use a memcpy
+
+
     if (ret_type->is_ptr_type()) {
-        // what to do:
-        // malloc space for the whole struct object (which we can just use 8bytes for now to make things simple)
-        // store that malloc'd space
-        // malloc space for the marray(s) in the struct
-        // store that malloc'd space in the previous malloc'd space
-        // get the underlying type of this pointer
         mtype_code_t underlying_type = ((MPointerType*)(ret_type))->get_pointer_type()->get_type_code();
-        llvm::AllocaInst *alloc_marray_size;
-        // find out the array size (in bytes)
+        llvm::Value *ret_type_size;
+        // find out the marray/struct size (in bytes)
         switch (underlying_type) {
             case mtype_element:
-                alloc_marray_size = codegen_element_size(ret_type, extern_call_res, jit);
+                ret_type_size = codegen_element_size(ret_type, extern_call_res, jit);
                 break;
             case mtype_file:
-                alloc_marray_size = codegen_file_size(ret_type, extern_call_res, jit);
+                ret_type_size = codegen_file_size(extern_call_res, jit);
                 break;
             default:
                 ret_type->dump();
                 exit(9);
         }
-        // TODO this is specific for the File type
-        alloc_marray_size->setAlignment(8);
-        llvm::LoadInst *struct_bytes = jit->get_builder().CreateLoad(alloc_marray_size);
-        struct_bytes->setAlignment(8);
-        // allocate space for the whole struct and store it in the ret space
-        // add on 8 bytes for the pointer type
-        llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(struct_bytes, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8));//llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 115);//8 + 8); // 8 bytes for the struct + 8 bytes for the two i32 fields
+
+//        ret_type_size = llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 500);
+
+        llvm::Value *ptr_struct_bytes = jit->get_builder().CreateAdd(ret_type_size, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 8)); // 8
+        // malloc space for the outer struct (8 byte pointer)
         llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, ptr_struct_bytes, ret_type->codegen());
         jit->get_builder().CreateStore(struct_malloc_space, idx_gep);
-
-        // allocate space for the char array
-//        alloc_marray_size->setAlignment(8);
-//        llvm::LoadInst *num_bytes = jit->get_builder().CreateLoad(alloc_marray_size);
-//        num_bytes->setAlignment(8);
-//
-//        llvm::Value *marray_malloc_space = codegen_c_malloc32_and_cast(jit, jit->get_builder().CreateAdd(num_bytes, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 400)), llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
-//
-//        // figure out where to store this char array
-//        llvm::LoadInst *mallocd_struct = jit->get_builder().CreateLoad(idx_gep);
-//        std::vector<llvm::Value *> marray_field_idx;
-//        marray_field_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//        marray_field_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//        llvm::Value *marray_field_gep = jit->get_builder().CreateInBoundsGEP(mallocd_struct, marray_field_idx);
-//
-//        // now store it
-//        jit->get_builder().CreateStore(marray_malloc_space, marray_field_gep);
-//        // copy over the actual data into the malloc'd space
-//        // TODO do I need to copy this over in pieces?
-
-//        codegen_fprintf_int(jit, num_bytes);
-
-
-//        llvm::Value *malloc_space = codegen_c_malloc32_and_cast(jit, num_bytes, ret_type->codegen());
-//        jit->get_builder().CreateStore(malloc_space, idx_gep);
         llvm::LoadInst *dest = jit->get_builder().CreateLoad(idx_gep);
         llvm::LoadInst *src = jit->get_builder().CreateLoad(extern_call_res);
         codegen_llvm_memcpy(jit, dest, src, ptr_struct_bytes);
-
-
-
     } else {
         // just copy it into the alloca space
         jit->get_builder().CreateStore(extern_call_res, idx_gep);
@@ -241,8 +225,6 @@ void codegen_llvm_memcpy(JIT *jit, llvm::Value *dest, llvm::Value *src, llvm::Va
     std::vector<llvm::Value *> memcpy_args;
     memcpy_args.push_back(jit->get_builder().CreateBitCast(dest, llvm::Type::getInt8PtrTy(llvm::getGlobalContext())));
     memcpy_args.push_back(jit->get_builder().CreateBitCast(src, llvm::Type::getInt8PtrTy(llvm::getGlobalContext())));
-//     TODO shouldn't just be 400...
-//    memcpy_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 100));
     memcpy_args.push_back(bytes_to_copy);
     memcpy_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
     memcpy_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm::getGlobalContext()), false));
@@ -256,6 +238,16 @@ void codegen_fprintf_int(JIT *jit, llvm::Value *the_int) {
     print_args.push_back(the_int);
     jit->get_builder().CreateCall(c_fprintf, print_args);
 }
+
+
+void codegen_fprintf_int(JIT *jit, int the_int) {
+    llvm::Function *c_fprintf = jit->get_module()->getFunction("print_int");
+    assert(c_fprintf);
+    std::vector<llvm::Value *> print_args;
+    print_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), the_int));
+    jit->get_builder().CreateCall(c_fprintf, print_args);
+}
+
 
 llvm::Value *codegen_c_malloc32(JIT *jit, size_t size) {
     llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_32");
@@ -313,69 +305,39 @@ llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type
 
 }
 
-llvm::AllocaInst *codegen_file_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit) {
-
-    // dereference the pointer-to-pointer
-    std::vector<llvm::Value *> initial_gep_idxs;
-    initial_gep_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    llvm::Value *gep_initial = jit->get_builder().CreateInBoundsGEP(alloc_ret_data, initial_gep_idxs);
-    llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(gep_initial);
-
-    // get the correct field out of the first struct
-    std::vector<llvm::Value *> gep_struct_one_field_two_idxs;
-    gep_struct_one_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-    gep_struct_one_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
-    llvm::Value *gep_struct_one_field_two = jit->get_builder().CreateInBoundsGEP(load_initial, gep_struct_one_field_two_idxs);
-    llvm::LoadInst *load_struct_one_field_two = jit->get_builder().CreateLoad(gep_struct_one_field_two);
-
-    // get the final size
-    llvm::AllocaInst *final_size = jit->get_builder().CreateAlloca(load_struct_one_field_two->getType());
-    // add on the outer struct size
-    jit->get_builder().CreateStore(jit->get_builder().CreateAdd(load_struct_one_field_two, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), sizeof(File*))), final_size);
-
+llvm::Value *codegen_file_size(llvm::AllocaInst *alloc_ret_data, JIT *jit) {
+    // dereference
+    llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(alloc_ret_data);
+    llvm::Value *final_size = codegen_marray_size_ptr(jit, load_initial, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
     return final_size;
 }
 
-llvm::AllocaInst *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit) {
-    // get the first struct out of the main Element struct
-    std::vector<llvm::Value *> gep_struct_one_idxs;
-    gep_struct_one_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    gep_struct_one_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    llvm::Value *gep_struct_one = jit->get_builder().CreateInBoundsGEP(alloc_ret_data, gep_struct_one_idxs);
-    llvm::LoadInst *load_struct_one = jit->get_builder().CreateLoad(gep_struct_one);
-    // get the correct field out of the first struct
-    std::vector<llvm::Value *> gep_struct_one_field_two_idxs;
-    gep_struct_one_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    gep_struct_one_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
-    llvm::Value *gep_struct_one_field_two = jit->get_builder().CreateInBoundsGEP(load_struct_one, gep_struct_one_field_two_idxs);
-    llvm::LoadInst *load_struct_one_field_two = jit->get_builder().CreateLoad(gep_struct_one_field_two);
-    // get the size of the first struct
-    llvm::Value *struct_one_field_one_size = jit->get_builder().CreateMul(load_struct_one_field_two,
-                                                                          llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), mtype->get_bits() / 8)); // array length * size of array element
-    llvm::Value *const_field_one_size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 8);
-    llvm::Value *struct_one_size = jit->get_builder().CreateAdd(struct_one_field_one_size, jit->get_builder().CreateAdd(const_field_one_size, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), mtype->get_bits() / 8)));
+llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit) {
 
-    // get the second struct
-    std::vector<llvm::Value *> gep_struct_two_idxs;
-    gep_struct_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    gep_struct_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    llvm::Value *gep_struct_two = jit->get_builder().CreateInBoundsGEP(alloc_ret_data, gep_struct_two_idxs);
-    llvm::LoadInst *load_struct_two = jit->get_builder().CreateLoad(gep_struct_two);
-    // get the correct field out of the second struct
-    std::vector<llvm::Value *> gep_struct_two_field_two_idxs;
-    gep_struct_two_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 0));
-    gep_struct_two_field_two_idxs.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
-    llvm::Value *gep_struct_two_field_two = jit->get_builder().CreateInBoundsGEP(load_struct_two, gep_struct_two_field_two_idxs);
-    llvm::LoadInst *load_struct_two_field_two = jit->get_builder().CreateLoad(gep_struct_two_field_two);
-    // get the size of the second struct
-    llvm::Value *struct_two_field_two_size = jit->get_builder().CreateMul(load_struct_two_field_two,
-                                                                          llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), mtype->get_bits() / 8)); // array length * size of array element
-    llvm::Value *const_field_two_size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 8);
-    llvm::Value *struct_two_size = jit->get_builder().CreateAdd(struct_two_field_two_size, jit->get_builder().CreateAdd(const_field_two_size, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), mtype->get_bits() / 8)));
+    // TODO this is super hacky, but I just want to get it working for now. I want to cry
+    unsigned int num_bytes = ((MPointerType*)((MStructType*)((MPointerType*)((MStructType*)(((MPointerType*)mtype)->get_pointer_type()))->get_field_types()[1])->get_pointer_type())->get_field_types()[0])->get_pointer_type()->get_bits() / 8;
+    // get the first marray
+    llvm::LoadInst *load_initial = jit->get_builder().CreateLoad(alloc_ret_data);
+    load_initial->setAlignment(8);
+    std::vector<llvm::Value *> marray1_gep_idx;
+    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    marray1_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    llvm::Value *marray1_gep = jit->get_builder().CreateInBoundsGEP(load_initial, marray1_gep_idx);
+    llvm::LoadInst *marray1 = jit->get_builder().CreateLoad(marray1_gep);
+    marray1->setAlignment(8);
+    llvm::Value *marray1_size = codegen_marray_size_ptr(jit, marray1, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), num_bytes));
 
-    // get the final size
-    llvm::Value *add = jit->get_builder().CreateAdd(struct_one_size, struct_two_size);
-    llvm::AllocaInst *final_add = jit->get_builder().CreateAlloca(add->getType());
-    jit->get_builder().CreateStore(final_add, add);
-    return final_add;
+
+    // get the second marray
+    std::vector<llvm::Value *> marray2_gep_idx;
+    marray2_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+    marray2_gep_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+    llvm::Value *marray2_gep = jit->get_builder().CreateInBoundsGEP(load_initial, marray2_gep_idx);
+    llvm::LoadInst *marray2 = jit->get_builder().CreateLoad(marray2_gep);
+    marray2->setAlignment(8);
+    llvm::Value *marray2_size = codegen_marray_size_ptr(jit, marray2, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), num_bytes));
+    // add on 16 for size of Element
+// TODO change back to marray2_size
+    return jit->get_builder().CreateAdd(jit->get_builder().CreateAdd(marray1_size, marray1_size), llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 16));
 }
+

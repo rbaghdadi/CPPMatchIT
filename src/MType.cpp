@@ -5,7 +5,7 @@
 #include <iostream>
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "MType.h"
+#include "./MType.h"
 
 mtype_code_t MType::get_type_code() {
     return type_code;
