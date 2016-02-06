@@ -119,8 +119,6 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         }
         args.push_back(loaded_idx);
 
-        jit->dump();
-
         call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 

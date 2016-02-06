@@ -20,7 +20,10 @@ T* as_array(std::vector<T> *vec) {
 
 extern "C" void print_sep();
 
-extern "C" void print_int(int x);
+extern "C" void print_int(int l);
+extern "C" void print_float(float f);
+
+//extern "C" void print_string(std::string s);
 
 extern "C" void *malloc_32(size_t size);
 

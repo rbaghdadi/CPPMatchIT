@@ -48,7 +48,7 @@ int main(int ac, char **av) {
 
     IdentityTransform ixform(identity, &jit);
     Transform xform(transform, &jit);
-    Filter filt(llvm_filter, "llvm_filter", &jit);
+    Filter filt(matlab_filter, "matlab_filter", &jit);
     HashCompare comp(compare, &jit);
     CompFilter discard(match_filter, "match_filter", &jit);
 
@@ -59,9 +59,9 @@ int main(int ac, char **av) {
     Pipeline pipeline;
     pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
-//    pipeline.register_stage(&ixform);
+    pipeline.register_stage(&ixform);
     pipeline.register_stage(&comp);
-//    pipeline.register_stage(&discard);
+    pipeline.register_stage(&discard);
     pipeline.codegen(&jit, files.size());
     jit.dump();
     jit.add_module();

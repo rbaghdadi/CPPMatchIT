@@ -8,3 +8,6 @@ should just happen automatically I think (but this is further down the road)
 - Add convenience methods so users don't need to keep calling get_underlying_data. Also don't require them to malloc stuff
 - move the extern_wrapper_ret_type initialization to the stage constructors. I can get rid of the if/else if I just do it in the stage since
 I know what the correct ret type should be
+- create an actual test case
+- figure out how to create the struct alias. things will look much nicer in the llvm output
+- realloc not needed in some of the stores since they won't realloc (like a transform for example--we know how many elements will be returned)

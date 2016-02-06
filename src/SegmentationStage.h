@@ -9,30 +9,24 @@
 
 // TODO for now, we offload the writing of the segmentation to the user
 template <typename I, typename O>
-class SegmentationStage : Stage {
+class SegmentationStage : public Stage {
 
 private:
 
-    O* (*segment)(I);
-//    unsigned int slide_amt;
-//    unsigned int segment_size;
-//    // creates a sliding window over a single input
-//    ForLoop *slide_loop;
-//    // creates the segment
-//    ForLoop *segment_loop;
+    O (*segment)(I);
 
 public:
 
-    SegmentationStage(O* (segment)(I), std::string segmentation_name, JIT *jit) :
-            Stage(jit, mtype_of<I>(), mtype_of<O*>(), segmentation_name), segment(segment){
-        MType *ret_type = create_type<O*>();
+    SegmentationStage(O (*segment)(I), std::string segmentation_name, JIT *jit) :
+            Stage(jit, mtype_of<I>(), mtype_of<O>(), segmentation_name), segment(segment) {
         MType *arg_type = create_type<I>();
+        MType *ret_type = create_type<O>();
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "SegmentationStage", ret_type, arg_types, jit);
-        set_function(func);
         func->codegen_extern_proto();
         func->codegen_extern_wrapper_proto();
+        set_function(func);
     }
 
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,

@@ -29,9 +29,9 @@ public:
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
-        set_function(func);
         func->codegen_extern_proto();
         func->codegen_extern_wrapper_proto();
+        set_function(func);
     }
 
     ~TransformStage() { }

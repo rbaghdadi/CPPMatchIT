@@ -29,7 +29,9 @@ typedef enum {
     mtype_ptr, // 10
     mtype_element, // 11
     mtype_comparison_element, // 12
-    mtype_file // 13
+    mtype_file, // 13
+    mtype_segments, // 14
+    mtype_segmented_element //15
 } mtype_code_t;
 
 // modeled after halide

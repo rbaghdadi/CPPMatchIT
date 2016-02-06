@@ -45,10 +45,10 @@ extern "C" Element<unsigned char>* transform(File *file_path) {
     return md5_hash;
 }
 
-extern "C" bool llvm_filter(File *file_path) {
+extern "C" bool matlab_filter(File *file_path) {
     // 0 => not in string, so we can keep it
     std::cerr << "Running llvm_filter: " << file_path->get_underlying_array() << " ";
-    char *cmp = strstr(file_path->get_underlying_array(), ".ll");
+    char *cmp = strstr(file_path->get_underlying_array(), ".m");
     if (cmp == NULL) {
         std::cerr << "Keep me" << std::endl;
         return true;
@@ -73,6 +73,7 @@ extern "C" ComparisonElement<bool> *compare(Element<unsigned char> *file1, Eleme
     comparison->filepath1->add(file1->filepath->get_underlying_array(), file1->filepath->get_num_elements());
     comparison->filepath2->add(file2->filepath->get_underlying_array(), file2->filepath->get_num_elements());
     comparison->comparison = new MArray<bool>(1);
+    comparison->comparison->add(is_match);
     std::cerr << " is match?: " << is_match << std::endl;
     return comparison;
 }

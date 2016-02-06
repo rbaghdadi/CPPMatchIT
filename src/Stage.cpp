@@ -13,7 +13,7 @@ MFunc *Stage::get_mfunction() {
 }
 
 void Stage::set_function(MFunc *mfunction) {
-    loop = new ForLoop(jit, mfunction);
+    loop = new ForLoop(jit, mfunction->get_extern_wrapper());
     this->mfunction = mfunction;
 }
 
@@ -60,7 +60,7 @@ llvm::BasicBlock *Stage::branch_to_after_store() {
 
 void Stage::base_codegen() {
     // initialize the function args
-    extern_arg_prep_basic_block->set_function(mfunction);
+    extern_arg_prep_basic_block->set_function(mfunction->get_extern_wrapper());
     extern_arg_prep_basic_block->set_extern_function(mfunction);
     extern_arg_prep_basic_block->codegen(jit, false);
     jit->get_builder().CreateBr(loop->get_loop_counter_basic_block()->get_basic_block());
@@ -73,7 +73,7 @@ void Stage::base_codegen() {
     loop->codegen();
 
     // allocate space for the return structure
-    return_struct_basic_block->set_function(mfunction);
+    return_struct_basic_block->set_function(mfunction->get_extern_wrapper());
     return_struct_basic_block->set_extern_function(mfunction);
     return_struct_basic_block->set_malloc_size(loop->get_loop_counter_basic_block()->get_malloc_size());
     if (mfunction->get_associated_block() == "ComparisonStage") {
@@ -92,13 +92,13 @@ void Stage::base_codegen() {
     jit->get_builder().CreateBr(loop->get_for_loop_condition_basic_block()->get_basic_block());
 
     // codegen the body for the appropriate stage
-    extern_init_basic_block->set_function(mfunction);
-    extern_call_basic_block->set_function(mfunction);
+    extern_init_basic_block->set_function(mfunction->get_extern_wrapper());
+    extern_call_basic_block->set_function(mfunction->get_extern_wrapper());
     stage_specific_codegen(extern_arg_prep_basic_block->get_args(), extern_init_basic_block, extern_call_basic_block,
                            extern_call_store_basic_block->get_basic_block(), loop->get_loop_counter_basic_block()->get_loop_idx());
 
     // store the result
-    extern_call_store_basic_block->set_function(mfunction);
+    extern_call_store_basic_block->set_function(mfunction->get_extern_wrapper());
     extern_call_store_basic_block->set_mtype(mfunction->get_extern_wrapper_data_ret_type());
     extern_call_store_basic_block->set_data_to_store(extern_call_basic_block->get_data_to_return());
     extern_call_store_basic_block->set_return_idx(loop->get_loop_counter_basic_block()->get_return_idx());
@@ -108,7 +108,7 @@ void Stage::base_codegen() {
     jit->get_builder().CreateBr(branch_to_after_store());
 
     // return the data
-    for_loop_end_basic_block->set_function(mfunction);
+    for_loop_end_basic_block->set_function(mfunction->get_extern_wrapper());
     for_loop_end_basic_block->set_return_struct(return_struct_basic_block->get_return_struct());
     for_loop_end_basic_block->set_return_idx(loop->get_loop_counter_basic_block()->get_return_idx());
     for_loop_end_basic_block->codegen(jit, false);

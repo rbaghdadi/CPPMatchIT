@@ -14,7 +14,8 @@ protected:
 
     llvm::BasicBlock *bb;
     bool codegen_done = false;
-    MFunc *mfunction;
+//    MFunc *mfunction;
+    llvm::Function *func;
 
 public:
 
@@ -22,10 +23,15 @@ public:
 
     llvm::BasicBlock *get_basic_block();
 
-    void set_function(MFunc *func);
+//    void set_function(MFunc *func);
+    void set_function(llvm::Function *func);
 
-    MFunc *get_mfunction() {
-        return mfunction;
+//    MFunc *get_mfunction() {
+//        return mfunction;
+//    }
+
+    llvm::Function *get_mfunction() {
+        return func;
     }
 
     virtual void codegen(JIT *jit, bool no_insert = false) = 0;
@@ -40,7 +46,7 @@ private:
     llvm::AllocaInst *loop_idx;
     llvm::AllocaInst *loop_bound;
     llvm::AllocaInst *return_idx;
-    llvm::AllocaInst *malloc_size;
+    llvm::AllocaInst *malloc_size; // the number of elements there is space for, not the number of bytes
     // values needed for this block
     llvm::Value *max_bound;
 

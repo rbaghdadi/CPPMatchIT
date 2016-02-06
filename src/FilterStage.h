@@ -25,9 +25,9 @@ public:
         std::vector<MType *> arg_types;
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), arg_types, jit);
-        set_function(func);
         func->codegen_extern_proto();
         func->codegen_extern_wrapper_proto();
+        set_function(func);
     }
 
     ~FilterStage() {}

@@ -32,9 +32,9 @@ public:
         arg_types.push_back(arg_type);
         arg_types.push_back(arg_type);
         MFunc *func = new MFunc(function_name, "ComparisonStage", ret_type, arg_types, jit);
-        set_function(func);
         func->codegen_extern_proto();
         func->codegen_extern_wrapper_proto();
+        set_function(func);
     }
 
     ~ComparisonStage() {
@@ -49,7 +49,7 @@ public:
 
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
                                     ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
-        inner_loop = new ForLoop(jit, mfunction);
+        inner_loop = new ForLoop(jit, mfunction->get_extern_wrapper());
 
         // build the body
         // outer loop

@@ -25,3 +25,13 @@ Solutions:
     store_it:                                         ; preds = %realloc, %store
     ; IN THE TRUE BLOCK TRYING TO LOAD A VALUE IN THE FALSE BLOCK
       %43 = getelementptr inbounds { { i8*, i32, i32 }**, i64 }, { { i8*, i32, i32 }**, i64 }* %36, i32 0, i32 0
+
+3. Assertion failed: (S1->getType() == S2->getType() && "Cannot create binary operator with two operands of differing type!"),
+Solutions:
+    a) you are trying to combine two completely random things (like an int and a struct)
+    b) more subtle and you are trying to combine and i32 and i64 or something similar (you will need a sign extension likely)
+
+4. seg fault (exit 11)
+Solutions:
+    a) Passing a nullptr to some llvm thing
+    b) Not mallocing the correct amount of space in llvm

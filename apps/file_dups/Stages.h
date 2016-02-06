@@ -50,7 +50,7 @@ public:
 
 };
 
-extern "C" bool llvm_filter(File *file_path);
+extern "C" bool matlab_filter(File *file_path);
 
 class CompFilter : public FilterStage<ComparisonElement<bool> *> {
 public:

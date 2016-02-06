@@ -14,12 +14,22 @@
 #include "./MFunc.h"
 #include "./InstructionBlock.h"
 
-llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
-llvm::Value *codegen_file_size(llvm::AllocaInst *alloc_ret_data, JIT *jit);
-llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *alloc_ret_data, JIT *jit);
+llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
+llvm::Value *codegen_segmented_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
+llvm::Value *codegen_file_size(llvm::AllocaInst *extern_call_res, JIT *jit);
+llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
 void codegen_file_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
                         llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
                         JIT *jit, llvm::Function *insert_into);
+void codegen_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+                           llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+                           JIT *jit, llvm::Function *insert_into);
+void codegen_comparison_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+                                      llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+                                      JIT *jit, llvm::Function *insert_into);
+void codegen_segmented_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+                                     llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+                                     JIT *jit, llvm::Function *insert_into);
 
 namespace CodegenUtils {
 // A component of a function. Can be anything really
@@ -102,9 +112,23 @@ llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, size_t size, llvm::Type *cast
 
 llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to);
 
+llvm::Value *codegen_realloc(JIT *jit, llvm::Function *c_realloc, llvm::LoadInst *loaded_structure, llvm::Value *size);
+
+llvm::Value *codegen_c_realloc32(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size);
+
+llvm::Value *codegen_c_realloc64(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size);
+
+llvm::Value *codegen_c_realloc32_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to);
+
+llvm::Value *codegen_c_realloc64_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to);
+
 void codegen_fprintf_int(JIT *jit, llvm::Value *the_int);
 
 void codegen_fprintf_int(JIT *jit, int the_int);
+
+void codegen_fprintf_float(JIT *jit, llvm::Value *the_int);
+
+void codegen_fprintf_float(JIT *jit, float the_int);
 
 }
 

@@ -3,71 +3,122 @@
 //
 
 #include <fftw3.h>
+#include <float.h>
 #include "./Stages.h"
 #include "../file_dups/Stages.h"
-#include "Stages.h"
 
 /*
  * Apply function definitions
  */
-//
-//extern "C" Segment *segment(float *data) {
-//    unsigned int slide_amt;
-//    unsigned int data_size;
-//}
-//
-//extern "C" Segment *fft(Segment *segment) {
-//    Segment *output = (Segment *)fftwf_malloc(sizeof(*output));
-//    output->filename = (char *)fftwf_malloc(sizeof(*(output->filename)) * 256);
-//    output->segment = fftwf_alloc_real(FFTxform::get_fft_size());
-//
-//    float *input = segment->segment;
-//    fftwf_plan plan = fftwf_plan_r2r_1d(FFTxform::get_fft_size(), input, output->segment, FFTW_R2HC, FFTW_ESTIMATE);
-//    fftwf_execute(plan);
-//    fftwf_destroy_plan(plan);
-//
-//    return output;
-//}
-//
-//extern "C" Comparison *ifft(Segment *segment1, Segment *segment2) {
-//    Comparison *output = (Comparison *)fftwf_malloc(sizeof(Comparison));
-//    output->filename1 = (char *)fftwf_malloc(sizeof(*(output->filename1)) * 256);
-//    output->filename2 = (char *)fftwf_malloc(sizeof(*(output->filename2)) * 256);
-//    output->correlation = fftwf_alloc_real(FFTxform::get_fft_size() - iFFTxform::get_segment_size() + 2);
-//
-//    // complex multiply
-//    float* convolved = fftwf_alloc_real(FFTxform::get_fft_size());
-//    for (size_t real_idx = 1; real_idx < FFTxform::get_fft_size() / 2; real_idx++) {
-//        unsigned int imag_idx = FFTxform::get_fft_size() - real_idx;
-//        float real = segment1->segment[real_idx] * segment2->segment[real_idx] -
-//                     segment1->segment[imag_idx] * segment2->segment[imag_idx];
-//        float imag = segment1->segment[real_idx] * segment2->segment[imag_idx] +
-//                     segment1->segment[imag_idx] * segment2->segment[real_idx];
-//        convolved[real_idx] = real;
-//        convolved[imag_idx] = imag;
-//    }
-//    convolved[0] = segment1->segment[0] * segment2->segment[0];
-//    convolved[FFTxform::get_fft_size() / 2] = segment1->segment[FFTxform::get_fft_size() / 2] * segment2->segment[FFTxform::get_fft_size() / 2];
-//
-//    // iFFT
-//    float* ifft_out = fftwf_alloc_real(FFTxform::get_fft_size());
-//    fftwf_plan c2r_plan = fftwf_plan_r2r_1d(FFTxform::get_fft_size(), convolved, ifft_out, FFTW_HC2R, FFTW_ESTIMATE);
-//    fftwf_execute(c2r_plan);
-//    fftwf_free(convolved);
-//
-//    // clip (threshold) the iFFT output
+
+unsigned int SlidingWindow::segment_size = 44335;
+unsigned int SlidingWindow::slide_amount = 22168;
+unsigned int FFTxform::fft_size = 65536;
+
+extern "C" Segments<float> *segment(File *filepath) {
+    // read the audio data in
+    FILE* audio = fopen(filepath->get_underlying_array(), "rb");
+    fseek(audio, 0L, SEEK_END);
+    int audio_len = ftell(audio) / sizeof(short);
+    fseek(audio, 0L, SEEK_SET);
+    // it's okay to use a c array here because it's just an intermediate--won't actually be returned from here
+    short *audio_data = (short*)malloc(sizeof(short) * audio_len);
+    fread(audio_data, sizeof(short), audio_len, audio);
+    fclose(audio);
+    // scale the audio
+    float *scaled_audio;
+    scaled_audio = fftwf_alloc_real(audio_len); // 16 byte aligned
+    double scale = 0.0;
+    for (ptrdiff_t i = audio_len - 1; i >= 0; i--)
+        scale += audio_data[i] * audio_data[i];
+    scale = sqrt(scale);
+    scale = (scale < 1.0 / FLT_MAX) ? 0.0 : 0.5 / scale;
+    for (size_t i = 0; i < audio_len; i++) {
+        scaled_audio[i] = (float)audio_data[i] * (float)scale;
+    }
+    free(audio_data);
+
+    // initialize the overal Segments structure
+    Segments<float> *segments = (Segments<float> *)malloc(sizeof(Segments<float>));
+    unsigned int number_of_segments = ceil((float)audio_len / (float)SlidingWindow::get_slide_amount());
+    segments->segments = new MArray<SegmentedElement<float> *>(number_of_segments);
+
+    // now do the segmenting
+    std::cerr << "Number of segments in file " << filepath->get_underlying_array() << " is " << number_of_segments << std::endl;
+    for (size_t block_start = 0; block_start < audio_len; block_start+=SlidingWindow::get_slide_amount()) {
+        unsigned int block_end = block_start + SlidingWindow::get_segment_size() < audio_len ? block_start +
+                                                                                               SlidingWindow::get_segment_size() : audio_len - 1;
+        SegmentedElement<float> *segment = (SegmentedElement<float> *)malloc(sizeof(SegmentedElement<float>));
+        segment->filepath = new MArray<char>(filepath->get_num_elements());
+        segment->data = new MArray<float>(FFTxform::get_fft_size());
+        segment->offset = block_start;
+        for (unsigned int i = block_start; i < block_end; i++) {
+            segment->data->add(scaled_audio[i]);
+        }
+        // pad any remaining with 0s
+        for (size_t i = 0; i < FFTxform::get_fft_size() - (block_end - block_start); i++) {
+            segment->data->add(0.0);
+        }
+        segment->filepath->add(filepath->get_underlying_array(), filepath->get_num_elements());
+        segments->segments->add(segment);
+    }
+    free(scaled_audio);
+    return segments;
+}
+
+extern "C" SegmentedElement<float> *fft(SegmentedElement<float> *segment) {
+    SegmentedElement<float> *xformed = (SegmentedElement<float> *)fftwf_malloc(sizeof(SegmentedElement<float>));
+    xformed->filepath = new MArray<char>(segment->filepath->get_num_elements());
+    xformed->data = new MArray<float>(FFTxform::get_fft_size());
+    float *input = segment->data->get_underlying_array();
+    // fft input and store in xformed data MArray
+    fftwf_plan plan = fftwf_plan_r2r_1d(FFTxform::get_fft_size(), input, xformed->data->get_underlying_array(), FFTW_R2HC, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
+    return xformed;
+}
+
+extern "C" ComparisonElement<float> *ifft(SegmentedElement<float> *segment1, SegmentedElement<float> *segment2) {
+    ComparisonElement<float> *output = (ComparisonElement<float> *)fftwf_malloc(sizeof(ComparisonElement<float>));
+    output->filepath1 = new MArray<char>(segment1->filepath->get_num_elements());
+    output->filepath2 = new MArray<char>(segment2->filepath->get_num_elements());
+    output->comparison = new MArray<float>(FFTxform::get_fft_size() - SlidingWindow::get_segment_size() + 2);
+
+    // complex multiply
+    float* convolved = fftwf_alloc_real(FFTxform::get_fft_size());
+    for (size_t real_idx = 1; real_idx < FFTxform::get_fft_size() / 2; real_idx++) {
+        unsigned int imag_idx = FFTxform::get_fft_size() - real_idx;
+        float real = segment1->data->get_underlying_array()[real_idx] * segment2->data->get_underlying_array()[real_idx] -
+                     segment1->data->get_underlying_array()[imag_idx] * segment2->data->get_underlying_array()[imag_idx];
+        float imag = segment1->data->get_underlying_array()[real_idx] * segment2->data->get_underlying_array()[imag_idx] +
+                     segment1->data->get_underlying_array()[imag_idx] * segment2->data->get_underlying_array()[real_idx];
+        convolved[real_idx] = real;
+        convolved[imag_idx] = imag;
+    }
+    convolved[0] = segment1->data->get_underlying_array()[0] * segment2->data->get_underlying_array()[0];
+    convolved[FFTxform::get_fft_size() / 2] = segment1->data->get_underlying_array()[FFTxform::get_fft_size() / 2] *
+                                              segment2->data->get_underlying_array()[FFTxform::get_fft_size() / 2];
+
+    // iFFT
+    float* ifft_out = fftwf_alloc_real(FFTxform::get_fft_size());
+    fftwf_plan c2r_plan = fftwf_plan_r2r_1d(FFTxform::get_fft_size(), convolved, ifft_out, FFTW_HC2R, FFTW_ESTIMATE);
+    fftwf_execute(c2r_plan);
+    fftwf_free(convolved);
+
+    // clip (threshold) the iFFT output
 //    unsigned int cur_output_idx = 0;
-//    for (size_t i = 0; i < FFTxform::get_fft_size(); i++) {
-//        if (i > iFFTxform::get_segment_size() - 2) {
-//            float clipped = ifft_out[i] / (float)FFTxform::get_fft_size() * 32767.0;
-//            if (clipped > 32767.0)
-//                clipped = 32767;
-//            else if (clipped < -32767)
-//                clipped = -32767;
-//            output->correlation[cur_output_idx++] = clipped;
-//        }
-//    }
-//
-//    fftwf_free(ifft_out);
-//    fftwf_destroy_plan(c2r_plan);
-//}
+    for (size_t i = 0; i < FFTxform::get_fft_size(); i++) {
+        if (i > SlidingWindow::get_segment_size() - 2) {
+            float clipped = ifft_out[i] / (float)FFTxform::get_fft_size() * 32767.0;
+            if (clipped > 32767.0)
+                clipped = 32767;
+            else if (clipped < -32767)
+                clipped = -32767;
+//            output->comparison->get_underlying_array()[cur_output_idx++] = clipped;
+            output->comparison->add(clipped);
+        }
+    }
+
+    fftwf_free(ifft_out);
+    fftwf_destroy_plan(c2r_plan);
+}

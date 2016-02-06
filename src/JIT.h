@@ -93,10 +93,17 @@ public:
                                                                     c_realloc64_args, false);
         module->getOrInsertFunction("realloc_64", c_realloc64_ft);
 
-        std::vector<llvm::Type *> c_fprintf_args;
-        c_fprintf_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
-        llvm::FunctionType *c_fprintf_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), c_fprintf_args, true);
-        module->getOrInsertFunction("print_int", c_fprintf_ft);
+        std::vector<llvm::Type *> c_print_int_args;
+        c_print_int_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+        llvm::FunctionType *c_print_int_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                                     c_print_int_args, true);
+        module->getOrInsertFunction("print_int", c_print_int_ft);
+
+        std::vector<llvm::Type *> c_print_float_args;
+        c_print_float_args.push_back(llvm::Type::getFloatTy(llvm::getGlobalContext()));
+        llvm::FunctionType *c_print_float_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                                     c_print_float_args, true);
+        module->getOrInsertFunction("print_float", c_print_float_ft);
 
         llvm::FunctionType *print_sep_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), std::vector<llvm::Type *>(), false);
         module->getOrInsertFunction("print_sep", print_sep_ft);

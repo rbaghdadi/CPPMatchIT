@@ -13,10 +13,16 @@ llvm::BasicBlock *InstructionBlock::get_basic_block() {
     return bb;
 }
 
-void InstructionBlock::set_function(MFunc *func) {
+//void InstructionBlock::set_function(MFunc *func) {
+//    assert(bb);
+//    bb->insertInto(func->get_extern_wrapper());
+//    this->mfunction = func;
+//}
+
+void InstructionBlock::set_function(llvm::Function *func) {
     assert(bb);
-    bb->insertInto(func->get_extern_wrapper());
-    this->mfunction = func;
+    bb->insertInto(func);
+    this->func = func;
 }
 
 /*

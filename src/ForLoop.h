@@ -13,7 +13,8 @@ class ForLoop {
 private:
 
     JIT *jit;
-    MFunc *mfunction;
+//    MFunc *mfunction;
+    llvm::Function *func;
     LoopCounterBasicBlock *loop_counter_basic_block;
     ForLoopIncrementBasicBlock *for_loop_increment_basic_block;
     ForLoopConditionBasicBlock *for_loop_condition_basic_block;
@@ -24,7 +25,13 @@ private:
 
 public:
 
-    ForLoop(JIT *jit, MFunc *mfunction) : jit(jit), mfunction(mfunction) {
+//    ForLoop(JIT *jit, MFunc *mfunction) : jit(jit), mfunction(mfunction) {
+//        loop_counter_basic_block = new LoopCounterBasicBlock();
+//        for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
+//        for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
+//    }
+
+    ForLoop(JIT *jit, llvm::Function *func) : jit(jit), func(func) {
         loop_counter_basic_block = new LoopCounterBasicBlock();
         for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
         for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
@@ -35,20 +42,20 @@ public:
         assert(branch_to_after_counter);
         assert(branch_to_true_condition);
         assert(branch_to_false_condition);
-        assert(mfunction);
+        assert(func);
 
-        loop_counter_basic_block->set_function(mfunction);
+        loop_counter_basic_block->set_function(func);
         loop_counter_basic_block->set_max_bound(max_loop_bound);
         loop_counter_basic_block->codegen(jit, false);
         jit->get_builder().CreateBr(branch_to_after_counter);
 
-        for_loop_condition_basic_block->set_function(mfunction);
+        for_loop_condition_basic_block->set_function(func);
         for_loop_condition_basic_block->set_max_bound(max_loop_bound); // TODO this is kind of repetitive with the loop counter since they both load it
         for_loop_condition_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
         for_loop_condition_basic_block->codegen(jit, false);
         jit->get_builder().CreateCondBr(for_loop_condition_basic_block->get_loop_comparison(), branch_to_true_condition, branch_to_false_condition);
 
-        for_loop_increment_basic_block->set_function(mfunction);
+        for_loop_increment_basic_block->set_function(func);
         for_loop_increment_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
         for_loop_increment_basic_block->codegen(jit, false);
         jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());

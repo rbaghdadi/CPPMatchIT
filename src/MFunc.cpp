@@ -41,6 +41,11 @@ void MFunc::codegen_extern_wrapper_proto() {
     } else if (associated_block.compare("FilterStage") == 0) {
         llvm_ret_type = llvm::PointerType::get(extern_arg_types[0]->codegen(), 0);
         extern_wrapper_data_ret_type = extern_arg_types[0];
+    } else if (associated_block.compare("SegmentationStage") == 0) {
+        // TODO AHHHHH
+//        extern_wrapper_data_ret_type = ((MStructType*)((MPointerType*)((MPointerType*)((MStructType*)((MPointerType*)extern_ret_type)->get_underlying_type())->get_field_types()[0])->get_underlying_type())->get_underlying_type())->get_field_types()[0];
+        extern_wrapper_data_ret_type = ((MStructType*)((MPointerType*)((MStructType*)((MPointerType*)extern_ret_type)->get_underlying_type())->get_field_types()[0])->get_underlying_type())->get_field_types()[0];
+        llvm_ret_type = llvm::cast<llvm::PointerType>(extern_wrapper_data_ret_type->codegen());
     } else { // This is a merged block or something like that
         llvm_ret_type = llvm::PointerType::get(extern_ret_type->codegen(), 0);
         extern_wrapper_data_ret_type = extern_ret_type;
