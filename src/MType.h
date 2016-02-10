@@ -348,17 +348,30 @@ struct create_type<double> {
 template <typename T>
 struct create_type<T *> {
     operator MPointerType*() {
-        std::cerr << "Creating pointer type" << std::endl;
         return new MPointerType(create_type<T>());
     }
 };
 
+template <typename T>
+MPointerType *create_pointer_type() {
+    return new MPointerType(create_type<T>());
+}
+
+/*
+ * MArrayType
+ */
+
+// MArrayType data type: MPointerType pointing to:
+// MPrimType with type code: 3
+// followed by
+// MPrimType with type code: 5
+// MPrimType with type code: 5
 class MArrayType : public MType {
 public:
 
     MArrayType(MType *user_type) : MType(mtype_marray, 0) {
         MType *i = create_type<int>();
-        underlying_types.push_back(user_type);
+        underlying_types.push_back(new MPointerType(user_type));
         underlying_types.push_back(i);
         underlying_types.push_back(i);
         set_bits(user_type->get_bits() + i->get_bits() * 2);
@@ -374,11 +387,21 @@ MArrayType *create_marraytype() {
     return new MArrayType(create_type<T *>());
 };
 
+/*
+ * FileType
+ */
+
+//FileType has field type MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPrimType with type code: 3
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
 class FileType : public MType {
 public:
 
     FileType() : MType() {
-        MType *c = create_marraytype<char>();
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
         underlying_types.push_back(c);
     }
 
@@ -388,13 +411,31 @@ public:
 
 };
 
+FileType *create_filetype();
+
+/*
+ * ElementType
+ */
+
+//ElementType has field types MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPrimType with type code: 3
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
+//and MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPrimType with type code: 3
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
 class ElementType : public MType {
 public:
 
     ElementType(MType *user_type) : MType() {
-        MType *c = create_marraytype<char>();
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
         underlying_types.push_back(c);
-        underlying_types.push_back(user_type);
+        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
     }
 
     void dump();
@@ -403,14 +444,65 @@ public:
 
 };
 
-FileType *create_filetype() {
-    return new FileType();
+/*
+ * WrapperOutputType
+ */
+
+// Element with type float
+//WrapperOutputType has field types MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPointerType pointing to:
+//ElementType has field types MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPrimType with type code: 3
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
+//and MPointerType pointing to:
+//        MArrayType data type: MPointerType pointing to:
+//        MPrimType with type code: 7
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
+//followed by
+//MPrimType with type code: 5
+//MPrimType with type code: 5
+class WrapperOutputType : public MType {
+public:
+
+    WrapperOutputType(MType *user_type) : MType() {
+        underlying_types.push_back(new MPointerType(new MArrayType(new MPointerType(user_type))));
+    }
+
+    void dump();
+
+    llvm::Type *codegen();
+
 };
 
-template <typename T>
-ElementType *create_elementtype() {
-    return new ElementType(create_marraytype<T *>());
-}
+//template <template<class> class T, class S>
+//struct create_type<T<S>> {};
+//
+//template <template<class> class T, class S>
+//struct create_type<ElementType> {
+//
+//};
+//template <typename T>
+//struct create_type<ElementType> {
+//    operator ElementType*() {
+//
+//    }
+//};
+//
+//template <typename T>
+//ElementType *create_elementtype() {
+//    return new ElementType(create_marraytype<T>());
+//}
+
+//template <typename T, typename S>
+//WrapperOutputType *create_wrapperoutputtype() {
+//    return new WrapperOutputType(create_marraytype<T *>());
+//}
 
 template <typename T>
 struct mtype_of {
