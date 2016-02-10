@@ -19,42 +19,47 @@ private:
 
 public:
 
-    FilterStage(bool (*filter)(I), std::string filter_name, JIT *jit, std::vector<MType *> input_struct_fields = std::vector<MType *>()) :
+    FilterStage(bool (*filter)(I), std::string filter_name, JIT *jit, MType *param_type) :
             Stage(jit, mtype_of<I>(), mtype_bool, filter_name), filter(filter) {
-        MType *arg_type = create_type<I>();
-        std::vector<MType *> arg_types;
-        arg_types.push_back(arg_type);
-        MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), arg_types, jit);
-        func->codegen_extern_proto();
-        func->codegen_extern_wrapper_proto();
+        std::vector<MType *> param_types;
+        param_types.push_back(param_type);
+        MType *stage_return_type = new MPointerType(new WrapperOutputType(param_type));
+        MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), stage_return_type,
+                                param_types, jit);
         set_function(func);
     }
 
     ~FilterStage() {}
 
-    FilterStage(const FilterStage &that) : Stage(that) {
-        filter = that.filter;
+    void init_codegen() {
+        mfunction->codegen_extern_proto();
+        mfunction->codegen_extern_wrapper_proto();
     }
 
-    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
-                                    ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
+    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
+                                ExternCallIB *ec, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
+
         // build the body
-        eibb->set_loop_idx(loop_idx);
-        eibb->set_data(args[0]);
-        eibb->codegen(jit, false);
-        jit->get_builder().CreateBr(ecbb->get_basic_block());
+        eal->set_mfunction(mfunction);
+        eal->set_loop_idx_alloc(loop_idx);
+        eal->set_wrapper_input_arg_alloc(args[0]);
+        eal->codegen(jit, false);
+        jit->get_builder().CreateBr(ec->get_basic_block());
 
         // create the call
-        ecbb->set_extern_function(mfunction);
-        std::vector<llvm::Value *> sliced;
-        sliced.push_back(eibb->get_element());
-        ecbb->set_extern_args(sliced);
-        ecbb->codegen(jit, false);
-        llvm::LoadInst *load = jit->get_builder().CreateLoad(ecbb->get_data_to_return());
-        llvm::Value *cmp = jit->get_builder().CreateICmpEQ(load, llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm::getGlobalContext()), 0));
-        ecbb->override_data_to_return(eibb->get_element());
+        std::vector<llvm::AllocaInst *> sliced;
+        sliced.push_back(eal->get_extern_input_arg_alloc());
+        ec->set_mfunction(mfunction);
+        ec->set_extern_arg_allocs(sliced);
+        ec->codegen(jit, false);
+        llvm::LoadInst *load = jit->get_builder().CreateLoad(ec->get_extern_call_result_alloc());//get_secondary_extern_call_result_alloc());
+        std::vector<llvm::Value *> bool_gep_idx;
+        llvm::Value *cmp = jit->get_builder().CreateICmpEQ(load, CodegenUtils::get_i1(0));
+        ec->set_secondary_extern_call_result_alloc(eal->get_extern_input_arg_alloc());
         jit->get_builder().CreateCondBr(cmp, loop->get_for_loop_increment_basic_block()->get_basic_block(), branch_to);
+
     }
+
 };
 
 #endif //MATCHIT_FILTERBLOCK_H

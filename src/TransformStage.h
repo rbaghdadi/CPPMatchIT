@@ -24,7 +24,7 @@ public:
         std::vector<MType *> param_types;
         param_types.push_back(param_type);
         MType *stage_return_type = new MPointerType(new WrapperOutputType(return_type)); //create_type<WrapperOutput<create_type<O>()> *>();
-        MFunc *func = new MFunc(function_name, "TransformStage", return_type, stage_return_type, param_types, jit);
+        MFunc *func = new MFunc(function_name, "TransformStage", new MPointerType(return_type), stage_return_type, param_types, jit);
         set_function(func);
     }
 

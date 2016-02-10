@@ -15,7 +15,8 @@ void MFunc::codegen_extern_proto() {
         param_types.push_back(llvm::PointerType::get((*iter)->codegen(), 0));
     }
     // add the return type
-    llvm::FunctionType *function_type = llvm::FunctionType::get(llvm::PointerType::get(extern_return_type->codegen(), 0), param_types, false);
+//    llvm::FunctionType *function_type = llvm::FunctionType::get(llvm::PointerType::get(extern_return_type->codegen(), 0), param_types, false);
+    llvm::FunctionType *function_type = llvm::FunctionType::get(extern_return_type->codegen(), param_types, false);
     // create the function
     extern_function = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, extern_name,
                                              jit->get_module().get());

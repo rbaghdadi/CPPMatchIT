@@ -134,6 +134,8 @@ void codegen_fprintf_float(JIT *jit, llvm::Value *the_int);
 void codegen_fprintf_float(JIT *jit, float the_int);
 
 // some useful things
+llvm::ConstantInt *get_i1(int zero_or_one);
+
 llvm::ConstantInt *get_i32(int x);
 
 llvm::ConstantInt *get_i64(long x);
