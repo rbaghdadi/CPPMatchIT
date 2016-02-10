@@ -24,43 +24,30 @@ protected:
     std::string function_name;
     mtype_code_t input_mtype_code;
     mtype_code_t output_mtype_code;
-    mtype_code_t base_input_mtype_code;
-    mtype_code_t base_output_mtype_code;
     ForLoop *loop;
+    bool codegen_done = false;
 
-    ReturnStructBasicBlock *return_struct_basic_block;
-    ForLoopEndBasicBlock *for_loop_end_basic_block;
-    ExternInitBasicBlock *extern_init_basic_block;
-    ExternArgPrepBasicBlock *extern_arg_prep_basic_block;
-    ExternCallBasicBlock *extern_call_basic_block;
-    ExternCallStoreBasicBlock *extern_call_store_basic_block;
+    WrapperOutputStructIB *return_struct;
+    ForLoopEndIB *for_loop_end;
+    ExternArgLoaderIB *extern_init;
+    WrapperArgLoaderIB *load_input_args;
+    ExternCallIB *extern_call;
+    ExternCallStoreIB *extern_call_store;
 
 public:
 
     Stage(JIT *jit, mtype_code_t input_type_code, mtype_code_t output_type_code, std::string function_name) :
-            jit(jit), function_name(function_name), input_mtype_code(input_type_code), output_mtype_code(output_type_code) {
-        return_struct_basic_block = new ReturnStructBasicBlock();
-        for_loop_end_basic_block = new ForLoopEndBasicBlock();
-        extern_init_basic_block = new ExternInitBasicBlock();
-        extern_arg_prep_basic_block = new ExternArgPrepBasicBlock();
-        extern_call_basic_block = new ExternCallBasicBlock();
-        extern_call_store_basic_block = new ExternCallStoreBasicBlock();
+            jit(jit), function_name(function_name), input_mtype_code(input_type_code),
+            output_mtype_code(output_type_code) {
+        return_struct = new WrapperOutputStructIB();
+        for_loop_end = new ForLoopEndIB();
+        extern_init = new ExternArgLoaderIB();
+        load_input_args = new WrapperArgLoaderIB();
+        extern_call = new ExternCallIB();
+        extern_call_store = new ExternCallStoreIB();
     }
 
-    virtual ~Stage() {
-//        delete return_struct_basic_block;
-//        delete for_loop_end_basic_block;
-//        delete extern_init_basic_block;
-//        delete extern_arg_prep_basic_block;
-//        delete extern_call_basic_block;
-//        delete extern_call_store_basic_block;
-////        if (loop) {
-////            delete loop;
-////        }
-//        if (mfunction) {
-//            delete mfunction;
-//        }
-    }
+    virtual ~Stage() { }
 
     std::string get_function_name();
 
@@ -68,12 +55,14 @@ public:
 
     void set_function(MFunc *mfunction);
 
-    virtual void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
-                                        ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) = 0;
+    virtual void init_codegen() = 0;
+
+    virtual void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eibb,
+                                        ExternCallIB *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) = 0;
 
     virtual llvm::BasicBlock *branch_to_after_store();
 
-    virtual void base_codegen();
+    virtual void codegen();
 
     void set_for_loop(ForLoop *loop);
 
@@ -81,23 +70,19 @@ public:
 
     mtype_code_t get_output_mtype_code();
 
-    mtype_code_t get_base_input_mtype_code();
-
-    mtype_code_t get_base_output_mtype_code();
-
     JIT *get_jit();
 
-    ReturnStructBasicBlock *get_return_struct_basic_block();
+    WrapperOutputStructIB *get_return_struct();
 
-    ForLoopEndBasicBlock *get_for_loop_end_basic_block();
+    ForLoopEndIB *get_for_loop_end();
 
-    ExternInitBasicBlock *get_extern_init_basic_block();
+    ExternArgLoaderIB *get_extern_init();
 
-    ExternArgPrepBasicBlock *get_extern_arg_prep_basic_block();
+    WrapperArgLoaderIB *get_load_input_args();
 
-    ExternCallBasicBlock *get_extern_call_basic_block();
+    ExternCallIB *get_extern_call();
 
-    ExternCallStoreBasicBlock *get_extern_call_store_basic_block();
+    ExternCallStoreIB *get_extern_call_store();
 
 };
 

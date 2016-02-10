@@ -5,13 +5,10 @@
 #ifndef MATCHIT_TRANSFORMSTAGE_H
 #define MATCHIT_TRANSFORMSTAGE_H
 
-#include "Stage.h"
-#include "./CodegenUtils.h"
-#include "./CompositeTypes.h"
+#include "./Stage.h"
 #include "./MFunc.h"
 #include "./MType.h"
-#include "./ForLoop.h"
-#include "./Utils.h"
+#include "./CodegenUtils.h"
 
 template <typename I, typename O>
 class TransformStage : public Stage {
@@ -22,41 +19,40 @@ private:
 
 public:
 
-    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit) :
+    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit, MType *param_type, MType *return_type) :
             Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform) {
-        MType *ret_type = create_type<O>();
-        MType *arg_type = create_type<I>();
-        std::vector<MType *> arg_types;
-        arg_types.push_back(arg_type);
-        MFunc *func = new MFunc(function_name, "TransformStage", ret_type, arg_types, jit);
-        func->codegen_extern_proto();
-        func->codegen_extern_wrapper_proto();
+        std::vector<MType *> param_types;
+        param_types.push_back(param_type);
+        MType *stage_return_type = new MPointerType(new WrapperOutputType(return_type)); //create_type<WrapperOutput<create_type<O>()> *>();
+        MFunc *func = new MFunc(function_name, "TransformStage", return_type, stage_return_type, param_types, jit);
         set_function(func);
     }
 
     ~TransformStage() { }
 
-    // TODO need either a copy constructor for MType since this is the same pointer getting copied over, or just a single MType copy, ever (like the llvm get function)
-    TransformStage(const TransformStage &that) : Stage(that) {
-        transform = that.transform;
+    void init_codegen() {
+        mfunction->codegen_extern_proto();
+        mfunction->codegen_extern_wrapper_proto();
     }
 
-    // This is the place where the stage builds its function call based on the input arguments
-    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
-                                ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
+    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
+                                ExternCallIB *ec, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
+
         // build the body
-        eibb->set_loop_idx(loop_idx);
-        eibb->set_data(args[0]);
-        eibb->codegen(jit, false);
-        jit->get_builder().CreateBr(ecbb->get_basic_block());
+        eal->set_mfunction(mfunction);
+        eal->set_loop_idx_alloc(loop_idx);
+        eal->set_wrapper_input_arg_alloc(args[0]);
+        eal->codegen(jit, false);
+        jit->get_builder().CreateBr(ec->get_basic_block());
 
         // create the call
-        ecbb->set_extern_function(mfunction);
-        std::vector<llvm::Value *> sliced;
-        sliced.push_back(eibb->get_element());
-        ecbb->set_extern_args(sliced);
-        ecbb->codegen(jit, false);
+        std::vector<llvm::AllocaInst *> sliced;
+        sliced.push_back(eal->get_extern_input_arg_alloc());
+        ec->set_mfunction(mfunction);
+        ec->set_extern_arg_allocs(sliced);
+        ec->codegen(jit, false);
         jit->get_builder().CreateBr(branch_to);
+
     }
 
 };

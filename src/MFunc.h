@@ -5,8 +5,6 @@
 #ifndef MATCHIT_MFUNC_H
 #define MATCHIT_MFUNC_H
 
-#include <stdint.h>
-#include <stdlib.h>
 #include <vector>
 #include <string>
 #include "llvm/IR/Function.h"
@@ -18,12 +16,12 @@ class MFunc {
 private:
 
     /**
-     * Name of the user-defined extern function.
+     * Name of the extern function.
      */
     std::string extern_name;
 
     /**
-     * Name of the wrapper function around the user-defined extern function.
+     * Name of the wrapper function around the extern function.
      */
     std::string extern_wrapper_name;
 
@@ -33,89 +31,45 @@ private:
     std::string associated_block;
 
     /**
-     * The user-defined extern function.
+     * The extern function.
      */
-    llvm::Function *extern_func;
+    llvm::Function *extern_function;
 
     /**
      * The wrapper around extern_func.
      */
-    llvm::Function *extern_wrapper;
+    llvm::Function *extern_wrapper_function;
 
     /**
-     * MatchIT's return type of extern_func.
+     * Return type of the extern function.
      */
-    MType *extern_ret_type;
+    MType *extern_return_type;
 
     /**
-     * MatchIT version of the data element returned by the wrapper (so doesn't include the index returned)
+     * Return type of the individual elements returned by our wrapper function.
+     * Currently, it does not include the int that gets added on to count
+     * the number of elements in the output array.
+     * The stage itself returns a pointer to this type because we return an array of these.
      */
-    MType *extern_wrapper_data_ret_type;
+    MType *extern_wrapper_return_type;
 
     /**
-     * MatchIT's argument types of extern_func.
+     * Types of the parameters to the extern function.
      */
-    std::vector<MType *> extern_arg_types;
+    std::vector<MType *> extern_param_types;
 
     /**
      * Our JIT engine
      */
     JIT *jit;
 
-//    /**
-//     * Initialize the return value of extern_func_wrapper that will be filled on each iteration as extern_func is called.
-//     *
-//     * @param entry_block The block that is to be run right before the loop is entered.
-//     * @return Allocated space for the return value of extern_wrapper.
-//     */
-//    llvm::AllocaInst *init_loop_ret(llvm::BasicBlock *entry_block);
-//
-//    /**
-//     * Initialize the index for storing the most recently computed return value. Used for block functions like jpg_filter
-//     * which may remove data, thus returning a different amount of data than was passed in.
-//     *
-//     * @param entry_block The block that is to be run right before the loop is entered.
-//     */
-//    llvm::AllocaInst *init_loop_ret_idx(llvm::BasicBlock *entry_block);
-//
-//    /**
-//     * Initialize the input data that will be fed into extern_func as arguments
-//     *
-//     * @param entry_block The block that is run right before the loop is entered.
-//     * @return LLVM versions of the args that need to be passed into extern_func.
-//     */
-//    std::vector<llvm::Value *> init_args(llvm::BasicBlock *entry_block);
-//
-//    /**
-//     * Create the section of code that will run after the for loop is done running extern_func.
-//     * It returns the computed data.
-//     *
-//     * @param end_block The block that is to be run after the loop is finished.
-//     * @param alloc Allocated space for the return value of extern_wrapper.
-//     */
-//    void build_loop_end_block(llvm::BasicBlock *end_block, llvm::AllocaInst *alloc);
-//
-//    /**
-//     * Build the body of extern_wrapper. This creates a for loop around extern_func, processing all the input
-//     * data through it.
-//     *
-//     * @param body_block The block that is to be run within the body of the for loop.
-//     * @param alloc_loop_idx Allocated space for the loop index.
-//     * @param alloc_ret Allocated space for the return value of extern_wrapper.
-//     * @param args LLVM versions of the args that need to be passed into extern_func.
-//     */
-//    void build_loop_body_block(llvm::BasicBlock *body_block, llvm::AllocaInst *alloc_loop_idx,
-//                               llvm::AllocaInst *alloc_ret, std::vector<llvm::Value *> *args);
-
 public:
 
-    MFunc(std::string name, std::string associated_block, MType *ret_type, std::vector<MType *> arg_types, JIT *jit) :
-            extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block), extern_ret_type(ret_type), extern_arg_types(arg_types), jit(jit) {
-//        build_extern_proto();
-//        build_extern_wrapper_proto();
-//        build_extern_wrapper_body();
-//        verify_wrapper();
-    }
+    MFunc(std::string name, std::string associated_block, MType *extern_return_type, MType *extern_wrapper_return_type,
+          std::vector<MType *> extern_param_types, JIT *jit) :
+            extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block),
+            extern_return_type(extern_return_type), extern_wrapper_return_type(extern_wrapper_return_type),
+            extern_param_types(extern_param_types), jit(jit) { }
 
     ~MFunc() {}
 
@@ -130,41 +84,54 @@ public:
     void codegen_extern_wrapper_proto();
 
     /**
-     * Build the for loop within extern_wrapper that will go through the input data and run it through extern_func.
-     */
-//    void build_extern_wrapper_body();
-
-    /**
      * Check that extern_wrapper is "ok" in LLVM's sense.
      */
     void verify_wrapper();
 
-//    void codegen_full() {
-//        codegen_extern_proto();
-//        codegen_extern_wrapper_proto();
-//        build_extern_wrapper_body();
-//        verify_wrapper();
-//    }
-
+    /**
+     * Print out components of this MFunc
+     */
     void dump();
 
+    /**
+     * Get the name of the extern function.
+     */
     const std::string &get_extern_name() const;
 
+    /**
+     * Get the name of the wrapper around the extern function.
+     */
     const std::string &get_extern_wrapper_name() const;
 
+    /**
+     * Get the llvm function for the extern function.
+     */
     llvm::Function *get_extern() const;
 
+    /**
+     * Get the llvm function for the wrapper around the extern function.
+     */
     llvm::Function *get_extern_wrapper() const;
 
-    std::vector<MType *> get_arg_types() const;
+    /**
+     * Get the parameter types to the extern function.
+     */
+    std::vector<MType *> get_param_types() const;
 
-    MType *get_ret_type() const;
+    /**
+     * Get the return type of the extern function.
+     */
+    MType *get_extern_return_type() const;
 
-    MType *get_extern_wrapper_data_ret_type() const;
+    /**
+     * Get the return type of the wrapper around the extern function.
+     */
+    MType *get_extern_wrapper_return_type() const;
 
-    const std::string get_associated_block() const {
-        return associated_block;
-    }
+    /**
+     * Get the block associated with this MFunc.
+     */
+    const std::string get_associated_block() const;
 
 };
 

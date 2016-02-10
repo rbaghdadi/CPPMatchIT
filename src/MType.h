@@ -241,6 +241,8 @@ public:
      */
     void set_bits(unsigned int bits);
 
+//    virtual size_t _sizeof() = 0;
+
 };
 
 /*
@@ -260,6 +262,10 @@ public:
 
     void dump();
 
+    size_t _sizeof() {
+        return bits / 8;
+    }
+
 };
 
 class MPointerType : public MType {
@@ -276,6 +282,10 @@ public:
     llvm::Type *codegen();
 
     void dump();
+
+    size_t _sizeof() {
+        return 8;
+    }
 
 };
 
@@ -364,6 +374,10 @@ public:
 
     virtual llvm::Type* codegen();
 
+    size_t _sizeof() {
+
+    }
+
 };
 
 /*
@@ -380,10 +394,11 @@ public:
 
     MArrayType(MType *user_type) : MStructType(mtype_marray) {
         MType *i = create_type<int>();
-        underlying_types.push_back(new MPointerType(user_type));
+        MPointerType *user_ptr = new MPointerType(user_type);
+        underlying_types.push_back(user_ptr);
         underlying_types.push_back(i);
         underlying_types.push_back(i);
-        set_bits(user_type->get_bits() + i->get_bits() * 2);
+        set_bits(user_ptr->get_bits() + i->get_bits() * 2);
     }
 
     void dump();
@@ -406,6 +421,7 @@ public:
     FileType() : MStructType(mtype_file) {
         MType *c = new MPointerType(new MArrayType(create_type<char>()));
         underlying_types.push_back(c);
+        set_bits(c->get_bits());
     }
 
     void dump();
@@ -423,8 +439,10 @@ public:
 
     ElementType(MType *user_type) : MStructType(mtype_element) {
         MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        MPointerType *user_ptr = (new MPointerType(new MArrayType(user_type)));
         underlying_types.push_back(c);
-        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
+        underlying_types.push_back(user_ptr);
+        set_bits(c->get_bits() + user_ptr->get_bits());
     }
 
     void dump();
@@ -439,7 +457,9 @@ class WrapperOutputType : public MStructType {
 public:
 
     WrapperOutputType(MType *user_type) : MStructType(mtype_wrapper_output) {
-        underlying_types.push_back(new MPointerType(new MArrayType(new MPointerType(user_type))));
+        MPointerType *user_ptr = new MPointerType(new MArrayType(new MPointerType(user_type)));
+        underlying_types.push_back(user_ptr);
+        set_bits(user_ptr->get_bits());
     }
 
     void dump();
@@ -455,10 +475,12 @@ public:
 
     SegmentedElementType(MType *user_type) : MStructType(mtype_segmented_element) {
         MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        MType *user_ptr = new MPointerType(new MArrayType(user_type));
         MType *i = create_type<int>();
         underlying_types.push_back(c);
-        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
+        underlying_types.push_back(user_ptr);
         underlying_types.push_back(i); // the offset
+        set_bits(c->get_bits() + user_ptr->get_bits() + i->get_bits());
     }
 
     void dump();
@@ -473,7 +495,9 @@ class SegmentsType : public MStructType {
 public:
 
     SegmentsType(MType *user_type) : MStructType(mtype_segments) {
-        underlying_types.push_back(new MPointerType(new MArrayType(new MPointerType(new SegmentedElementType(user_type)))));
+        MType *user_ptr = new MPointerType(new MArrayType(new MPointerType(new SegmentedElementType(user_type))));
+        underlying_types.push_back(user_ptr);
+        set_bits(user_ptr->get_bits());
     }
 
     void dump();
@@ -489,9 +513,11 @@ public:
 
     ComparisonElementType(MType *user_type) : MStructType(mtype_comparison_element) {
         MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        MType *user_ptr = new MPointerType(new MArrayType(user_type));
         underlying_types.push_back(c);
         underlying_types.push_back(c);
-        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
+        underlying_types.push_back(user_ptr);
+        set_bits(c->get_bits() * 2 + user_ptr->get_bits());
     }
 
     void dump();
@@ -569,435 +595,40 @@ struct mtype_of<void> {
     }
 };
 
+template <>
+struct mtype_of<FileType> {
+    operator mtype_code_t() {
+        return mtype_file;
+    }
+};
 
+template <>
+struct mtype_of<ElementType> {
+    operator mtype_code_t() {
+        return mtype_element;
+    }
+};
 
-//template <>
-//struct create_type<FileType> {
-//    operator MType*() {
-//        std::cerr << "Creating type file" << std::endl;
-//        return new FileType();
-//    }
-//};
+template <>
+struct mtype_of<ComparisonElementType> {
+    operator mtype_code_t() {
+        return mtype_comparison_element;
+    }
+};
 
-//template <typename T>
-//struct create_type<ElementType<T>> {
-//    operator MType*() {
-//        return new ElementType<create_type<T>()>();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<ComparisonElementType<T>> {
-//operator MType*() {
-//    return new ComparisonElementType<create_type<T>()>();
-//}
-//};
-//
-//template <typename T>
-//struct create_type<SegmentedElementType<T>> {
-//operator MType*() {
-//    return new SegmentedElementType<create_type<T>()>();
-//}
-//};
-//
-//template <typename T>
-//struct create_type<SegmentsType<T>> {
-//operator MType*() {
-//    return new SegmentsType<create_type<T>()>();
-//}
-//};
-//
-//template <typename T>
-//struct create_type<WrapperOutputType<T>> {
-//operator MType*() {
-//    return new WrapperOutputType<create_type<T>()>();
-//}
-//};
+template <>
+struct mtype_of<SegmentsType> {
+    operator mtype_code_t() {
+        return mtype_segments;
+    }
+};
 
-
-
-
-
-
-
-
-//template <typename T>
-//struct create_type<MArrayType> {
-//    operator MArrayType*() {
-//        return new MArrayType(create_type<T>());
-//    }
-//};
-
-
-
-//template <typename T>
-//class WrapperOutputType : public MType {
-//public:
-//
-//    WrapperOutputType() : MType() {
-//        MType *t = create_type<MArrayType<T> **>();
-//        MType *i = create_type<unsigned int>();
-//        underlying_types.push_back(t);
-//        underlying_types.push_back(i);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//class FileType : public MType {
-//public:
-//
-//    FileType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        underlying_types.push_back(c);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class ElementType : public MType {
-//public:
-//
-//    ElementType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class SegmentedElementType : public MType {
-//public:
-//
-//    SegmentedElementType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        MType *i = create_type<unsigned int>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//        underlying_types.push_back(i);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class SegmentsType : public MType {
-//public:
-//
-//    SegmentsType() {
-//        MType *s = create_type<MArrayType<SegmentedElementType<T> *> *>();
-//        underlying_types.push_back(s);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class ComparisonElementType : public MType {
-//public:
-//
-//    ComparisonElementType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-
-
-/*
- * Create MTypes from C types
- */
-
-
-
-
-/*
- * Data types available for the user in their stages
- */
-
-//template <typename T>
-//class MArrayType : public MType {
-//public:
-//
-//    MArrayType() : MType() {
-//        MType *t = create_type<T *>();
-//        MType *i = create_type<int>();
-//        underlying_types.push_back(t);
-//        underlying_types.push_back(i);
-//        underlying_types.push_back(i);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//
-//
-////class BaseElementType : public MType {
-////public:
-////
-////    BaseElementType() { }
-////
-////    void dump() {
-////
-////    }
-////
-////    llvm::Type *codegen() {
-////
-////    }
-////
-////};
-//
-////MType *c = create_type<MArrayType<char> *>();
-////underlying_types.push_back(c);
-//
-//template <typename T>
-//class WrapperOutputType : public MType {
-//public:
-//
-//    WrapperOutputType() : MType() {
-//        MType *t = create_type<MArrayType<T> **>();
-//        MType *i = create_type<unsigned int>();
-//        underlying_types.push_back(t);
-//        underlying_types.push_back(i);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//class FileType : public MType {
-//public:
-//
-//    FileType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        underlying_types.push_back(c);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class ElementType : public MType {
-//public:
-//
-//    ElementType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class SegmentedElementType : public MType {
-//public:
-//
-//    SegmentedElementType() : MType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        MType *i = create_type<unsigned int>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//        underlying_types.push_back(i);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class SegmentsType : public MType {
-//public:
-//
-//    SegmentsType() {
-//        MType *s = create_type<MArrayType<SegmentedElementType<T> *> *>();
-//        underlying_types.push_back(s);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//template <typename T>
-//class ComparisonElementType : public MType {
-//public:
-//
-//    ComparisonElementType() {
-//        MType *c = create_type<MArrayType<char> *>();
-//        MType *t = create_type<MArrayType<T> *>();
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(c);
-//        underlying_types.push_back(t);
-//    }
-//
-//    void dump() { }
-//
-//    llvm::Type *codegen() { }
-//
-//};
-//
-//
-///*
-// * Create MTypes from C types
-// */
-//
-//
-//template <>
-//struct create_type<FileType> {
-//    operator MType*() {
-//        std::cerr << "Creating type file" << std::endl;
-//        return new FileType();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<ElementType<T>> {
-//    operator MType*() {
-//        return new ElementType<create_type<T>()>();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<ComparisonElementType<T>> {
-//    operator MType*() {
-//        return new ComparisonElementType<create_type<T>()>();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<SegmentedElementType<T>> {
-//    operator MType*() {
-//        return new SegmentedElementType<create_type<T>()>();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<SegmentsType<T>> {
-//    operator MType*() {
-//        return new SegmentsType<create_type<T>()>();
-//    }
-//};
-//
-//template <typename T>
-//struct create_type<WrapperOutputType<T>> {
-//    operator MType*() {
-//        return new WrapperOutputType<create_type<T>()>();
-//    }
-//};
-
-// TODO for now, only pointers in and out of stages are allowed. I think.
-//template <typename T>
-//struct create_type {
-//    operator MType*() {
-//        std::cerr << "MType.h: Shouldn't be in here (create_type for typename T)!" << std::endl;
-//        exit(19);
-//
-//    }
-//};
-
-// TODO try to get rid of these and the mtype_struct in general
-
-//MStructType *create_struct_type(std::vector<MType *> field_types) {
-//    return new MStructType(mtype_struct, field_types);
-//}
-//
-//MStructType *create_struct_type(mtype_code_t struct_type, std::vector<MType *> field_types) {
-//    return new MStructType(struct_type, field_types);
-//}
-//
-//MPointerType *create_struct_reference_type(std::vector<MType *> field_types) {
-//    return new MPointerType(create_struct_type(field_types));
-//}
-//
-//MPointerType *create_struct_reference_type(mtype_code_t struct_type, std::vector<MType *> field_types) {
-//    return new MPointerType(create_struct_type(struct_type, field_types));
-//}
-
-
-/*
- * Return the mtype_code_t value for a given C type or MType struct
- */
-
-
-
-//template <>
-//struct mtype_of<File> {
-//    operator mtype_code_t() {
-//        return mtype_file;
-//    }
-//};
-//
-//template <typename T>
-//struct mtype_of<Element<T> > {
-//    operator mtype_code_t() {
-//        return mtype_element;
-//    }
-//};
-//
-//template <typename T>
-//struct mtype_of<ComparisonElement<T> > {
-//    operator mtype_code_t() {
-//        return mtype_comparison_element;
-//    }
-//};
-//
-//template <typename T>
-//struct mtype_of<Segments<T> > {
-//    operator mtype_code_t() {
-//        return mtype_segments;
-//    }
-//};
-//
-//template <typename T>
-//struct mtype_of<SegmentedElement<T> > {
-//    operator mtype_code_t() {
-//        return mtype_segmented_element;
-//    }
-//};
+template <>
+struct mtype_of<SegmentedElementType> {
+    operator mtype_code_t() {
+        return mtype_segmented_element;
+    }
+};
 
 
 

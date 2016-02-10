@@ -9,7 +9,7 @@
 #include "llvm/IR/Type.h"
 #include "./JIT.h"
 #include "./Stage.h"
-#include "./CompositeTypes.h"
+#include "Structures.h"
 
 class Pipeline {
 

@@ -13,23 +13,24 @@
 #include "./JIT.h"
 #include "./MFunc.h"
 #include "./InstructionBlock.h"
+//
+//llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
+//llvm::Value *codegen_segmented_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
+//llvm::Value *codegen_file_size(llvm::AllocaInst *extern_call_res, JIT *jit);
+//llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
+//void codegen_file_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+//                        llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+//                        JIT *jit, llvm::Function *insert_into);
+//void codegen_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+//                           llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+//                           JIT *jit, llvm::Function *insert_into);
+//void codegen_comparison_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+//                                      llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+//                                      JIT *jit, llvm::Function *insert_into);
+//void codegen_segments_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
+//                            llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
+//                            JIT *jit, llvm::Function *insert_into);
 
-llvm::Value *codegen_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
-llvm::Value *codegen_segmented_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
-llvm::Value *codegen_file_size(llvm::AllocaInst *extern_call_res, JIT *jit);
-llvm::Value *codegen_comparison_element_size(MType *mtype, llvm::AllocaInst *extern_call_res, JIT *jit);
-void codegen_file_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
-                        llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
-                        JIT *jit, llvm::Function *insert_into);
-void codegen_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
-                           llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
-                           JIT *jit, llvm::Function *insert_into);
-void codegen_comparison_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
-                                      llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
-                                      JIT *jit, llvm::Function *insert_into);
-void codegen_segmented_element_store(llvm::AllocaInst *return_struct, llvm::AllocaInst *ret_idx, MType *ret_type,
-                                     llvm::AllocaInst *malloc_size, llvm::AllocaInst *extern_call_res,
-                                     JIT *jit, llvm::Function *insert_into);
 
 namespace CodegenUtils {
 // A component of a function. Can be anything really
@@ -53,15 +54,6 @@ public:
         return results;
     }
 
-//    std::vector<llvm::Value *> slice(int start, int end) {
-//        std::vector<llvm::Value *> sliced;
-//        int ctr = 0;
-//        for (int i = start; i < end; i++) {
-//            sliced[ctr++] = results[i];
-//        }
-//        return sliced;
-//    }
-
     llvm::Value *get_result(unsigned int i) {
         return results[i];
     }
@@ -75,24 +67,35 @@ public:
     }
 };
 
-FuncComp create_extern_call(JIT *jit, MFunc extern_func, std::vector<llvm::Value *> extern_function_arg_allocs);
+llvm::Value *get_mtype_file_size(JIT *jit, llvm::AllocaInst *data_to_store_alloc);
+llvm::Value *get_mtype_element_size(JIT *jit, llvm::AllocaInst *data_to_store_alloc, MType *element_type);
+llvm::Value *get_mtype_comparison_element_size(JIT *jit, llvm::AllocaInst *data_to_store_alloc, MType *comparison_element_type);
+llvm::Value *get_mtype_segmented_element_size(JIT *jit, llvm::AllocaInst *data_to_store_alloc, MType *segmented_element_type);
+llvm::Value *get_mtype_segments_size(JIT *jit, llvm::AllocaInst *data_to_store_alloc, MType *segments_type, MFunc *mfunction);
 
-FuncComp init_idx(JIT *jit, int start_idx = 0, std::string name = "");
 
-void increment_idx(JIT *jit, llvm::AllocaInst *loop_idx, int step_size = 1);
+std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, MFunc *mfunction);
 
-FuncComp create_loop_idx_condition(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *loop_bound);
+llvm::AllocaInst *load_extern_input_arg(JIT *jit, MFunc *mfunction, llvm::AllocaInst *wrapper_input_arg_alloc,
+                                        llvm::AllocaInst *loop_idx);
 
-FuncComp init_return_data_structure(JIT *jit, MType *data_ret_type, MFunc extern_mfunc,
-                                    llvm::Value *max_num_ret_elements, llvm::AllocaInst *malloc_size);
+llvm::AllocaInst * create_extern_call(JIT *jit, MFunc *mfunction,
+                                      std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
-void store_extern_result(JIT *jit, MType *ret_type, llvm::Value *ret_struct, llvm::Value *ret_idx,
-                         llvm::AllocaInst *extern_call_res, llvm::Function *insert_into, llvm::AllocaInst *malloc_size,
-                         llvm::BasicBlock *extern_call_store_basic_block);
+llvm::AllocaInst *init_i64(JIT *jit, int start_val = 0, std::string name = "");
 
-std::vector<llvm::AllocaInst *> init_function_args(JIT *jit, MFunc extern_mfunc);
+void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size = 1);
 
-void return_data(JIT *jit, llvm::Value *ret, llvm::Value *ret_idx);
+llvm::Value * create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *max_loop_bound);
+
+llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::AllocaInst *max_loop_bound,
+                                             llvm::AllocaInst *malloc_size);
+
+void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm::AllocaInst *output_idx,
+                  llvm::AllocaInst *data_to_store, llvm::Function *insert_into, llvm::AllocaInst *malloc_size_alloc,
+                  ExternCallStoreIB *extern_call_store_ib, MFunc *mfunction);
+
+void return_data(JIT *jit, llvm::AllocaInst *wrapper_output_struct_alloc, llvm::AllocaInst *output_idx);
 
 void codegen_llvm_memcpy(JIT *jit, llvm::Value *dest, llvm::Value *src, llvm::Value *bytes_to_copy);
 
@@ -129,6 +132,11 @@ void codegen_fprintf_int(JIT *jit, int the_int);
 void codegen_fprintf_float(JIT *jit, llvm::Value *the_int);
 
 void codegen_fprintf_float(JIT *jit, float the_int);
+
+// some useful things
+llvm::ConstantInt *get_i32(int x);
+
+llvm::ConstantInt *get_i64(long x);
 
 }
 

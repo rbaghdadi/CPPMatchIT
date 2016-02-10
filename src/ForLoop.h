@@ -13,11 +13,9 @@ class ForLoop {
 private:
 
     JIT *jit;
-//    MFunc *mfunction;
-    llvm::Function *func;
-    LoopCounterBasicBlock *loop_counter_basic_block;
-    ForLoopIncrementBasicBlock *for_loop_increment_basic_block;
-    ForLoopConditionBasicBlock *for_loop_condition_basic_block;
+    LoopCountersIB *loop_counter_basic_block;
+    ForLoopIncrementIB *for_loop_increment_basic_block;
+    ForLoopConditionIB *for_loop_condition_basic_block;
     llvm::AllocaInst *max_loop_bound;
     llvm::BasicBlock *branch_to_after_counter;
     llvm::BasicBlock *branch_to_true_condition;
@@ -25,85 +23,37 @@ private:
 
 public:
 
-//    ForLoop(JIT *jit, MFunc *mfunction) : jit(jit), mfunction(mfunction) {
-//        loop_counter_basic_block = new LoopCounterBasicBlock();
-//        for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
-//        for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
-//    }
-
-    ForLoop(JIT *jit, llvm::Function *func) : jit(jit), func(func) {
-        loop_counter_basic_block = new LoopCounterBasicBlock();
-        for_loop_increment_basic_block = new ForLoopIncrementBasicBlock();
-        for_loop_condition_basic_block = new ForLoopConditionBasicBlock();
+    ForLoop(JIT *jit) : jit(jit) {
+        loop_counter_basic_block = new LoopCountersIB();
+        for_loop_increment_basic_block = new ForLoopIncrementIB();
+        for_loop_condition_basic_block = new ForLoopConditionIB();
     }
 
-    void codegen() {
-        assert(max_loop_bound);
-        assert(branch_to_after_counter);
-        assert(branch_to_true_condition);
-        assert(branch_to_false_condition);
-        assert(func);
+    void set_mfunction(MFunc *mfunction);
 
-        loop_counter_basic_block->set_function(func);
-        loop_counter_basic_block->set_max_bound(max_loop_bound);
-        loop_counter_basic_block->codegen(jit, false);
-        jit->get_builder().CreateBr(branch_to_after_counter);
+    void codegen();
 
-        for_loop_condition_basic_block->set_function(func);
-        for_loop_condition_basic_block->set_max_bound(max_loop_bound); // TODO this is kind of repetitive with the loop counter since they both load it
-        for_loop_condition_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
-        for_loop_condition_basic_block->codegen(jit, false);
-        jit->get_builder().CreateCondBr(for_loop_condition_basic_block->get_loop_comparison(), branch_to_true_condition, branch_to_false_condition);
+    llvm::AllocaInst *get_max_loop_bound();
 
-        for_loop_increment_basic_block->set_function(func);
-        for_loop_increment_basic_block->set_loop_idx(loop_counter_basic_block->get_loop_idx());
-        for_loop_increment_basic_block->codegen(jit, false);
-        jit->get_builder().CreateBr(for_loop_condition_basic_block->get_basic_block());
-    }
+    llvm::BasicBlock *get_branch_to_after_counter();
 
-    llvm::AllocaInst *get_max_loop_bound() {
-        return max_loop_bound;
-    }
+    llvm::BasicBlock *get_branch_to_true_condition();
 
-    llvm::BasicBlock *get_branch_to_after_counter() {
-        return branch_to_after_counter;
-    }
+    llvm::BasicBlock *get_branch_to_false_condition();
 
-    llvm::BasicBlock *get_branch_to_true_condition() {
-        return branch_to_true_condition;
-    }
+    LoopCountersIB *get_loop_counter_basic_block();
 
-    llvm::BasicBlock *get_branch_to_false_condition() {
-        return branch_to_false_condition;
-    }
+    ForLoopIncrementIB *get_for_loop_increment_basic_block();
 
-    LoopCounterBasicBlock *get_loop_counter_basic_block() {
-        return loop_counter_basic_block;
-    }
+    ForLoopConditionIB *get_for_loop_condition_basic_block();
 
-    ForLoopIncrementBasicBlock *get_for_loop_increment_basic_block() {
-        return for_loop_increment_basic_block;
-    }
+    void set_max_loop_bound(llvm::AllocaInst *max_loop_bound);
 
-    ForLoopConditionBasicBlock *get_for_loop_condition_basic_block() {
-        return for_loop_condition_basic_block;
-    }
+    void set_branch_to_after_counter(llvm::BasicBlock *branch_to_after_counter);
 
-    void set_max_loop_bound(llvm::AllocaInst *max_loop_bound) {
-        this->max_loop_bound = max_loop_bound;
-    }
+    void set_branch_to_true_condition(llvm::BasicBlock *branch_to_true_condition);
 
-    void set_branch_to_after_counter(llvm::BasicBlock *branch_to_after_counter) {
-        this->branch_to_after_counter = branch_to_after_counter;
-    }
-
-    void set_branch_to_true_condition(llvm::BasicBlock *branch_to_true_condition) {
-        this->branch_to_true_condition = branch_to_true_condition;
-    }
-
-    void set_branch_to_false_condition(llvm::BasicBlock *branch_to_false_condition) {
-        this->branch_to_false_condition = branch_to_false_condition;
-    }
+    void set_branch_to_false_condition(llvm::BasicBlock *branch_to_false_condition);
 
 };
 

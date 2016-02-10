@@ -7,52 +7,71 @@
 
 #include <vector>
 #include <string>
+#include "./JIT.h"
 
+/*
+ * Various utilities for use in MatchIT IR or llvm IR.
+ */
+
+/*
+ * Vector functions
+ */
+
+/**
+ * Return the last extern_input_arg_alloc of a vector
+ */
 template <typename T>
 T last(std::vector<T> vec) {
     return vec[vec.size() - 1];
 }
 
+/**
+ * Convert a vector to an array
+ */
 template <typename T>
 T* as_array(std::vector<T> *vec) {
     return &((*vec)[0]);
 }
 
+/*
+ * Wrappers for c functions that can be called in llvm
+ */
+
+/**
+ * Print a line of '='
+ */
 extern "C" void print_sep();
 
-extern "C" void print_int(int l);
-extern "C" void print_float(float f);
+/**
+ * Print an int using fprintf(stderr,...)
+ */
+extern "C" void c_fprintf(int i);
 
-//extern "C" void print_string(std::string s);
-
+/**
+ * Call C malloc with an i32 llvm type
+ */
 extern "C" void *malloc_32(size_t size);
 
+
+/**
+ * Call C malloc with an i64 llvm type
+ */
 extern "C" void *malloc_64(size_t size);
 
+/**
+ * Call C realloc with an i32 llvm type
+ */
 extern "C" void *realloc_32(void *structure, size_t size);
 
+/**
+ * Call C realloc with an i64 llvm type
+ */
 extern "C" void *realloc_64(void *structure, size_t size);
 
-//
-//template <typename T>
-//int get_size_in_bytes(T element) {
-//    return sizeof(T);
-//}
-//
-//template <>
-//int get_size_in_bytes(std::string element) {
-//    return sizeof(element) * element.size();
-//}
-//
-//template <>
-//int get_size_in_bytes(char *element) { // is this actually legit?
-//    int cur_size = 0;
-//    char cur_char = element[0];
-//    while (cur_char != '\0') {
-//        cur_size++;
-//        cur_char = element[cur_size];
-//    }
-//    return cur_size;
-//}
+
+/**
+ * Register the functions into llvm that are underlying the above wrappers.
+ */
+void register_utils(JIT *jit);
 
 #endif //MATCHIT_UTILS_H

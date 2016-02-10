@@ -16,7 +16,15 @@ mtype_code_t MType::get_mtype_code() {
 }
 
 unsigned int MType::get_bits() {
-    return bits;
+    int bits_sum = 0;
+    if (!underlying_types.empty()) { // if its empty, its a primitive type
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            bits_sum += (*iter)->get_bits();
+        }
+    } else {
+        bits_sum += this->bits;
+    }
+    return bits_sum;
 }
 
 std::vector<MType *> MType::get_underlying_types() {

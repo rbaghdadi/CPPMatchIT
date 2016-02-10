@@ -4,6 +4,7 @@
 
 #include "./InstructionBlock.h"
 #include "./Utils.h"
+#include "./CodegenUtils.h"
 
 /*
  * InstructionBlock
@@ -13,237 +14,245 @@ llvm::BasicBlock *InstructionBlock::get_basic_block() {
     return bb;
 }
 
-//void InstructionBlock::set_function(MFunc *func) {
-//    assert(bb);
-//    bb->insertInto(func->get_extern_wrapper());
-//    this->mfunction = func;
-//}
+MFunc *InstructionBlock::get_mfunction() {
+    return mfunction;
+}
 
-void InstructionBlock::set_function(llvm::Function *func) {
-    assert(bb);
-    bb->insertInto(func);
-    this->func = func;
+void InstructionBlock::set_mfunction(MFunc *mfunction) {
+    this->mfunction = mfunction;
 }
 
 /*
- * LoopCounterBasicBlock
+ * WrapperArgLoaderIB
  */
 
-llvm::AllocaInst *LoopCounterBasicBlock::get_loop_idx() {
-    return loop_idx;
+std::vector<llvm::AllocaInst *> WrapperArgLoaderIB::get_args_alloc() {
+    return args_alloc;
 }
 
-llvm::AllocaInst *LoopCounterBasicBlock::get_loop_bound() {
-    return loop_bound;
-}
-
-llvm::AllocaInst *LoopCounterBasicBlock::get_return_idx() {
-    return return_idx;
-}
-
-llvm::AllocaInst *LoopCounterBasicBlock::get_malloc_size() {
-    return malloc_size;
-}
-
-void LoopCounterBasicBlock::set_max_bound(llvm::Value *max_bound) {
-    this->max_bound = max_bound;
-}
-
-void LoopCounterBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(max_bound);
+void WrapperArgLoaderIB::codegen(JIT *jit, bool no_insert) {
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    loop_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "loop_idx").get_result());
-    loop_bound = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "loop_bound").get_result());
-    return_idx = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "return_idx").get_result());
-    malloc_size = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_idx(jit, 0, "cur_malloc_size").get_result());
-    llvm::LoadInst *load = jit->get_builder().CreateLoad(max_bound);
-    load->setAlignment(8);
-    jit->get_builder().CreateStore(load, loop_bound)->setAlignment(8);
+    args_alloc = CodegenUtils::load_wrapper_input_args(jit, mfunction);
     codegen_done = true;
 }
 
 /*
- * ReturnStructBasicBlock
+ * ExternArgLoaderIB
  */
 
-llvm::AllocaInst *ReturnStructBasicBlock::get_return_struct() {
-    return return_struct;
-}
-
-void ReturnStructBasicBlock::set_stage_return_type(MType *stage_return_type) {
-    this->stage_return_type = stage_return_type;
-}
-
-void ReturnStructBasicBlock::set_extern_function(MFunc *extern_function) {
-    this->extern_function = extern_function;
-}
-
-void ReturnStructBasicBlock::set_max_num_ret_elements(llvm::AllocaInst *max_num_ret_elements) {
-    this->max_num_ret_elements = max_num_ret_elements;
-}
-
-void ReturnStructBasicBlock::set_malloc_size(llvm::AllocaInst *malloc_size) {
-    this->malloc_size = malloc_size;
-}
-
-void ReturnStructBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(stage_return_type && extern_function && max_num_ret_elements);
+void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
+    assert(wrapper_input_arg_alloc);
+    assert(loop_idx_alloc);
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    return_struct = llvm::cast<llvm::AllocaInst>(CodegenUtils::init_return_data_structure(jit, stage_return_type,
-                                                                                          *extern_function,
-                                                                                          max_num_ret_elements, malloc_size).get_result());
+    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, mfunction, wrapper_input_arg_alloc,
+                                                                 loop_idx_alloc);
     codegen_done = true;
 }
 
 /*
- * ForLoopConditionBasicBlock
+ * LoopCountersIB
  */
 
-llvm::Value *ForLoopConditionBasicBlock::get_loop_comparison() {
+llvm::AllocaInst *LoopCountersIB::get_loop_idx_alloc() {
+    return loop_idx_alloc;
+}
+
+llvm::AllocaInst *LoopCountersIB::get_max_loop_bound_alloc() {
+    return max_loop_bound_alloc;
+}
+
+llvm::AllocaInst *LoopCountersIB::get_output_idx_alloc() {
+    return output_idx_alloc;
+}
+
+llvm::AllocaInst *LoopCountersIB::get_malloc_size_alloc() {
+    return malloc_size_alloc;
+}
+
+void LoopCountersIB::set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
+    this->max_loop_bound_alloc = max_loop_bound;
+}
+
+void LoopCountersIB::codegen(JIT *jit, bool no_insert) {
+    assert(max_loop_bound_alloc);
+    assert(mfunction);
+    assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
+    jit->get_builder().SetInsertPoint(bb);
+    loop_idx_alloc = CodegenUtils::init_i64(jit, 0, "loop_idx_alloc");
+    output_idx_alloc = CodegenUtils::init_i64(jit, 0, "output_idx_alloc");
+    malloc_size_alloc = CodegenUtils::init_i64(jit, 0, "malloc_size_alloc");
+    codegen_done = true;
+}
+
+/*
+ * WrapperOutputStructIB
+ */
+
+llvm::AllocaInst *WrapperOutputStructIB::get_wrapper_output_struct_alloc() {
+    return wrapper_output_struct_alloc;
+}
+
+void WrapperOutputStructIB::set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound_alloc) {
+    this->max_loop_bound_alloc = max_loop_bound_alloc;
+}
+
+void WrapperOutputStructIB::set_malloc_size_alloc(llvm::AllocaInst *malloc_size_alloc) {
+    this->malloc_size_alloc = malloc_size_alloc;
+}
+
+void WrapperOutputStructIB::codegen(JIT *jit, bool no_insert) {
+    assert(max_loop_bound_alloc);
+    assert(malloc_size_alloc);
+    assert(mfunction);
+    assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
+    jit->get_builder().SetInsertPoint(bb);
+    wrapper_output_struct_alloc = CodegenUtils::init_wrapper_output_struct(jit, mfunction, max_loop_bound_alloc,
+                                                                           malloc_size_alloc);
+    codegen_done = true;
+}
+
+/*
+ * ForLoopConditionIB
+ */
+
+llvm::Value *ForLoopConditionIB::get_loop_comparison() {
     return comparison;
 }
 
-void ForLoopConditionBasicBlock::set_loop_idx(llvm::AllocaInst *loop_idx) {
-    this->loop_idx = loop_idx;
+void ForLoopConditionIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+    this->loop_idx_alloc = loop_idx;
 }
 
-void ForLoopConditionBasicBlock::set_max_bound(llvm::AllocaInst *loop_bound) {
-    this->loop_bound = loop_bound;
+void ForLoopConditionIB::set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
+    this->max_loop_bound_alloc = max_loop_bound;
 }
 
 // this should be the last thing called after all the optimizations and such are performed
-void ForLoopConditionBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(loop_idx && loop_bound);
+void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
+    assert(loop_idx_alloc);
+    assert(max_loop_bound_alloc);
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    comparison = CodegenUtils::create_loop_idx_condition(jit, loop_idx, loop_bound).get_result();
+    comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
     codegen_done = true;
 }
 
 /*
- * ForLoopIncrementBasicBlock
+ * ForLoopIncrementIB
  */
 
-void ForLoopIncrementBasicBlock::set_loop_idx(llvm::AllocaInst *loop_idx) {
-    this->loop_idx = loop_idx;
+void ForLoopIncrementIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+    this->loop_idx_alloc = loop_idx;
 }
 
-void ForLoopIncrementBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(loop_idx);
+void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
+    assert(loop_idx_alloc);
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    CodegenUtils::increment_idx(jit, loop_idx);
+    CodegenUtils::increment_i64(jit, loop_idx_alloc);
     codegen_done = true;
 }
 
 /*
- * ForLoopEndBasicBlock
+ * ForLoopEndIB
  */
 
 
-void ForLoopEndBasicBlock::set_return_struct(llvm::AllocaInst *return_struct) {
-    this->return_struct = return_struct;
+void ForLoopEndIB::set_wrapper_output_struct(llvm::AllocaInst *wrapper_output_struct_alloc) {
+    this->wrapper_output_struct_alloc = wrapper_output_struct_alloc;
 }
 
-void ForLoopEndBasicBlock::set_return_idx(llvm::AllocaInst *return_idx) {
-    this->return_idx = return_idx;
+void ForLoopEndIB::set_output_idx_alloc(llvm::AllocaInst *output_idx) {
+    this->output_idx_alloc = output_idx;
 }
 
-void ForLoopEndBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(return_struct && return_idx);
+void ForLoopEndIB::codegen(JIT *jit, bool no_insert) {
+    assert(wrapper_output_struct_alloc);
+    assert(output_idx_alloc);
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    CodegenUtils::return_data(jit, return_struct, return_idx);
+    CodegenUtils::return_data(jit, wrapper_output_struct_alloc, output_idx_alloc);
     codegen_done = true;
 }
 
 /*
- * ExternArgPrepBasicBlock
+ * ExternCallIB
  */
 
-std::vector<llvm::AllocaInst *> ExternArgPrepBasicBlock::get_args() {
-    return args;
+llvm::AllocaInst *ExternCallIB::get_extern_call_result_alloc() {
+    return extern_call_result_alloc;
 }
 
-void ExternArgPrepBasicBlock::set_extern_function(MFunc *extern_function) {
-    this->extern_function = extern_function;
+llvm::AllocaInst *ExternCallIB::get_secondary_extern_call_result_alloc() {
+    return secondary_extern_call_result_alloc;
 }
 
-void ExternArgPrepBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(extern_function);
-    assert(!codegen_done);
-    jit->get_builder().SetInsertPoint(bb);
-    args = CodegenUtils::init_function_args(jit, *extern_function);
-    codegen_done = true;
-}
-
-/*
- * ExternCallBasicBlock
- */
-
-llvm::AllocaInst *ExternCallBasicBlock::get_data_to_return() {
-    return data_to_return;
-}
-
-void ExternCallBasicBlock::set_extern_function(MFunc *extern_function) {
-    this->extern_function = extern_function;
-}
-
-void ExternCallBasicBlock::set_extern_args(std::vector<llvm::Value *> args) {
-    this->args = args;
+void ExternCallIB::set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_args) {
+    this->extern_arg_allocs = extern_args;
 }
 
 // used for a stage like FilterStage which needs to store the input data rather than the output of the filter function
-void ExternCallBasicBlock::override_data_to_return(llvm::AllocaInst *data_to_return) {
-    this->data_to_return = data_to_return;
+void ExternCallIB::set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result) {
+    this->extern_call_result_alloc = secondary_extern_call_result;
 }
 
-void ExternCallBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(extern_function);
+void ExternCallIB::codegen(JIT *jit, bool no_insert) {
+    assert(!extern_arg_allocs.empty());
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
-    data_to_return = llvm::cast<llvm::AllocaInst>(CodegenUtils::create_extern_call(jit, *extern_function, args).get_result());
+    extern_call_result_alloc = CodegenUtils::create_extern_call(jit, mfunction, extern_arg_allocs);
     codegen_done = true;
 }
 
 /*
- * ExternCallStoreBasicBlock
+ * ExternCallStoreIB
  */
 
-void ExternCallStoreBasicBlock::set_mtype(MType *return_type) {
-    this->return_type = return_type;
+void ExternCallStoreIB::set_wrapper_output_struct_alloc(llvm::AllocaInst *return_struct) {
+    this->wrapper_output_struct_alloc = return_struct;
 }
 
-void ExternCallStoreBasicBlock::set_return_struct(llvm::AllocaInst *return_struct) {
-    this->return_struct = return_struct;
+void ExternCallStoreIB::set_output_idx_alloc(llvm::AllocaInst *return_idx) {
+    this->output_idx_alloc = return_idx;
 }
 
-void ExternCallStoreBasicBlock::set_return_idx(llvm::AllocaInst *return_idx) {
-    this->return_idx = return_idx;
+void ExternCallStoreIB::set_data_to_store(llvm::AllocaInst *extern_call_result) {
+    this->data_to_store_alloc = extern_call_result;
 }
 
-void ExternCallStoreBasicBlock::set_data_to_store(llvm::AllocaInst *extern_call_result) {
-    this->data_to_store = extern_call_result;
+void ExternCallStoreIB::set_malloc_size(llvm::AllocaInst *malloc_size) {
+    this->malloc_size_alloc = malloc_size;
 }
 
-void ExternCallStoreBasicBlock::set_malloc_size(llvm::AllocaInst *malloc_size) {
-    this->malloc_size = malloc_size;
-}
-
-void ExternCallStoreBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(return_type);
-    assert(return_struct);
-    assert(return_idx);
-    assert(data_to_store);
-    assert(malloc_size);
+void ExternCallStoreIB::codegen(JIT *jit, bool no_insert) {
+    assert(wrapper_output_struct_alloc);
+    assert(output_idx_alloc);
+    assert(data_to_store_alloc);
+    assert(malloc_size_alloc);
+    assert(mfunction);
     assert(!codegen_done);
+    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    CodegenUtils::store_extern_result(jit, return_type, return_struct, return_idx, data_to_store, bb->getParent(),
-                                      malloc_size, bb);
+    CodegenUtils::store_result(wrapper_output_struct_alloc, jit, output_idx_alloc, data_to_store_alloc, bb->getParent(),
+                               malloc_size_alloc, this, mfunction);
     codegen_done = true;
 }
 
@@ -251,31 +260,15 @@ void ExternCallStoreBasicBlock::codegen(JIT *jit, bool no_insert) {
  * ExternInitBasicBlock
  */
 
-llvm::AllocaInst *ExternInitBasicBlock::get_element() {
-    return element;
+llvm::AllocaInst *ExternArgLoaderIB::get_extern_input_arg_alloc() {
+    return extern_input_arg_alloc;
 }
 
-void ExternInitBasicBlock::set_data(llvm::AllocaInst *data) {
-    this->data = data;
+void ExternArgLoaderIB::set_wrapper_input_arg_alloc(llvm::AllocaInst *input_arg_alloc) {
+    this->wrapper_input_arg_alloc = input_arg_alloc;
 }
 
-void ExternInitBasicBlock::set_loop_idx(llvm::AllocaInst *loop_idx) {
-    this->loop_idx = loop_idx;
+void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+    this->loop_idx_alloc = loop_idx;
 }
 
-void ExternInitBasicBlock::codegen(JIT *jit, bool no_insert) {
-    assert(data);
-    assert(loop_idx);
-    assert(!codegen_done);
-    jit->get_builder().SetInsertPoint(bb);
-    // TODO This needs to be a for loop!
-    llvm::LoadInst *loaded_data = jit->get_builder().CreateLoad(data);
-    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
-    std::vector<llvm::Value *> index;
-    index.push_back(cur_loop_idx);
-    llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(loaded_data, index);
-    llvm::LoadInst *loaded_element = jit->get_builder().CreateLoad(element_gep);
-    element = jit->get_builder().CreateAlloca(loaded_element->getType());
-    jit->get_builder().CreateStore(loaded_element, element);
-    codegen_done = true;
-}
