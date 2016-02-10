@@ -30,7 +30,7 @@ typedef enum {
     mtype_segments, // 14
     mtype_segmented_element, // 15
     mtype_marray, // 16
-    mtype_stage // 17 -- the return struct that wraps a user return type
+    mtype_wrapper_output // 17 -- the return struct that wraps a user return type
 } mtype_code_t;
 
 /*
@@ -348,17 +348,39 @@ struct create_type<double> {
 template <typename T>
 struct create_type<T *> {
     operator MPointerType*() {
-        std::cerr << "Creating pointer type" << std::endl;
         return new MPointerType(create_type<T>());
     }
 };
 
-class MArrayType : public MType {
+template <typename T>
+MPointerType *create_pointer_type() {
+    return new MPointerType(create_type<T>());
+}
+
+class MStructType : public MType {
 public:
 
-    MArrayType(MType *user_type) : MType(mtype_marray, 0) {
+    MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) { }
+
+    virtual llvm::Type* codegen();
+
+};
+
+/*
+ * MArrayType
+ */
+
+// MArrayType data type: MPointerType pointing to:
+// MPrimType with type code: 3
+// followed by
+// MPrimType with type code: 5
+// MPrimType with type code: 5
+class MArrayType : public MStructType {
+public:
+
+    MArrayType(MType *user_type) : MStructType(mtype_marray) {
         MType *i = create_type<int>();
-        underlying_types.push_back(user_type);
+        underlying_types.push_back(new MPointerType(user_type));
         underlying_types.push_back(i);
         underlying_types.push_back(i);
         set_bits(user_type->get_bits() + i->get_bits() * 2);
@@ -366,51 +388,116 @@ public:
 
     void dump();
 
-    llvm::Type *codegen();
 };
+
 
 template <typename T>
 MArrayType *create_marraytype() {
     return new MArrayType(create_type<T *>());
 };
 
-class FileType : public MType {
+/*
+ * FileType
+ */
+
+class FileType : public MStructType {
 public:
 
-    FileType() : MType() {
-        MType *c = create_marraytype<char>();
+    FileType() : MStructType(mtype_file) {
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
         underlying_types.push_back(c);
     }
 
     void dump();
 
-    llvm::Type *codegen();
-
 };
 
-class ElementType : public MType {
+FileType *create_filetype();
+
+/*
+ * ElementType
+ */
+
+class ElementType : public MStructType {
 public:
 
-    ElementType(MType *user_type) : MType() {
-        MType *c = create_marraytype<char>();
+    ElementType(MType *user_type) : MStructType(mtype_element) {
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
         underlying_types.push_back(c);
-        underlying_types.push_back(user_type);
+        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
     }
 
     void dump();
 
-    llvm::Type *codegen();
+};
+
+/*
+ * WrapperOutputType
+ */
+
+class WrapperOutputType : public MStructType {
+public:
+
+    WrapperOutputType(MType *user_type) : MStructType(mtype_wrapper_output) {
+        underlying_types.push_back(new MPointerType(new MArrayType(new MPointerType(user_type))));
+    }
+
+    void dump();
 
 };
 
-FileType *create_filetype() {
-    return new FileType();
+/*
+ * SegmentedElement
+ */
+
+class SegmentedElementType : public MStructType {
+public:
+
+    SegmentedElementType(MType *user_type) : MStructType(mtype_segmented_element) {
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        MType *i = create_type<int>();
+        underlying_types.push_back(c);
+        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
+        underlying_types.push_back(i); // the offset
+    }
+
+    void dump();
+
 };
 
-template <typename T>
-ElementType *create_elementtype() {
-    return new ElementType(create_marraytype<T *>());
-}
+/*
+ * SegmentsType
+ */
+
+class SegmentsType : public MStructType {
+public:
+
+    SegmentsType(MType *user_type) : MStructType(mtype_segments) {
+        underlying_types.push_back(new MPointerType(new MArrayType(new MPointerType(new SegmentedElementType(user_type)))));
+    }
+
+    void dump();
+
+};
+
+/*
+ * ComparisonElementType
+ */
+
+class ComparisonElementType : public MStructType {
+public:
+
+    ComparisonElementType(MType *user_type) : MStructType(mtype_comparison_element) {
+        MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        underlying_types.push_back(c);
+        underlying_types.push_back(c);
+        underlying_types.push_back(new MPointerType(new MArrayType(user_type)));
+    }
+
+    void dump();
+
+};
+
 
 template <typename T>
 struct mtype_of {
