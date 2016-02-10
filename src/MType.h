@@ -399,6 +399,7 @@ public:
         underlying_types.push_back(i);
         underlying_types.push_back(i);
         set_bits(user_ptr->get_bits() + i->get_bits() * 2);
+        std::cerr << "MArray has this many bits: " << user_ptr->get_bits() + i->get_bits() * 2 << std::endl;
     }
 
     void dump();

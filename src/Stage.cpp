@@ -101,7 +101,11 @@ void Stage::codegen() {
 
         // store the result
         extern_call_store->set_mfunction(mfunction);
-        extern_call_store->set_data_to_store(extern_call->get_extern_call_result_alloc());
+        if (extern_call->get_secondary_extern_call_result_alloc() == nullptr) {
+            extern_call_store->set_data_to_store(extern_call->get_extern_call_result_alloc());
+        } else {
+            extern_call_store->set_data_to_store(extern_call->get_secondary_extern_call_result_alloc());
+        }
         extern_call_store->set_output_idx_alloc(loop->get_loop_counter_basic_block()->get_output_idx_alloc());
         extern_call_store->set_wrapper_output_struct_alloc(return_struct->get_wrapper_output_struct_alloc());
         extern_call_store->set_malloc_size(loop->get_loop_counter_basic_block()->get_malloc_size_alloc());

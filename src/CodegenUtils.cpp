@@ -136,7 +136,10 @@ llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::A
     x_gep_idxs.push_back(get_i32(0));
     llvm::Value *x_gep_ptr = jit->get_builder().CreateInBoundsGEP(x_gep_temp_load, x_gep_idxs);
     llvm::LoadInst *x_gep_ptr_load = jit->get_builder().CreateLoad(x_gep_ptr);
-    llvm::LoadInst *num_inner_objs = jit->get_builder().CreateLoad(max_loop_bound);
+    llvm::Value *num_inner_objs = jit->get_builder().CreateLoad(max_loop_bound);
+    if (mfunction->get_associated_block() == "ComparisonStage") {
+        num_inner_objs = jit->get_builder().CreateMul(num_inner_objs, num_inner_objs);
+    }
 
     // now back to getting our X**
     llvm::Value *x_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, x_gep_idxs);
@@ -244,6 +247,7 @@ void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm:
         final_output_gep_idxs.push_back(output_idx_load);
         llvm::Value *store_location_gep = jit->get_builder().CreateInBoundsGEP(final_struct_load, final_output_gep_idxs);
         llvm::LoadInst *store_location_load = jit->get_builder().CreateLoad(store_location_gep);
+
         // get the data field of the MArray
         // TODO get the field sizes here
         // TODO DO THIS
@@ -257,7 +261,6 @@ void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm:
         llvm::LoadInst *num_base_types = jit->get_builder().CreateLoad(field2_gep);
         llvm::Value *total_size = jit->get_builder().CreateMul(num_base_types, get_i32(base_type_size));
         std::cerr << base_type_size << std::endl;
-
 
         llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, 200, store_location_load->getType());
         jit->get_builder().CreateStore(struct_malloc_space, store_location_gep);

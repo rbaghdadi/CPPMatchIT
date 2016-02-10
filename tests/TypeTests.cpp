@@ -5,11 +5,10 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
-#include <openssl/md5.h>
-#include "./MType.h"
-#include "./Utils.h"
+#include "../src/MType.h"
+#include "../src/Utils.h"
 #include "../apps/file_dups/paths.h"
-#include "./CompositeTypes.h"
+#include "../src/Structures.h"
 
 int main(int ac, char **av) {
 
@@ -138,20 +137,23 @@ int main(int ac, char **av) {
 //    c->dump();
 
     // { i8*, i32, i32 }
-    t->codegen()->dump();
+//    t->codegen()->dump();
     // { { i8*, i32, i32 }* }
-    f->codegen()->dump();
+//    f->codegen()->dump();
     // { { i8*, i32, i32 }*, { float*, i32, i32 }* }
-    e->codegen()->dump();
-    // { { { { i8*, i32, i32 }*, { float*, i32, i32 }* }**, i32, i32 }* }
+//    e->codegen()->dump();
+//    { { { { i8*, i32, i32 }* }**, i32, i32 }* }
     // the ** is the pointer to a bunch of ElementType pointers
     w->codegen()->dump();
     // { { i8*, i32, i32 }*, { float*, i32, i32 }*, i32 }
-    s->codegen()->dump();
+//    s->codegen()->dump();
     // { { { { i8*, i32, i32 }*, { float*, i32, i32 }*, i32 }**, i32, i32 }* }
-    ss->codegen()->dump();
+//    ss->codegen()->dump();
     // { { i8*, i32, i32 }*, { i8*, i32, i32 }*, { float*, i32, i32 }* }
-    c->codegen()->dump();
+//    c->codegen()->dump();
+
+    std::cerr << sizeof(MArray<File>) << std::endl;
+    std::cerr << sizeof(File) << std::endl;
 
     return 0;
 }

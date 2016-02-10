@@ -5,11 +5,14 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
-#include <openssl/md5.h>
+#include "../../src/Structures.h"
+#include "../../src/MType.h"
 #include "../../src/LLVM.h"
+#include "../../src/Utils.h"
 #include "../../src/Pipeline.h"
 #include "./Stages.h"
 #include "./paths.h"
+
 
 // Basic structure of a program:
 // 1. User extends necessary block classes
@@ -24,44 +27,48 @@ int main(int ac, char **av) {
      * Init LLVM and setup the JIT
      */
 
+//    std::cerr << "starting" << std::endl;
     LLVM::init();
     JIT jit;
+    register_utils(&jit);
 
     /*
      * Get some data
      */
 
+    std::cerr << "Getting data" << std::endl;
     std::vector<const void *> files;
     for (int i = 0; i < 148; i++) {
         std::string s = paths[i];
+        std::cerr << s << std::endl;
         char dest[s.size() + 1];
         strncpy(dest, s.c_str(), s.size());
         dest[s.size()] = '\0';
-        File *mfile = new File(s.size() + 1);
-        mfile->add(dest, s.size() + 1);
+        MArray<char> *filepath = new MArray<char>(dest, s.size() + 1);
+        File *mfile = new File();
+        mfile->set_filepath(filepath);
         files.push_back(mfile);
     }
 
-    /*
-     * Create some stages
-     */
-
-    IdentityTransform ixform(identity, &jit);
+//    /*
+//     * Create some stages
+//     */
+//
     Transform xform(transform, &jit);
     Filter filt(matlab_filter, "matlab_filter", &jit);
     HashCompare comp(compare, &jit);
     CompFilter discard(match_filter, "match_filter", &jit);
 
-    /*
-     * Run
-     */
-
+//
+//    /*
+//     * Run
+//     */
+//
     Pipeline pipeline;
     pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
-    pipeline.register_stage(&ixform);
     pipeline.register_stage(&comp);
-    pipeline.register_stage(&discard);
+//    pipeline.register_stage(&discard);
     pipeline.codegen(&jit, files.size());
     jit.dump();
     jit.add_module();

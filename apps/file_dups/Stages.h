@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include "openssl/md5.h"
-#include "../../src/CompositeTypes.h"
+#include "../../src/Structures.h"
 #include "../../src/ComparisonStage.h"
 #include "../../src/FilterStage.h"
 #include "../../src/TransformStage.h"
@@ -17,22 +17,23 @@
  * Transforms
  */
 
-class IdentityTransform : public TransformStage<Element<unsigned char> *, Element<unsigned char> *> {
+class IdentityTransform : public TransformStage<File *, File *> {
 
 public:
 
-    IdentityTransform(Element<unsigned char> *(*transform)(Element<unsigned char> *), JIT *jit) :
-            TransformStage(transform, "identity", jit) {}
+    IdentityTransform(File *(*transform)(File *), JIT *jit) :
+            TransformStage(transform, "identity", jit, new FileType(), new FileType()) {}
 
 };
 
-extern "C" Element<unsigned char> *identity(Element<unsigned char> *file);
+extern "C" File *identity(File *file);
 
 class Transform : public TransformStage<File *, Element<unsigned char> *> {
 
 public:
 
-    Transform(Element<unsigned char> *(*transform)(File *), JIT *jit) : TransformStage(transform, "transform", jit) {}
+    Transform(Element<unsigned char> *(*transform)(File *), JIT *jit) :
+            TransformStage(transform, "transform", jit, new FileType, new ElementType(create_type<unsigned char>())) {}
 
 };
 
@@ -41,12 +42,13 @@ extern "C" Element<unsigned char> *transform(File *file);
 /*
  * Filters
  */
-
+//
 class Filter : public FilterStage<File *> {
 
 public:
 
-    Filter(bool (*filter)(File *), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit) {}
+    Filter(bool (*filter)(File *), std::string transform_name, JIT *jit) : FilterStage(filter, transform_name, jit,
+                                                                                       new FileType()) {}
 
 };
 
@@ -55,7 +57,7 @@ extern "C" bool matlab_filter(File *file_path);
 class CompFilter : public FilterStage<ComparisonElement<bool> *> {
 public:
     CompFilter(bool (*filter)(ComparisonElement<bool> *), std::string transform_name, JIT *jit) :
-            FilterStage(filter, transform_name, jit) {}
+            FilterStage(filter, transform_name, jit, new ComparisonElementType(create_type<bool>())) {}
 };
 
 extern "C" bool match_filter(ComparisonElement<bool> *comparison);
@@ -67,11 +69,11 @@ extern "C" bool match_filter(ComparisonElement<bool> *comparison);
 class HashCompare : public ComparisonStage<Element<unsigned char> *, ComparisonElement<bool> *> {
 public:
     HashCompare(ComparisonElement<bool> *(*compare)(Element<unsigned char> *, Element<unsigned char> *), JIT *jit) :
-            ComparisonStage(compare, "compare", jit) {}
+            ComparisonStage(compare, "compare", jit, new ElementType(create_type<unsigned char>()),
+            new ComparisonElementType(create_type<bool>())) {}
 };
 
 extern "C" ComparisonElement<bool> *compare(Element<unsigned char> *file1, Element<unsigned char> *file2);
-
 
 
 

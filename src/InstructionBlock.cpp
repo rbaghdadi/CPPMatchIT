@@ -22,6 +22,10 @@ void InstructionBlock::set_mfunction(MFunc *mfunction) {
     this->mfunction = mfunction;
 }
 
+void InstructionBlock::force_insert(MFunc *mfunction) {
+    bb->insertInto(mfunction->get_extern_wrapper());
+}
+
 /*
  * WrapperArgLoaderIB
  */
@@ -141,7 +145,9 @@ void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
     assert(max_loop_bound_alloc);
     assert(mfunction);
     assert(!codegen_done);
-    bb->insertInto(mfunction->get_extern_wrapper());
+    if (bb->getParent() == nullptr) {
+        bb->insertInto(mfunction->get_extern_wrapper());
+    }
     jit->get_builder().SetInsertPoint(bb);
     comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
     codegen_done = true;

@@ -43,6 +43,8 @@ public:
 
     virtual void codegen(JIT *jit, bool no_insert = false) = 0;
 
+    void force_insert(MFunc *mfunction);
+
 };
 
 /**

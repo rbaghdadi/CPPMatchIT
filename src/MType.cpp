@@ -21,11 +21,14 @@ unsigned int MType::get_bits() {
         for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
             bits_sum += (*iter)->get_bits();
         }
-    } else {
-        bits_sum += this->bits;
     }
-    return bits_sum;
+//    else {
+//        bits_sum += this->bits;
+//    }
+    return bits_sum + this->bits;
+//    return bits;
 }
+
 
 std::vector<MType *> MType::get_underlying_types() {
     return underlying_types;

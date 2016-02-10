@@ -148,7 +148,7 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         args.push_back(jit->get_builder().CreateSExtOrBitCast(num_inner_objs, llvm::Type::getInt64Ty(llvm::getGlobalContext())));
 
         call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
-//        jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
+        jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
         prev_block = (*iter);
     }

@@ -1,51 +1,24 @@
 #include <iostream>
 
-#ifndef MATCHIT_COMPOSITETYPES_H
-#define MATCHIT_COMPOSITETYPES_H
+#ifndef MATCHIT_STRUCTURES_H
+#define MATCHIT_STRUCTURES_H
 
-//class BaseElement : MType {
-//protected:
-//
-//    MArray<char> *filepath;
-//
-//public:
-//
-//    BaseElement() {
-//        MType *c = create_type<MArray<char> *>();
-//        underlying_types.push_back(c);
-//    }
-//
-//    std::vector<MType *> get_underlying_types();
-//
-//    MArray<char> *get_filepath() {
-//        return filepath;
-//    }
-//
-//    void set_filepath(char *filepath, size_t num_chars) {
-//        this->filepath->add(filepath, num_chars);
-//    }
-//
-//    void dump() {
-//
-//    }
-//
-//    llvm::Type *codegen() {
-//
-//    }
-//
-//};
 
 /*
  * BaseElement
  */
 
-class BaseElement {
-
-};
+class BaseElement { };
 
 /*
  * MArray
  */
+
+template <typename T>
+void foo();
+
+template <char>
+void foo() {}
 
 /**
  * An MArray holds an array with a user specified type, along with its size and current end extern_input_arg_alloc idx.
@@ -67,7 +40,7 @@ public:
         mmalloc(num_elements);
     }
 
-    MArray(T *data, int num_elements) : data(data), cur_idx(0) {
+    MArray(T *data, int num_elements) : data(nullptr), cur_idx(0) {
         mmalloc(num_elements);
         add(data, num_elements);
     }
@@ -76,7 +49,7 @@ public:
      * Call C malloc on T* in this MArray.
      */
     void mmalloc(int num_elements) {
-        assert(data);
+        assert(!data);
         this->malloc_size = num_elements;
         data = (T*)malloc(sizeof(T) * num_elements);
     }
@@ -200,12 +173,17 @@ public:
     }
 
     void set_filepath(MArray<char> *filepath) {
-        this->filepath = filepath;
+        this->filepath = filepath;//add(filepath->get_array(), filepath->get_malloc_size());
     }
 
     void set_data(T *data, size_t num_elements) {
         this->data->add(data, num_elements);
     }
+
+    void set_data(MArray<T> *data) {
+        this->data = data;
+    }
+
 
     /**
      * Malloc space for T* in data
@@ -352,21 +330,30 @@ public:
         return comparison;
     }
 
-    void set_filepath1(char *filepath, size_t num_chars) {
-        this->filepath1->add(filepath, num_chars);
+    void set_filepath1(MArray<char> *filepath) {
+        this->filepath1 = filepath;
     }
 
-    void set_filepath2(char *filepath, size_t num_chars) {
-        this->filepath2->add(filepath, num_chars);
+    void set_filepath2(MArray<char> *filepath) {
+        this->filepath2 = filepath;
     }
+
+    void set_comparison(T *comparison, size_t num_elements) {
+        this->comparison->add(comparison, num_elements);
+    }
+
+    void set_comparison(MArray<T> *comparison) {
+        this->comparison = comparison;
+    }
+
 
     /**
-   * Malloc space for T* in data
-   */
+     * Malloc space for T* in data
+     */
     void malloc_comparison(size_t num_elements) {
         comparison->mmalloc(num_elements);
     }
 
 };
 
-#endif //MATCHIT_COMPOSITETYPES_H
+#endif //MATCHIT_STRUCTURES_H
