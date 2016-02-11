@@ -26,6 +26,7 @@ int main(int ac, char **av) {
 
     LLVM::init();
     JIT jit;
+    register_utils(&jit);
 
     /*
      * Get some data
@@ -37,16 +38,18 @@ int main(int ac, char **av) {
     char dest1[file1.size() + 1];
     strncpy(dest1, file1.c_str(), file1.size());
     dest1[file1.size()] = '\0';
-    File *ref = new File(file1.size() + 1);
-    ref->add(dest1, file1.size() + 1);
+    MArray<char> *filepath1 = new MArray<char>(dest1, file1.size() + 1);
+    File *ref = new File();
+    ref->set_filepath(filepath1);
     files.push_back(ref);
 
     std::string file2 = "/Users/JRay/Documents/Research/MatchedFilter/test_sigs/test2x2.wav.sw";
     char dest2[file2.size() + 1];
     strncpy(dest2, file2.c_str(), file2.size());
     dest2[file2.size()] = '\0';
-    File *sig = new File(file2.size() + 1);
-    sig->add(dest2, file2.size() + 1);
+    MArray<char> *filepath2 = new MArray<char>(dest2, file2.size() + 1);
+    File *sig = new File();
+    sig->set_filepath(filepath2);
     files.push_back(sig);
 
     /*
@@ -57,7 +60,7 @@ int main(int ac, char **av) {
 
     SlidingWindow window(segment, &jit);
     FFTxform fftxform(fft, &jit);
-    iFFTxform ifftxform(ifft, &jit);
+//    iFFTxform ifftxform(ifft, &jit);
 
     /*
      * Run
