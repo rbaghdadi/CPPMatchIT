@@ -266,6 +266,10 @@ public:
         this->data->add(data, num_elements);
     }
 
+    void set_data(MArray<T> *data) {
+        this->data = data;
+    }
+
     /**
      * Malloc space for T* in data
      */
@@ -284,6 +288,7 @@ class Segments : public BaseElement {
 private:
 
     MArray<SegmentedElement<T> *> *segments;
+//    unsigned int total_segments; //
 
 public:
 
@@ -293,9 +298,21 @@ public:
         return segments;
     }
 
+//    unsigned int get_total_segments() {
+//        return total_segments;
+//    }
+
     void add_segment(SegmentedElement<T> *segment) {
         segments->add(segment);
     }
+
+    void set_segments(MArray<SegmentedElement<T> *> *segments) {
+        this->segments = segments;
+    }
+
+//    void set_total_segments(unsigned int total_segments) {
+//        this->total_segments = total_segments;
+//    }
 
     /**
      * Malloc space for T* in data

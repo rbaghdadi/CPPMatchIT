@@ -86,7 +86,7 @@ llvm::AllocaInst *init_i64(JIT *jit, int start_val = 0, std::string name = "");
 
 void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size = 1);
 
-llvm::Value * create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *max_loop_bound);
+llvm::Value * create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound);
 
 llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::AllocaInst *max_loop_bound,
                                              llvm::AllocaInst *malloc_size);

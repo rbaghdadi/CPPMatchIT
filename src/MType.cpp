@@ -3,6 +3,8 @@
 //
 
 #include <iostream>
+#include <string>
+#include <memory>
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "./MType.h"
@@ -211,6 +213,10 @@ void MArrayType::dump() {
     underlying_types[2]->dump();
 }
 
+//llvm::Type *MArrayType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
+
 /*
  * FileType
  */
@@ -219,6 +225,10 @@ void FileType::dump() {
     std::cerr << "FileType has field type ";
     underlying_types[0]->dump();
 }
+
+//llvm::Type *FileType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
 
 /*
  * ElementType
@@ -231,6 +241,10 @@ void ElementType::dump() {
     underlying_types[1]->dump();
 }
 
+//llvm::Type *ElementType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
+
 /*
  * WrapperOutputType
  */
@@ -239,6 +253,10 @@ void WrapperOutputType::dump() {
     std::cerr << "WrapperOutputType has field types ";
     underlying_types[0]->dump();
 }
+
+//llvm::Type *WrapperOutputType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
 
 /*
  * SegmentedElementType
@@ -253,6 +271,10 @@ void SegmentedElementType::dump() {
     underlying_types[2]->dump();
 }
 
+//llvm::Type *SegmentedElementType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
+
 /*
  * SegmentsType
  */
@@ -261,6 +283,10 @@ void SegmentsType::dump() {
     std::cerr << "SegmentsType has field types ";
     underlying_types[0]->dump();
 }
+
+//llvm::Type *SegmentsType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
 
 /*
  * ComparisonElement
@@ -274,6 +300,10 @@ void ComparisonElementType::dump() {
     std::cerr << " and ";
     underlying_types[2]->dump();
 }
+
+//llvm::Type *ComparisonElementType::codegen() {
+//    return create_struct_type(underlying_types);
+//}
 
 //int main() {
 //    MArrayType *t = create_marraytype<char>();

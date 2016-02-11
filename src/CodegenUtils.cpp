@@ -137,7 +137,7 @@ llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::A
     llvm::Value *x_gep_ptr = jit->get_builder().CreateInBoundsGEP(x_gep_temp_load, x_gep_idxs);
     llvm::LoadInst *x_gep_ptr_load = jit->get_builder().CreateLoad(x_gep_ptr);
     llvm::Value *num_inner_objs = jit->get_builder().CreateLoad(max_loop_bound);
-    if (mfunction->get_associated_block() == "ComparisonStage") {
+    if (mfunction->get_associated_block() == "ComparisonStage") { // TODO check the return type instead because that is safer
         num_inner_objs = jit->get_builder().CreateMul(num_inner_objs, num_inner_objs);
     }
 
@@ -160,8 +160,8 @@ llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::A
 }
 
 
-llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx, llvm::AllocaInst *max_loop_bound) {
-    llvm::LoadInst *load_idx = jit->get_builder().CreateLoad(loop_idx);
+llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound) {
+    llvm::LoadInst *load_idx = jit->get_builder().CreateLoad(loop_idx_alloc);
     load_idx->setAlignment(8);
     llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(max_loop_bound);
     load_bound->setAlignment(8);
@@ -248,33 +248,145 @@ void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm:
         llvm::Value *store_location_gep = jit->get_builder().CreateInBoundsGEP(final_struct_load, final_output_gep_idxs);
         llvm::LoadInst *store_location_load = jit->get_builder().CreateLoad(store_location_gep);
 
-        // get the data field of the MArray
+
         // TODO get the field sizes here
         // TODO DO THIS
-        // TODO NO REALLY, IT NEEDS TO BE FIXED
-        unsigned int base_type_size = mfunction->get_extern_wrapper_return_type()->get_underlying_types()[0]->
-                get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_bits() / 8; // [0]=>get WrapperOutput, [0]=>get ptr to MArray, [0]=>get marray, [0]=>get ptr2ptr, [0]=>get ptr to base type
-        std::vector<llvm::Value *> field2_gep_idxs;
-        field2_gep_idxs.push_back(get_i32(0));
-        field2_gep_idxs.push_back(get_i32(1));
-        llvm::Value *field2_gep = jit->get_builder().CreateInBoundsGEP(final_struct_ptr_load, field2_gep_idxs);
-        llvm::LoadInst *num_base_types = jit->get_builder().CreateLoad(field2_gep);
-        llvm::Value *total_size = jit->get_builder().CreateMul(num_base_types, get_i32(base_type_size));
-        std::cerr << base_type_size << std::endl;
+        // TODO NO REALLY, IT NEEDS TO BE NOT BE HARDCODED
+//        unsigned int base_type_size = mfunction->get_extern_wrapper_return_type()->get_underlying_types()[0]->
+//                get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_bits() / 8; // [0]=>get WrapperOutput, [0]=>get ptr to MArray, [0]=>get marray, [0]=>get ptr2ptr, [0]=>get ptr to base type
+        // get the malloc_size field of the MArray
+//        std::vector<llvm::Value *> field2_gep_idxs;
+//        field2_gep_idxs.push_back(get_i32(0));
+//        field2_gep_idxs.push_back(get_i32(1));
+//        llvm::Value *field2_gep = jit->get_builder().CreateInBoundsGEP(final_struct_ptr_load, field2_gep_idxs);
+//        llvm::LoadInst *num_base_types = jit->get_builder().CreateLoad(field2_gep);
+//        llvm::Value *total_size = jit->get_builder().CreateMul(num_base_types, get_i32(base_type_size));
 
-        llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, 200, store_location_load->getType());
-        jit->get_builder().CreateStore(struct_malloc_space, store_location_gep);
-        llvm::LoadInst *dest = jit->get_builder().CreateLoad(store_location_gep);
-        llvm::LoadInst *src = jit->get_builder().CreateLoad(data_to_store);
-        codegen_llvm_memcpy(jit, dest, src, get_i32(200));
-        llvm::Value *inc_output_idx = jit->get_builder().CreateAdd(output_idx_load, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
-        llvm::StoreInst *store_output_idx = jit->get_builder().CreateStore(inc_output_idx, output_idx);
-        store_output_idx->setAlignment(8);
+        if (mfunction->get_associated_block() == "SegmentationStage") {
+            /*
+             * Process the returned data
+             */
+            // get the Segments struct
+            std::vector<llvm::Value *> segments_gep_idxs;
+            segments_gep_idxs.push_back(get_i32(0));
+            llvm::Value *segments_gep = jit->get_builder().CreateInBoundsGEP(data_to_store, segments_gep_idxs);
+            llvm::LoadInst *segments_load = jit->get_builder().CreateLoad(segments_gep);
+
+            // get the MArray pointer in the Segments struct
+            segments_gep_idxs.push_back(get_i32(0));
+            llvm::Value *marray_segele_ptr_gep = jit->get_builder().CreateInBoundsGEP(segments_load, segments_gep_idxs);
+            llvm::LoadInst *marray_segele_ptr_load = jit->get_builder().CreateLoad(marray_segele_ptr_gep);
+            marray_segele_ptr_load->setAlignment(8);
+
+            // get the malloc_size field of that MArray
+            std::vector<llvm::Value *> marray_size_field_gep_idxs;
+            marray_size_field_gep_idxs.push_back(get_i32(0));
+            marray_size_field_gep_idxs.push_back(get_i32(1));
+            llvm::Value *marray_size_field_gep = jit->get_builder().CreateInBoundsGEP(marray_segele_ptr_load,
+                                                                                      marray_size_field_gep_idxs);
+            llvm::LoadInst *number_of_segments = jit->get_builder().CreateLoad(marray_size_field_gep, "number_of_segments");
+
+            // get the data field of that MArray
+            std::vector<llvm::Value *> marray_data_field_gep_idxs;
+            marray_data_field_gep_idxs.push_back(get_i32(0));
+            marray_data_field_gep_idxs.push_back(get_i32(0));
+            llvm::Value *marray_data_field_gep = jit->get_builder().CreateInBoundsGEP(marray_segele_ptr_load,
+                                                                                      marray_data_field_gep_idxs);
+            llvm::LoadInst *marray_data_field_load = jit->get_builder().CreateLoad(marray_data_field_gep);
+            marray_data_field_load->setAlignment(8);
+
+            // get the current output struct that we need to realloc space for
+            llvm::Value *sext_number_of_segments = jit->get_builder().CreateSExtOrBitCast(number_of_segments, llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+            llvm::Value *current_space_allocated = jit->get_builder().CreateMul(output_idx_load, get_i64(8));
+            llvm::Value *extra_space_to_allocate = jit->get_builder().CreateMul(sext_number_of_segments, get_i64(8));
+            llvm::Value *total_space_to_allocate = jit->get_builder().CreateAdd(current_space_allocated, extra_space_to_allocate);
+
+
+            llvm::Value *realloced_space = codegen_c_realloc64_and_cast(jit, final_struct_load, total_space_to_allocate, marray_data_field_load->getType());
+            jit->get_builder().CreateStore(realloced_space, final_struct_gep);
+            // loop through all of the SegmentedElement<T>* values in the Segments output from the extern call
+            llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy");
+            llvm::BasicBlock *segment_getter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "segment_getter");
+            dummy->insertInto(insert_into);
+            segment_getter->insertInto(insert_into);
+            ForLoop *segment_loop = new ForLoop(jit);
+
+            llvm::AllocaInst *num_alloc = jit->get_builder().CreateAlloca(sext_number_of_segments->getType());
+            jit->get_builder().CreateStore(sext_number_of_segments, num_alloc);
+            jit->get_builder().CreateBr(segment_loop->get_loop_counter_basic_block()->get_basic_block());
+
+            segment_loop->set_mfunction(mfunction);
+            segment_loop->get_for_loop_condition_basic_block()->force_insert(mfunction);
+            segment_loop->set_max_loop_bound(num_alloc);
+            segment_loop->set_branch_to_after_counter(segment_loop->get_for_loop_condition_basic_block()->get_basic_block());
+            segment_loop->set_branch_to_true_condition(segment_getter);
+            segment_loop->set_branch_to_false_condition(dummy); // the branch out of dummy will be created when store is done
+            segment_loop->codegen();
+
+            // create the part that gets individual SegmentedElements out of a Segments (copied from above, but now it is getting an element to store, not the location to store)
+            jit->get_builder().SetInsertPoint(segment_getter);
+//            std::vector<llvm::Value *> segments_gep_idxs;
+//            segments_gep_idxs.push_back(get_i32(0));
+//            llvm::Value *full_struct_gep = jit->get_builder().CreateInBoundsGEP(data_to_store, segments_gep_idxs);
+//            llvm::LoadInst *segments_load = jit->get_builder().CreateLoad(full_struct_gep);
+//
+//            segments_gep_idxs.push_back(get_i32(0));
+//            llvm::Value *marray_segele_ptr_gep = jit->get_builder().CreateInBoundsGEP(segments_load, segments_gep_idxs);
+//            llvm::LoadInst *marray_segele_ptr_load = jit->get_builder().CreateLoad(marray_segele_ptr_gep);
+//            marray_segele_ptr_load->setAlignment(8);
+//
+//            std::vector<llvm::Value *> marray_size_field_gep_idxs;
+//            marray_size_field_gep_idxs.push_back(get_i32(0));
+//            marray_size_field_gep_idxs.push_back(get_i32(1));
+//            llvm::Value *marray_size_field_gep = jit->get_builder().CreateInBoundsGEP(marray_segele_ptr_load, marray_size_field_gep_idxs);
+//            llvm::LoadInst *number_of_segments = jit->get_builder().CreateLoad(marray_size_field_gep);
+//
+//            std::vector<llvm::Value *> final_struct_gep_idxs;
+//            final_struct_gep_idxs.push_back(get_i32(0));
+//            final_struct_gep_idxs.push_back(get_i32(0));
+//            llvm::Value *final_struct_gep = jit->get_builder().CreateInBoundsGEP(marray_segele_ptr_load, final_struct_gep_idxs);
+//            llvm::LoadInst *final_struct_load = jit->get_builder().CreateLoad(final_struct_gep);
+//            final_struct_load->setAlignment(8);
+
+            std::vector<llvm::Value *> final_output_gep_idxs;
+            llvm::LoadInst *output_idx_load = jit->get_builder().CreateLoad(segment_loop->get_loop_counter_basic_block()->get_loop_idx_alloc());
+            final_output_gep_idxs.push_back(output_idx_load);
+            llvm::Value *element_to_store_gep = jit->get_builder().CreateInBoundsGEP(marray_data_field_load, final_output_gep_idxs);
+            llvm::LoadInst *element_to_store_load = jit->get_builder().CreateLoad(element_to_store_gep);
+
+            // now store it in the realloced total_space_to_allocate
+            llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, 200, element_to_store_load->getType());
+            jit->get_builder().CreateStore(struct_malloc_space, store_location_gep);
+            llvm::LoadInst *dest = jit->get_builder().CreateLoad(store_location_gep);
+
+            codegen_llvm_memcpy(jit, dest, element_to_store_load, get_i32(200)); // PROBLEM IS HERE. Basically it breaks with more than one segment
+
+            llvm::Value *inc_output_idx = jit->get_builder().CreateAdd(output_idx_load, llvm::ConstantInt::get(
+                    llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+            llvm::StoreInst *store_output_idx = jit->get_builder().CreateStore(inc_output_idx, output_idx);
+            store_output_idx->setAlignment(8);
+
+            jit->get_builder().CreateBr(segment_loop->get_for_loop_increment_basic_block()->get_basic_block());
+
+            jit->get_builder().SetInsertPoint(dummy);
+
+
+
+        } else {
+            llvm::Value *struct_malloc_space = codegen_c_malloc32_and_cast(jit, 200, store_location_load->getType());
+            jit->get_builder().CreateStore(struct_malloc_space, store_location_gep);
+            llvm::LoadInst *dest = jit->get_builder().CreateLoad(store_location_gep);
+            llvm::LoadInst *src = jit->get_builder().CreateLoad(data_to_store);
+            codegen_llvm_memcpy(jit, dest, src, get_i32(200));
+            llvm::Value *inc_output_idx = jit->get_builder().CreateAdd(output_idx_load, llvm::ConstantInt::get(
+                    llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+            llvm::StoreInst *store_output_idx = jit->get_builder().CreateStore(inc_output_idx, output_idx);
+            store_output_idx->setAlignment(8);
+        }
     } else {
         std::cerr << "I don't support non-pointer outputs yet!" << std::endl;
         exit(19);
     }
-
 }
 
 llvm::LoadInst *get_marray_size_field(JIT *jit, llvm::AllocaInst *marray_alloc) {

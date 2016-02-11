@@ -18,43 +18,40 @@ private:
 
 public:
 
-    SegmentationStage(O (*segment)(I), std::string segmentation_name, JIT *jit) :
+    SegmentationStage(O (*segment)(I), std::string segmentation_name, JIT *jit, MType *param_type, MType *return_type) :
             Stage(jit, mtype_of<I>(), mtype_of<O>(), segmentation_name), segment(segment) {
-        MType *return_type = create_type<O>();
-        MType *param_type = create_type<I>();
+//        MType *return_type = create_type<O>();
+//        MType *param_type = create_type<I>();
         std::vector<MType *> param_types;
         param_types.push_back(param_type);
-        // the extern_wrapper_return_type in this case is an marray of type SegmentedElement.
-        MFunc *func = new MFunc(function_name, "SegmentationStage", return_type->get_underlying_types()[0], return_type, param_types, jit);
+        MType *segment_type = return_type->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]; // this gets the type SegmentedElement<T>*
+        segment_type->dump();
+        MType *stage_return_type = new MPointerType(new WrapperOutputType(segment_type));
+        MFunc *func = new MFunc(function_name, "SegmentationStage", new MPointerType(return_type), stage_return_type, param_types, jit);
         set_function(func);
     }
 
     void init_codegen() {
-        func->codegen_extern_proto();
-        func->codegen_extern_wrapper_proto();
+        mfunction->codegen_extern_proto();
+        mfunction->codegen_extern_wrapper_proto();
     }
 
-    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternInitBasicBlock *eibb,
-                                ExternCallBasicBlock *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
+    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
+                                ExternCallIB *ec, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
         // build the body
         // outer loop
-        eibb->set_loop_idx(loop_idx);
-        eibb->set_data(args[0]);
-        eibb->codegen(jit, false);
-        jit->get_builder().CreateBr(ecbb->get_basic_block());
+        eal->set_mfunction(mfunction);
+        eal->set_loop_idx_alloc(loop_idx);
+        eal->set_wrapper_input_arg_alloc(args[0]);
+        eal->codegen(jit, false);
+        jit->get_builder().CreateBr(ec->get_basic_block());
 
         // create the call
-        ecbb->set_extern_function(mfunction);
-        std::vector<llvm::Value *> sliced;
-        sliced.push_back(eibb->get_element());
-        ecbb->set_extern_args(sliced);
-        ecbb->codegen(jit, false);
-
-        // we've now got a bunch of segments (array of SegmentTypes). flatten them out into a single stream
-        // realloc if more space needed
-        // They ret type of segment will be T**, AND we want the final array to be T**, so we need to keep reallocing
-        // size (see CodegenUtils)
-
+        std::vector<llvm::AllocaInst *> sliced;
+        sliced.push_back(eal->get_extern_input_arg_alloc());
+        ec->set_mfunction(mfunction);
+        ec->set_extern_arg_allocs(sliced);
+        ec->codegen(jit, false);
         jit->get_builder().CreateBr(branch_to);
     }
 

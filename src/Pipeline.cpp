@@ -95,19 +95,6 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         // store the result of the previous call
         jit->get_builder().CreateStore(call, call_alloc);
 
-        // hey, now load it again
-        llvm::LoadInst *call_load = jit->get_builder().CreateLoad(call_alloc);
-
-
-
-//        // allocate space for the MArray
-//        std::vector<llvm::Value *> marray_gep_idxs;
-//        marray_gep_idxs.push_back(CodegenUtils::get_i32(0));
-//        llvm::Value *marray_gep_temp = jit->get_builder().CreateInBoundsGEP(call_alloc, marray_gep_idxs);
-//        llvm::LoadInst *marray_gep_temp_load = jit->get_builder().CreateLoad(marray_gep_temp);
-//        marray_gep_idxs.push_back(CodegenUtils::get_i32(0));
-//        llvm::Value *marray_gep_ptr = jit->get_builder().CreateInBoundsGEP(marray_gep_temp_load, marray_gep_idxs);
-
         // get X**
         std::vector<llvm::Value *> x_gep_idxs;
         x_gep_idxs.push_back(CodegenUtils::get_i32(0));
@@ -126,18 +113,9 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         llvm::Value *x_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, x_gep_idxs);
         llvm::LoadInst *x_gep_load = jit->get_builder().CreateLoad(x_gep);
 
-        // load the returned fields
-//        std::vector<llvm::Value *> ret_val_idx; // user type
-//        ret_val_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//        ret_val_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//        llvm::Value *gep_ret_val = jit->get_builder().CreateInBoundsGEP(call_load, ret_val_idx);
-//        llvm::LoadInst *loaded_val = jit->get_builder().CreateLoad(gep_ret_val);
-//
-//        std::vector<llvm::Value *> ret_idx_idx; // counter
-//        ret_idx_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
-//        ret_idx_idx.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
-//        llvm::Value *gep_ret_idx = jit->get_builder().CreateInBoundsGEP(call_load, ret_idx_idx);
-//        llvm::LoadInst *loaded_idx = jit->get_builder().CreateLoad(gep_ret_idx);
+        if ((*iter)->get_mfunction()->get_associated_block() == "SegmentationStage") {
+            // here I want to flatten out the Segments into an array of SegmentationStages and pass a bunch of them into the next stage
+        }
 
         // now call the next function
         std::vector<llvm::Value *> args;

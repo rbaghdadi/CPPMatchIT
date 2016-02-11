@@ -372,7 +372,7 @@ public:
 
     MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) { }
 
-    virtual llvm::Type* codegen();
+    llvm::Type* codegen();
 
     size_t _sizeof() {
 
@@ -404,6 +404,8 @@ public:
 
     void dump();
 
+//    llvm::Type* codegen();
+
 };
 
 
@@ -427,6 +429,8 @@ public:
 
     void dump();
 
+//    llvm::Type* codegen();
+
 };
 
 FileType *create_filetype();
@@ -448,6 +452,8 @@ public:
 
     void dump();
 
+//    llvm::Type* codegen();
+
 };
 
 /*
@@ -464,6 +470,8 @@ public:
     }
 
     void dump();
+
+//    llvm::Type* codegen();
 
 };
 
@@ -486,6 +494,8 @@ public:
 
     void dump();
 
+//    llvm::Type* codegen();
+
 };
 
 /*
@@ -497,11 +507,15 @@ public:
 
     SegmentsType(MType *user_type) : MStructType(mtype_segments) {
         MType *user_ptr = new MPointerType(new MArrayType(new MPointerType(new SegmentedElementType(user_type))));
+//        MType *i = create_type<int>();
         underlying_types.push_back(user_ptr);
-        set_bits(user_ptr->get_bits());
+//        underlying_types.push_back(i);
+        set_bits(user_ptr->get_bits());// + i->get_bits());
     }
 
     void dump();
+
+//    llvm::Type* codegen();
 
 };
 
@@ -522,6 +536,8 @@ public:
     }
 
     void dump();
+
+//    llvm::Type* codegen();
 
 };
 
