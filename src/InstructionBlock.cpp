@@ -47,14 +47,31 @@ void WrapperArgLoaderIB::codegen(JIT *jit, bool no_insert) {
  * ExternArgLoaderIB
  */
 
+std::vector<llvm::AllocaInst *> ExternArgLoaderIB::get_extern_input_arg_alloc() {
+    return extern_input_arg_alloc;
+}
+
+void ExternArgLoaderIB::set_wrapper_input_arg_alloc(llvm::AllocaInst *wrapper_input_arg_alloc) {
+    this->wrapper_input_arg_alloc = wrapper_input_arg_alloc;
+}
+
+void ExternArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
+    this->preallocated_output_space = preallocated_output_space;
+}
+
+void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+    this->loop_idx_alloc = loop_idx;
+}
+
 void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(wrapper_input_arg_alloc);
     assert(loop_idx_alloc);
     assert(mfunction);
+    assert(preallocated_output_space);
     assert(!codegen_done);
     bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, mfunction, wrapper_input_arg_alloc,
+    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, mfunction, wrapper_input_arg_alloc, preallocated_output_space,
                                                                  loop_idx_alloc);
     codegen_done = true;
 }
@@ -260,21 +277,5 @@ void ExternCallStoreIB::codegen(JIT *jit, bool no_insert) {
     CodegenUtils::store_result(wrapper_output_struct_alloc, jit, output_idx_alloc, data_to_store_alloc, bb->getParent(),
                                malloc_size_alloc, this, mfunction);
     codegen_done = true;
-}
-
-/*
- * ExternInitBasicBlock
- */
-
-llvm::AllocaInst *ExternArgLoaderIB::get_extern_input_arg_alloc() {
-    return extern_input_arg_alloc;
-}
-
-void ExternArgLoaderIB::set_wrapper_input_arg_alloc(llvm::AllocaInst *input_arg_alloc) {
-    this->wrapper_input_arg_alloc = input_arg_alloc;
-}
-
-void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
-    this->loop_idx_alloc = loop_idx;
 }
 

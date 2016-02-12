@@ -19,7 +19,11 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
 }
 
-void Pipeline::codegen(JIT *jit, size_t size) {
+//void Pipeline::execute(JIT *jit, const void **data, long total_bytes_in_arrays, long total_elements) {
+//    jit->run("pipeline", data);
+//}
+
+void Pipeline::codegen(JIT *jit, size_t fixed_array_length, size_t total_elements) {
 
     assert(!stages.empty());
 
@@ -32,16 +36,19 @@ void Pipeline::codegen(JIT *jit, size_t size) {
     MFunc *m_extern_wrapper = stages[0]->get_mfunction();
     llvm::Function *llvm_extern_wrapper = m_extern_wrapper->get_extern_wrapper();
 
+
     // the argument types of the llvm function that we want to call
-    std::vector<llvm::Type *> llvm_func_arg_types;
-    for (size_t i = 0; i < m_extern_wrapper->get_param_types().size(); i++) {
-        llvm_func_arg_types.push_back(llvm::PointerType::get(llvm::PointerType::get(m_extern_wrapper->get_param_types()[i]->codegen(), 0), 0));
-    }
+//    std::vector<llvm::Type *> llvm_func_arg_types;
+    std::vector<llvm::Type *> pipeline_arg_types;
+//    llvm_func_arg_types.push_back(llvm::PointerType::get(m_extern_wrapper->get_extern_param_types()[0]->codegen_type(), 0));
+    pipeline_arg_types.push_back(llvm::PointerType::get(m_extern_wrapper->get_extern_param_types()[0]->codegen_type(), 0));
+//    llvm_func_arg_types.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext())); // num elements
+//    llvm_func_arg_types.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext())); // num elements that should be in the output arrays
 
     // our pipeline wrapper function
     // add the return type
     llvm::FunctionType *llvm_func_type = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
-                                                                 llvm_func_arg_types, false);
+                                                                 pipeline_arg_types, false);
     // create the function
     llvm::Function *wrapper = llvm::Function::Create(llvm_func_type, llvm::Function::ExternalLinkage, "pipeline", jit->get_module().get());
     llvm::BasicBlock *wrapper_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry_block", wrapper);
@@ -62,8 +69,7 @@ void Pipeline::codegen(JIT *jit, size_t size) {
     iter_ctr = 0;
     for (llvm::Function::arg_iterator iter = wrapper->arg_begin(); iter != wrapper->arg_end(); iter++) {
         // allocate space and load the arguments
-        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(llvm::PointerType::get(llvm::PointerType::get(
-                m_extern_wrapper->get_param_types()[iter_ctr]->codegen(), 0), 0));
+        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(m_extern_wrapper->get_extern_wrapper_param_types()[iter_ctr]->codegen_type());
         alloc->setAlignment(8);
         jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
         llvm::LoadInst *load = jit->get_builder().CreateLoad(alloc);
@@ -71,9 +77,8 @@ void Pipeline::codegen(JIT *jit, size_t size) {
         llvm_func_args.push_back(load);
         iter_ctr++;
     }
-    llvm_func_args.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), size));
-
-
+    llvm_func_args.push_back(CodegenUtils::get_i64(fixed_array_length));
+    llvm_func_args.push_back(CodegenUtils::get_i64(total_elements));
     /*
      * Create the block calls and chain them together
      */
@@ -84,52 +89,52 @@ void Pipeline::codegen(JIT *jit, size_t size) {
     // print a separator to make the output easier to parse
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
-    Stage *prev_block = stages[0];
-    for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
-        (*iter)->codegen();
-        jit->get_builder().SetInsertPoint(wrapper_block);
-
-        // alloc space for the result of the previous call
-        llvm::AllocaInst *call_alloc = jit->get_builder().CreateAlloca(call->getType());
-
-        // store the result of the previous call
-        jit->get_builder().CreateStore(call, call_alloc);
-
-        // get X**
-        std::vector<llvm::Value *> x_gep_idxs;
-        x_gep_idxs.push_back(CodegenUtils::get_i32(0));
-        llvm::Value *x_gep_temp = jit->get_builder().CreateInBoundsGEP(call_alloc, x_gep_idxs);
-        llvm::LoadInst *x_gep_temp_load = jit->get_builder().CreateLoad(x_gep_temp);
-        x_gep_idxs.push_back(CodegenUtils::get_i32(0));
-        llvm::Value *x_gep_ptr = jit->get_builder().CreateInBoundsGEP(x_gep_temp_load, x_gep_idxs);
-        llvm::LoadInst *x_gep_ptr_load = jit->get_builder().CreateLoad(x_gep_ptr);
-        // while we are here, get the value stored in the second marray field
-        std::vector<llvm::Value *> field2_gep_idxs;
-        field2_gep_idxs.push_back(CodegenUtils::get_i32(0));
-        field2_gep_idxs.push_back(CodegenUtils::get_i32(1));
-        llvm::Value *field2_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, field2_gep_idxs);
-        llvm::LoadInst *num_inner_objs = jit->get_builder().CreateLoad(field2_gep);
-        // now back to getting our X**
-        llvm::Value *x_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, x_gep_idxs);
-        llvm::LoadInst *x_gep_load = jit->get_builder().CreateLoad(x_gep);
-
-        if ((*iter)->get_mfunction()->get_associated_block() == "SegmentationStage") {
-            // here I want to flatten out the Segments into an array of SegmentationStages and pass a bunch of them into the next stage
-        }
-
-        // now call the next function
-        std::vector<llvm::Value *> args;
-        args.push_back(x_gep_load);
-        if ((*iter)->get_mfunction()->get_associated_block().compare("ComparisonStage") == 0) {
-            args.push_back(x_gep_load);
-        }
-        args.push_back(jit->get_builder().CreateSExtOrBitCast(num_inner_objs, llvm::Type::getInt64Ty(llvm::getGlobalContext())));
-
-        call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
-        jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
-
-        prev_block = (*iter);
-    }
+//    Stage *prev_block = stages[0];
+//    for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
+//        (*iter)->codegen();
+//        jit->get_builder().SetInsertPoint(wrapper_block);
+//
+//        // alloc space for the result of the previous call
+//        llvm::AllocaInst *call_alloc = jit->get_builder().CreateAlloca(call->getType());
+//
+//        // store the result of the previous call
+//        jit->get_builder().CreateStore(call, call_alloc);
+//
+//        // get X**
+//        std::vector<llvm::Value *> x_gep_idxs;
+//        x_gep_idxs.push_back(CodegenUtils::get_i32(0));
+//        llvm::Value *x_gep_temp = jit->get_builder().CreateInBoundsGEP(call_alloc, x_gep_idxs);
+//        llvm::LoadInst *x_gep_temp_load = jit->get_builder().CreateLoad(x_gep_temp);
+//        x_gep_idxs.push_back(CodegenUtils::get_i32(0));
+//        llvm::Value *x_gep_ptr = jit->get_builder().CreateInBoundsGEP(x_gep_temp_load, x_gep_idxs);
+//        llvm::LoadInst *x_gep_ptr_load = jit->get_builder().CreateLoad(x_gep_ptr);
+//        // while we are here, get the value stored in the second marray field
+//        std::vector<llvm::Value *> field2_gep_idxs;
+//        field2_gep_idxs.push_back(CodegenUtils::get_i32(0));
+//        field2_gep_idxs.push_back(CodegenUtils::get_i32(1));
+//        llvm::Value *field2_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, field2_gep_idxs);
+//        llvm::LoadInst *num_inner_objs = jit->get_builder().CreateLoad(field2_gep);
+//        // now back to getting our X**
+//        llvm::Value *x_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, x_gep_idxs);
+//        llvm::LoadInst *x_gep_load = jit->get_builder().CreateLoad(x_gep);
+//
+//        if ((*iter)->get_mfunction()->get_associated_block() == "SegmentationStage") {
+//            // here I want to flatten out the Segments into an array of SegmentationStages and pass a bunch of them into the next stage
+//        }
+//
+//        // now call the next function
+//        std::vector<llvm::Value *> args;
+//        args.push_back(x_gep_load);
+//        if ((*iter)->get_mfunction()->get_associated_block().compare("ComparisonStage") == 0) {
+//            args.push_back(x_gep_load);
+//        }
+//        args.push_back(jit->get_builder().CreateSExtOrBitCast(num_inner_objs, llvm::Type::getInt64Ty(llvm::getGlobalContext())));
+//
+//        call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
+//        jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
+//
+//        prev_block = (*iter);
+//    }
 
     jit->get_builder().CreateRet(nullptr);
 

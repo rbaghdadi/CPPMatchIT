@@ -2,11 +2,13 @@
 // Created by Jessica Ray on 1/28/16.
 //
 
-#include <iostream>
-#include "llvm/IR/Type.h"
-
 #ifndef MATCHIT_MTYPE_H
 #define MATCHIT_MTYPE_H
+
+#include <iostream>
+#include "llvm/IR/Type.h"
+#include "./Structures.h"
+#include "./JIT.h"
 
 // TODO does everything work if the user returns a single type like an mtype_int?
 /**
@@ -103,7 +105,11 @@ public:
     /**
      * Generate LLVM code for this MType
      */
-    virtual llvm::Type *codegen() = 0;
+    virtual llvm::Type *codegen_type() = 0;
+
+    virtual size_t _sizeof() = 0;
+
+//    virtual llvm::Value *codegen_pool(JIT *jit, int num_elements) = 0;
 
     /**
      * Get the types underlying this current MType.
@@ -243,6 +249,12 @@ public:
 
 //    virtual size_t _sizeof() = 0;
 
+    virtual llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                                 llvm::Function *function) = 0;
+
+    virtual llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length,
+                                                 llvm::Function *function) = 0;
+
 };
 
 /*
@@ -258,12 +270,21 @@ public:
 
     ~MPrimType() {}
 
-    llvm::Type *codegen();
+    llvm::Type *codegen_type();
 
     void dump();
 
     size_t _sizeof() {
         return bits / 8;
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
     }
 
 };
@@ -279,12 +300,21 @@ public:
 
     ~MPointerType() {}
 
-    llvm::Type *codegen();
+    llvm::Type *codegen_type();
 
     void dump();
 
     size_t _sizeof() {
         return 8;
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
     }
 
 };
@@ -370,11 +400,28 @@ MPointerType *create_pointer_type() {
 class MStructType : public MType {
 public:
 
-    MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) { }
+    MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) {}
 
-    llvm::Type* codegen();
+    MStructType(mtype_code_t mtype_code, std::vector<MType *> underlying_types) : MType(mtype_code, 0) {
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            this->underlying_types.push_back(*iter);
+        }
+    }
 
-    size_t _sizeof() {
+    void dump();
+
+    llvm::Type *codegen_type();
+
+//    llvm::Value *codegen_pool(JIT *jit, int num_elements);
+
+    size_t _sizeof() { return 0; }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
 
     }
 
@@ -404,7 +451,26 @@ public:
 
     void dump();
 
-//    llvm::Type* codegen();
+//    // if the type is X, do X *x = (X*)malloc(sizeof(X) * num_elements);
+//    void codegen_pool(JIT *jit, int num_elements, llvm::AllocaInst *malloc_dest) {
+//        llvm::Type *marray_type = llvm::PointerType::get(codegen_type(), 0); // creates {i8*,i32,i32}*
+//        size_t pool_size = sizeof(MArrayType) * num_elements;
+//        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, llvm::);
+//
+////        llvm::Type *ptr_ptr_type = llvm::PointerType::get(llvm::PointerType::get(codegen(), 0), 0);
+////        size_t malloc_size = sizeof(MArrayType*) * num_elements;
+////        llvm::Value *malloced = CodegenUtils::codegen_c_malloc64_and_cast(jit, malloc_size, ptr_ptr_type);
+////        jit->get_builder().CreateStore(malloced, malloc_dest);
+//    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
 
 };
 
@@ -422,39 +488,209 @@ class FileType : public MStructType {
 public:
 
     FileType() : MStructType(mtype_file) {
-        MType *c = new MPointerType(new MArrayType(create_type<char>()));
+        MType *i = create_type<int>(); // the length of the filepath
+        MType *c = new MPointerType(create_type<char>()); // the filepath
+        underlying_types.push_back(i);
         underlying_types.push_back(c);
-        set_bits(c->get_bits());
     }
 
     void dump();
 
-//    llvm::Type* codegen();
+    size_t _sizeof() {
+        return sizeof(File);
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
+
+//    void codegen_pool(JIT *jit, int num_elements) {
+//        // creates {i32, i8*}*
+//        llvm::Type *file_type = llvm::PointerType::get(codegen_type(), 0);
+//        // allocate enough space for num_elements worth of FileType
+//        size_t pool_size = sizeof(FileType) * num_elements;
+//        // mallocs i8* and casts to {i32, i8*}*
+//        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, file_type);
+//    }
 
 };
 
 FileType *create_filetype();
+
+
 
 /*
  * ElementType
  */
 
 class ElementType : public MStructType {
+private:
+
+    MType *user_type;
+
 public:
 
-    ElementType(MType *user_type) : MStructType(mtype_element) {
-        MType *c = new MPointerType(new MArrayType(create_type<char>()));
-        MPointerType *user_ptr = (new MPointerType(new MArrayType(user_type)));
-        underlying_types.push_back(c);
-        underlying_types.push_back(user_ptr);
-        set_bits(c->get_bits() + user_ptr->get_bits());
+    ElementType(MType *user_type) : MStructType(mtype_element), user_type(user_type) {
+        MType *i = create_type<long>();
+        MType *user_ptr = new MPointerType(user_type);
+        underlying_types.push_back(i); // tag value
+        underlying_types.push_back(i); // data length
+        underlying_types.push_back(user_ptr); // data array
     }
 
     void dump();
 
-//    llvm::Type* codegen();
+    MType *get_user_type() {
+        return user_type;
+    }
+
+    // get the size of a full element
+    size_t _sizeof() {
+        switch (user_type->get_mtype_code()) {
+            case mtype_bool:
+                return sizeof(Element2<bool>);
+            case mtype_char:
+                return sizeof(Element2<char>);
+            case mtype_short:
+                return sizeof(Element2<short>);
+            case mtype_int:
+                return sizeof(Element2<int>);
+            case mtype_long:
+                return sizeof(Element2<long>);
+            case mtype_float:
+                return sizeof(Element2<float>);
+            case mtype_double:
+                return sizeof(Element2<double>);
+            default:
+                std::cerr << "bad user type for ElementType " << user_type->get_mtype_code() << std::endl;
+                exit(8);
+        }
+    }
+
+    size_t _sizeof_ptr() {
+        switch (user_type->get_mtype_code()) {
+            case mtype_bool:
+                return sizeof(Element2<bool>*);
+            case mtype_char:
+                return sizeof(Element2<char>*);
+            case mtype_short:
+                return sizeof(Element2<short>*);
+            case mtype_int:
+                return sizeof(Element2<int>*);
+            case mtype_long:
+                return sizeof(Element2<long>*);
+            case mtype_float:
+                return sizeof(Element2<float>*);
+            case mtype_double:
+                return sizeof(Element2<double>*);
+            default:
+                std::cerr << "bad user type for ElementType" << user_type->get_mtype_code() << std::endl;
+                exit(8);
+        }
+    }
+
+    size_t _sizeof_T_type() {
+        switch (user_type->get_mtype_code()) {
+            case mtype_bool:
+                return sizeof(bool);
+            case mtype_char:
+                return sizeof(char);
+            case mtype_short:
+                return sizeof(short);
+            case mtype_int:
+                return sizeof(int);
+            case mtype_long:
+                return sizeof(long);
+            case mtype_float:
+                return sizeof(float);
+            case mtype_double:
+                return sizeof(double);
+            default:
+                std::cerr << "bad user type for ElementType" << user_type->get_mtype_code() << std::endl;
+                exit(8);
+        }
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function);
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function);
+
+    // preallocate a block of Element* objects that have a fixed size for data length
+    // we will allocate space like this: {i32, i32, T*}**
+    // T is the type passed into
+
+
+//    void codegen_pool(JIT *jit, int num_elements) {
+//        // creates {i32, i8*}*
+//        llvm::Type *file_type = llvm::PointerType::get(codegen_type(), 0);
+//        // allocate enough space for num_elements worth of FileType
+//        size_t pool_size = sizeof(FileType) * num_elements;
+//        // mallocs i8* and casts to {i32, i8*}*
+//        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, file_type);
+//    }
 
 };
+
+/*
+ * ElementType
+ */
+
+//class ElementType : public MStructType {
+//private:
+//
+//    mtype_code_t user_mtype_code;
+//
+//public:
+//
+//    ElementType(MType *user_type) : MStructType(mtype_element), user_mtype_code(user_type->get_mtype_code()) {
+//        MType *i = create_type<int>(); // the length of the filepath
+//        MType *c = new MPointerType(create_type<char>()); // the filepath
+//        MType *user_ptr = new MPointerType(user_type);
+//        underlying_types.push_back(i); // filepath length
+//        underlying_types.push_back(i); // data length
+//        underlying_types.push_back(c); // filepath
+//        underlying_types.push_back(user_ptr); // data array
+//    }
+//
+//    void dump();
+//
+//    size_t _sizeof() {
+//        switch (user_mtype_code) {
+//            case mtype_bool:
+//                return sizeof(Element<bool>);
+//            case mtype_char:
+//                return sizeof(Element<char>);
+//            case mtype_short:
+//                return sizeof(Element<short>);
+//            case mtype_int:
+//                return sizeof(Element<int>);
+//            case mtype_long:
+//                return sizeof(Element<long>);
+//            case mtype_float:
+//                return sizeof(Element<float>);
+//            case mtype_double:
+//                return sizeof(Element<double>);
+//            default:
+//                std::cerr << "bad user type for ElementType";
+//                exit(8);
+//        }
+//    }
+//
+////    void codegen_pool(JIT *jit, int num_elements) {
+////        // creates {i32, i8*}*
+////        llvm::Type *file_type = llvm::PointerType::get(codegen_type(), 0);
+////        // allocate enough space for num_elements worth of FileType
+////        size_t pool_size = sizeof(FileType) * num_elements;
+////        // mallocs i8* and casts to {i32, i8*}*
+////        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, file_type);
+////    }
+//
+//};
 
 /*
  * WrapperOutputType
@@ -472,7 +708,14 @@ public:
     void dump();
 
 //    llvm::Type* codegen();
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
 
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
 };
 
 /*
@@ -495,7 +738,14 @@ public:
     void dump();
 
 //    llvm::Type* codegen();
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
 
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
 };
 
 /*
@@ -514,7 +764,14 @@ public:
     }
 
     void dump();
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
 
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
 //    llvm::Type* codegen();
 
 };
@@ -538,6 +795,14 @@ public:
     void dump();
 
 //    llvm::Type* codegen();
+    llvm::AllocaInst * preallocate_block(JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length,
+                                         llvm::Function *function) {
+
+    }
+
+    llvm::AllocaInst * preallocate_block(JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function) {
+
+    }
 
 };
 
@@ -646,6 +911,20 @@ struct mtype_of<SegmentedElementType> {
         return mtype_segmented_element;
     }
 };
+
+// get how many counters are associated with a type so we know what to return from a stage
+// For example, a FileType has a char* type in it, so from the stage we would want to return a single
+// counter that contains all the chars we need to allocate space for all the char* types when we create input to the next stage
+//template <typename T>
+//struct get_num_size_fields {
+//};
+//
+//template <>
+//struct get_num_size_fields<FileType> {
+//    operator int() {
+//        return 1;
+//    }
+//};
 
 
 

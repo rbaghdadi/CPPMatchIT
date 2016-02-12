@@ -59,6 +59,11 @@ private:
     std::vector<MType *> extern_param_types;
 
     /**
+     * Types of the parameters to the extern function.
+     */
+    std::vector<MType *> extern_wrapper_param_types;
+
+    /**
      * Our JIT engine
      */
     JIT *jit;
@@ -66,10 +71,10 @@ private:
 public:
 
     MFunc(std::string name, std::string associated_block, MType *extern_return_type, MType *extern_wrapper_return_type,
-          std::vector<MType *> extern_param_types, JIT *jit) :
+          std::vector<MType *> extern_param_types, std::vector<MType *> extern_wrapper_param_types, JIT *jit) :
             extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block),
             extern_return_type(extern_return_type), extern_wrapper_return_type(extern_wrapper_return_type),
-            extern_param_types(extern_param_types), jit(jit) { }
+            extern_param_types(extern_param_types), extern_wrapper_param_types(extern_wrapper_param_types), jit(jit) { }
 
     ~MFunc() {}
 
@@ -116,7 +121,13 @@ public:
     /**
      * Get the parameter types to the extern function.
      */
-    std::vector<MType *> get_param_types() const;
+    std::vector<MType *> get_extern_param_types() const;
+
+    /**
+     * Get the parameter types to the extern function.
+     */
+    std::vector<MType *> get_extern_wrapper_param_types() const;
+
 
     /**
      * Get the return type of the extern function.

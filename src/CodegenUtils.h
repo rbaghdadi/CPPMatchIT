@@ -76,8 +76,9 @@ llvm::Value *get_mtype_segments_size(JIT *jit, llvm::AllocaInst *data_to_store_a
 
 std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, MFunc *mfunction);
 
-llvm::AllocaInst *load_extern_input_arg(JIT *jit, MFunc *mfunction, llvm::AllocaInst *wrapper_input_arg_alloc,
-                                        llvm::AllocaInst *loop_idx);
+std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, MFunc *mfunction,
+                                                      llvm::AllocaInst *wrapper_input_arg_alloc,
+                                                      llvm::AllocaInst *preallocated_output, llvm::AllocaInst *loop_idx);
 
 llvm::AllocaInst * create_extern_call(JIT *jit, MFunc *mfunction,
                                       std::vector<llvm::AllocaInst *> extern_arg_allocs);
@@ -139,6 +140,21 @@ llvm::ConstantInt *get_i1(int zero_or_one);
 llvm::ConstantInt *get_i32(int x);
 
 llvm::ConstantInt *get_i64(long x);
+
+void preallocate_block(ElementType *type, JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function);
+void preallocate_block(ElementType *type, JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length, llvm::Function *function);
+
+// if the type is X, do X *x = (X*)malloc(sizeof(X) * num_elements);
+//llvm::Value *codegen_mtype_block(MType *mtype, JIT *jit, int num_elements) {
+//    llvm::Type *llvm_mtype = llvm::PointerType::get(mtype->codegen_type(), 0);
+//    // allocate enough space for num_elements worth of mtype
+//    size_t pool_size = mtype->_sizeof() * num_elements;
+//    // mallocs i8* and casts to X*
+//    llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, llvm_mtype);
+//    return pool;
+//}
+
+int get_num_size_fields(MType *mtype);
 
 }
 

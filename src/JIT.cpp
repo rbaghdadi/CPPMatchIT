@@ -117,3 +117,9 @@ void JIT::run(const std::string func_to_run, const void ** data) {
     void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
     jit_func(data);
 }
+
+void JIT::run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements) {
+    auto jit_sym = find_mangled_name(mangle(func_to_run));
+    void (*jit_func)(const void **, long, long) = (void (*)(const void **, long, long))(intptr_t)jit_sym.getAddress();
+    jit_func(data, total_bytes_in_arrays, total_elements);
+}

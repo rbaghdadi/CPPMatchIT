@@ -7,6 +7,7 @@
 #include "./MFunc.h"
 #include "./InstructionBlock.h"
 #include "./ForLoop.h"
+#include "./MType.h"
 
 namespace CodegenUtils {
 
@@ -23,6 +24,37 @@ llvm::ConstantInt *get_i64(long x) {
     return llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), x);
 }
 
+int get_num_size_fields(MType *mtype) {
+    switch (mtype->get_mtype_code()) {
+        case mtype_file:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+
+// call this when your return type is a File
+// these input_args are returned by load_wrapper_input_args
+// first arg is the input data structure
+// second is the length of all the char arrays
+// third is the number of objects in the input data structure, as this will be the number of outputs objects we have
+
+// you know what, pass in all the num elements things here instead of reading them from the input args
+//void codegen_file_mempool(JIT *jit, std::vector<llvm::AllocaInst *> input_args, MFunc *mfunction) {
+//    // allocate block for all the File objects, i.e. {i32,i8*}**
+//    llvm::Value *file_size = get_i64(sizeof(File*));
+//    llvm::LoadInst *num_file_objects = jit->get_builder().CreateLoad(input_args[2]);
+//    llvm::Value *total_size = jit->get_builder().CreateMul(file_size, num_file_objects);
+//    llvm::Value *file_block = codegen_c_malloc64_and_cast(jit, total_size, mfunction->get_extern_wrapper_return_type()->codegen_type());//input_args[0]->getType());
+//    // allocate bloc for all the chars in all the File objects
+//    llvm::Value *char_size = get_i64(sizeof(char));
+//    llvm::LoadInst *num_chars = jit->get_builder().CreateLoad(input_args[1]);
+//    llvm::Value *total_char_size = jit->get_builder().CreateMul(char_size, num_chars);
+//
+//
+//}
+
 // load up the input data
 // give the inputs arguments names so we can actually use them
 // the last argument is the size of the array of data being fed in. It is NOT user created
@@ -31,27 +63,27 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, MFunc *mfuncti
     unsigned ctr = 0;
     std::vector<llvm::AllocaInst *> alloc_args;
     for (llvm::Function::arg_iterator iter = wrapper->arg_begin(); iter != wrapper->arg_end(); iter++) {
-        if (ctr == mfunction->get_param_types().size()) {
-            iter->setName("x_" + std::to_string(ctr++));
-            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(iter->getType(), nullptr, "max_loop_bound_alloc");
-            alloc->setAlignment(8);
-            jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
-            alloc_args.push_back(alloc);
-        } else {
-            iter->setName("x_" + std::to_string(ctr++));
-            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(iter->getType());
-            alloc->setAlignment(8);
-            jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
-            alloc_args.push_back(alloc);
-        }
+//        if (ctr == mfunction->get_extern_param_types().size()) {
+//            iter->setName("x_" + std::to_string(ctr++));
+//            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(iter->getType(), nullptr, "max_loop_bound_alloc");
+//            alloc->setAlignment(8);
+//            jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
+//            alloc_args.push_back(alloc);
+//        } else {
+        iter->setName("x_" + std::to_string(ctr++));
+        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(iter->getType());
+        alloc->setAlignment(8);
+        jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
+        alloc_args.push_back(alloc);
+//        }
     }
     return alloc_args;
 }
 
 // load a single input argument from the wrapper inputs
-// TODO if we decide to allow multiple inputs to an extern function, this will need to turn into a for loop and load all args
-llvm::AllocaInst *load_extern_input_arg(JIT *jit, MFunc *mfunction, llvm::AllocaInst *wrapper_input_arg_alloc,
-                                        llvm::AllocaInst *loop_idx) {
+std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, MFunc *mfunction,
+                                                      llvm::AllocaInst *wrapper_input_arg_alloc,
+                                                      llvm::AllocaInst *preallocated_output, llvm::AllocaInst *loop_idx) {
     // load the full input array
     llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc);
     input_arg_load->setAlignment(8);
@@ -67,7 +99,19 @@ llvm::AllocaInst *load_extern_input_arg(JIT *jit, MFunc *mfunction, llvm::Alloca
     llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
     extern_input_arg_alloc->setAlignment(8);
     jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
-    return extern_input_arg_alloc;
+
+    // get the outputs
+    llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output);
+    llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, element_idxs);
+    llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
+    llvm::AllocaInst *output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
+    jit->get_builder().CreateStore(output_gep_load, output_alloc);
+
+    std::vector<llvm::AllocaInst *> arg_types;
+    arg_types.push_back(extern_input_arg_alloc);
+    arg_types.push_back(output_alloc);
+
+    return arg_types;
 }
 
 // initialize an i64
@@ -92,7 +136,7 @@ void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size) {
 llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::AllocaInst *max_loop_bound,
                                              llvm::AllocaInst *malloc_size) {
     MType *extern_wrapper_return_type = mfunction->get_extern_wrapper_return_type();
-    llvm::Type *llvm_return_type = extern_wrapper_return_type->codegen();
+    llvm::Type *llvm_return_type = extern_wrapper_return_type->codegen_type();
 
     // working example: say we have our return type as WrapperOutputs of Files.
     // this looks like W = { { { { i8*, i32, i32 } * } **, i32, i32 } * } *
@@ -207,10 +251,10 @@ llvm::AllocaInst *create_extern_call(JIT *jit, MFunc *mfunction, std::vector<llv
         loaded_args.push_back(arg_loaded);
     }
     llvm::CallInst *extern_call_result = jit->get_builder().CreateCall(mfunction->get_extern(), loaded_args);
-    llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(extern_call_result->getType());
-    alloc->setAlignment(8);
-    jit->get_builder().CreateStore(extern_call_result, alloc)->setAlignment(8);
-    return alloc;
+//    llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(extern_call_result->getType());
+//    alloc->setAlignment(8);
+//    jit->get_builder().CreateStore(extern_call_result, alloc)->setAlignment(8);
+    return nullptr;
 }
 
 void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm::AllocaInst *output_idx,
@@ -1213,3 +1257,18 @@ llvm::Value *codegen_c_realloc64_and_cast(JIT *jit, llvm::LoadInst *loaded_struc
 //    jit->get_builder().SetInsertPoint(dummy);
 //
 //}
+
+
+/*
+ * This LLVM code does the equivalent of this C code:
+ *
+ * T *t = (T*)malloc(sizeof(T) * num_elements * fixed_data_length);
+ * Element<T> *e_ptr = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
+ * Element<T> **e_ptr_ptr = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
+ *
+ * for (int i = 0; i < num_elements; i++) {
+ *      e_ptr[i].data = &t[i * fixed_data_length]; // kind of do a subarray slice
+ *      e_ptr_ptr[i] = &e_ptr[i];
+ * }
+ *
+ */

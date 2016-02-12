@@ -92,16 +92,22 @@ private:
     llvm::AllocaInst *wrapper_input_arg_alloc;
 
     /**
+     * The allocated space for all the outputs.
+     * Required when running codegen.
+     */
+    llvm::AllocaInst *preallocated_output_space;
+
+    /**
      * The loop index.
      * Required when running codegen.
      */
     llvm::AllocaInst *loop_idx_alloc;
 
     /**
-     * The allocated space for the single input element for the extern function.
+     * The allocated space for the input elements for the extern function.
      * Generated when codegen is called.
      */
-    llvm::AllocaInst *extern_input_arg_alloc;
+    std::vector<llvm::AllocaInst *> extern_input_arg_alloc;
 
 public:
 
@@ -111,9 +117,11 @@ public:
 
     ~ExternArgLoaderIB() { }
 
-    llvm::AllocaInst *get_extern_input_arg_alloc();
+    std::vector<llvm::AllocaInst *> get_extern_input_arg_alloc();
 
     void set_wrapper_input_arg_alloc(llvm::AllocaInst *wrapper_input_arg_alloc);
+
+    void set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space);
 
     void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
 

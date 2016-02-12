@@ -1,8 +1,9 @@
-#include <iostream>
+
 
 #ifndef MATCHIT_STRUCTURES_H
 #define MATCHIT_STRUCTURES_H
 
+#include <iostream>
 
 /*
  * BaseElement
@@ -14,12 +15,6 @@ class BaseElement { };
  * MArray
  */
 
-template <typename T>
-void foo();
-
-template <char>
-void foo() {}
-
 /**
  * An MArray holds an array with a user specified type, along with its size and current end extern_input_arg_alloc idx.
  * The type T of the array must be an MPrimType when specified by the user
@@ -28,9 +23,9 @@ template <typename T>
 class MArray : public BaseElement {
 private:
 
-    T *data; // 8 bytes
     int malloc_size; // 4 bytes
     int cur_idx; // 4 bytes
+    T *data; // 8 bytes
 
 public:
 
@@ -133,18 +128,34 @@ public:
 class File : public BaseElement {
 private:
 
-    MArray<char> *filepath;
+//    MArray<char> *filepath;
+    int length;
+    char *filepath;
 
 public:
 
     File() : BaseElement() { }
 
-    MArray<char> *get_filepath() {
-        return filepath;
-    };
+//    MArray<char> *get_filepath() {
+//        return filepath;
+//    };
+//
+//    void set_filepath(MArray<char> *filepath) {
+//        this->filepath = filepath;
+//    }
 
-    void set_filepath(MArray<char> *filepath) {
-        this->filepath = filepath;
+    // memcpy so we don't accidentally delete the original pointer somewher
+    void set_filepath(const char *filepath, int length) {
+        memcpy(this->filepath, filepath, length);
+        this->length = length;
+    }
+
+    const char *get_filepath() const {
+        return filepath;
+    }
+
+    int get_length() const {
+        return length;
     }
 
 };
@@ -153,44 +164,94 @@ public:
  * Element
  */
 
+//template <typename T>
+//class Element : public BaseElement {
+//private:
+//
+//    MArray<char> *filepath;
+//    MArray<T> *data;
+//
+//public:
+//
+//    Element() : BaseElement() { }
+//
+//    MArray<char> *get_filepath() {
+//        return filepath;
+//    }
+//
+//    MArray<T> *get_data() {
+//        return data;
+//    }
+//
+//    void set_filepath(MArray<char> *filepath) {
+//        this->filepath = filepath;//add(filepath->get_array(), filepath->get_malloc_size());
+//    }
+//
+//    void set_data(T *data, size_t num_elements) {
+//        this->data->add(data, num_elements);
+//    }
+//
+//    void set_data(MArray<T> *data) {
+//        this->data = data;
+//    }
+//
+//
+//    /**
+//     * Malloc space for T* in data
+//     */
+//    void malloc_data(size_t num_elements) {
+//        data->mmalloc(num_elements);
+//    }
+//
+//};
+
+/*
+ * Element
+ */
+
 template <typename T>
-class Element : public BaseElement {
+class Element2 {
 private:
 
-    MArray<char> *filepath;
-    MArray<T> *data;
+    long tag;
+    long data_length;
+    T *data;
 
 public:
 
-    Element() : BaseElement() { }
-
-    MArray<char> *get_filepath() {
-        return filepath;
+    Element2() {
+        data_length = 0;
+        data = nullptr;
     }
 
-    MArray<T> *get_data() {
+    long get_tag() const {
+        return tag;
+    }
+
+    long get_data_length() const {
+        return data_length;
+    }
+
+    T *get_data() const {
         return data;
     }
 
-    void set_filepath(MArray<char> *filepath) {
-        this->filepath = filepath;//add(filepath->get_array(), filepath->get_malloc_size());
+    void set_tag(long tag) {
+        this->tag = tag;
     }
 
-    void set_data(T *data, size_t num_elements) {
-        this->data->add(data, num_elements);
+    void set_data(T *data, long data_length) {
+        if (!this->data) {
+            std::cerr << "About to malloc space for the data array in Element2. Make sure this is on purpose!" << std::endl;
+            this->data = (T*)malloc(sizeof(T) * data_length);
+        }
+        memcpy(this->data, data, data_length * sizeof(T));
+        this->data_length = data_length;
     }
 
-    void set_data(MArray<T> *data) {
-        this->data = data;
-    }
-
-
-    /**
-     * Malloc space for T* in data
-     */
-    void malloc_data(size_t num_elements) {
-        data->mmalloc(num_elements);
-    }
+//    void add_data_element(T element) const {
+//        data[data_length++] = element;
+//    }
 
 };
 

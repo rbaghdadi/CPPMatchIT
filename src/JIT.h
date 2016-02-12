@@ -84,6 +84,9 @@ public:
      */
     void run(const std::string func_to_run, const void **data);
 
+    void run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements);
+
+
 };
 
 #endif //MATCHIT_JIT_H
