@@ -31,8 +31,8 @@ public:
 //        set_function(func);
 //    }
 
-    TransformStage(void (*transform)(const I*, O*), std::string transform_name, JIT *jit, MType *param_type, MType *return_type, unsigned int transform_size) :
-            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform), transform_size(transform_size) {
+    TransformStage(void (*transform)(const I*, O*), std::string transform_name, JIT *jit, MType *param_type, MType *return_type, unsigned int transform_size, bool is_fixed_transform_size) :
+            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform), transform_size(transform_size), is_fixed_transform_size(is_fixed_transform_size) {
         std::vector<MType *> extern_param_types;
         extern_param_types.push_back(new MPointerType(param_type));
         extern_param_types.push_back(new MPointerType(return_type));
@@ -62,8 +62,6 @@ public:
 
         init_codegen();
 
-        // create the main loop components
-
         // load the inputs to the wrapper function
         WrapperArgLoaderIB wal;
         wal.set_mfunction(mfunction);
@@ -75,33 +73,33 @@ public:
         llvm::BasicBlock *loop_condition = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_condition", mfunction->get_extern_wrapper());
         llvm::BasicBlock *loop_increment = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_increment", mfunction->get_extern_wrapper());
         llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy", mfunction->get_extern_wrapper());
-
         jit->get_builder().CreateBr(loop_counter);
 
-        // various loop indices
+        // various loop indices, counters
         jit->get_builder().SetInsertPoint(loop_counter);
         llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
         llvm::AllocaInst *loop_idx = jit->get_builder().CreateAlloca(counter_type); // main loop index
         jit->get_builder().CreateStore(CodegenUtils::get_i64(0), loop_idx);
         llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(counter_type); // upper bound on the loop
         jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 1]), loop_bound);
-        // get the last input param to the wrapper function because that is the number of elements to preallocate space for
-//        llvm::Value *last_arg;
-//        int ctr = 0;
-//        for (llvm::Function::arg_iterator iter = mfunction->get_extern_wrapper()->arg_begin(); iter != mfunction->get_extern_wrapper()->arg_end(); iter++) {
-//            if (ctr == mfunction->get_extern_wrapper_param_types().size() - 1) {
-//                last_arg = iter;
-//            }
-//            ctr++;
-//        }
-//        llvm::Value *num_elements = last_arg;
-//        jit->get_builder().CreateStore(num_elements, loop_bound);
-
+        llvm::AllocaInst *num_prim_counter;
         // preallocate space for the output
         // get the output type underneath the pointer it is wrapper in
-        llvm::AllocaInst *space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->preallocate_block(jit, jit->get_builder().CreateLoad(loop_bound),
-                                                                                                                       CodegenUtils::get_i64(transform_size),
-                                                                                                                       mfunction->get_extern_wrapper()); // the output element is the second argument to our extern function
+        llvm::AllocaInst *space;
+        if (is_fixed_transform_size) {
+            llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
+//            CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(jit->get_builder().CreateMul(loop_bound_load, CodegenUtils::get_i64(transform_size)), llvm::Type::getInt32Ty(llvm::getGlobalContext())));
+            space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->preallocate_fixed_block(
+                    jit, loop_bound_load, jit->get_builder().CreateMul(loop_bound_load, CodegenUtils::get_i64(transform_size)),
+                    CodegenUtils::get_i64(transform_size), mfunction->get_extern_wrapper()); // the output element is the second argument to our extern function
+        } else { // matched size
+            // TODO need to read from the wrapper input the num_prim_values
+            num_prim_counter = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+            CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(num_prim_counter, llvm::Type::getInt32Ty(llvm::getGlobalContext())));
+            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]), num_prim_counter); // this field contains the number of primitive values, which is static even though
+            // across structs the sizes are variable
+
+        }
         jit->get_builder().CreateBr(loop_condition);
 
         // comparison
@@ -132,10 +130,11 @@ public:
         ec.codegen(jit);
         jit->get_builder().CreateBr(loop_increment);
 
-        // finish up the stage
+        // finish up the stage and allocate space for the outputs
         jit->get_builder().SetInsertPoint(dummy);
         llvm::AllocaInst *wrapper_result = jit->get_builder().CreateAlloca(mfunction->get_extern_wrapper_return_type()->codegen_type());
-        llvm::Value *return_space = CodegenUtils::codegen_c_malloc64_and_cast(jit, 24, mfunction->get_extern_wrapper_return_type()->codegen_type()); // sizeof({T**,i64,i64}) = 24
+        // RetStruct *rs = (RetStruct*)malloc(sizeof(RetStruct)), RetStruct = { { i64, i64, float* }**, i64, i64 }, so sizeof = 24
+        llvm::Value *return_space = CodegenUtils::codegen_c_malloc64_and_cast(jit, 24, mfunction->get_extern_wrapper_return_type()->codegen_type());
         jit->get_builder().CreateStore(return_space, wrapper_result);
         llvm::LoadInst *temp_wrapper_result_load = jit->get_builder().CreateLoad(wrapper_result);
 
@@ -150,19 +149,25 @@ public:
         three_gep_idxs.push_back(CodegenUtils::get_i32(0));
         three_gep_idxs.push_back(CodegenUtils::get_i32(2));
 
-        // store all the data
+        // store all the processed structs in field one
         llvm::Value *field_one_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, one_gep_idxs);
         jit->get_builder().CreateStore(jit->get_builder().CreateLoad(space), field_one_gep);
-
-        // store the amount of individual elements in the data arrays
-        llvm::Value *total = jit->get_builder().CreateMul(CodegenUtils::get_i64(transform_size), jit->get_builder().CreateLoad(loop_idx));
-        llvm::Value *field_two_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, two_gep_idxs);
-        jit->get_builder().CreateStore(total, field_two_gep);
-        // store the number of data elements being returned
-        llvm::Value *field_three_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, three_gep_idxs);
-        jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop_idx), field_three_gep);
-        jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
-
+        // store the number of primitive values across all the structs
+        // TODO if not fixed, need to create another counter that keeps track of the output lengths of everything
+        // or get it from the preallocate function
+        if (is_fixed_transform_size) {
+            llvm::Value *num_prim_types = jit->get_builder().CreateMul(CodegenUtils::get_i64(transform_size),
+                                                                       jit->get_builder().CreateLoad(loop_idx));
+            llvm::Value *field_two_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, two_gep_idxs);
+            jit->get_builder().CreateStore(num_prim_types, field_two_gep);
+            // store the number of structs being returned
+            llvm::Value *field_three_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, three_gep_idxs);
+            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop_idx), field_three_gep);
+            jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
+        } else {
+            std::cerr << "not doing matched size yet" << std::endl;
+            exit(10);
+        }
 
     }
 
