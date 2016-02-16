@@ -23,7 +23,7 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
 //    jit->run("pipeline", data);
 //}
 
-void Pipeline::codegen(JIT *jit, size_t fixed_array_length, size_t total_elements) {
+void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
 
     assert(!stages.empty());
 
@@ -77,8 +77,8 @@ void Pipeline::codegen(JIT *jit, size_t fixed_array_length, size_t total_element
         llvm_func_args.push_back(load);
         iter_ctr++;
     }
-    llvm_func_args.push_back(CodegenUtils::get_i64(fixed_array_length));
-    llvm_func_args.push_back(CodegenUtils::get_i64(total_elements));
+    llvm_func_args.push_back(CodegenUtils::get_i64(num_prim_values));
+    llvm_func_args.push_back(CodegenUtils::get_i64(num_structs));
     /*
      * Create the block calls and chain them together
      */

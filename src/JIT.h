@@ -49,11 +49,11 @@ public:
 
     // TODO any other parts need to be cleaned up?
     ~JIT() {
-        for (auto handle : llvm::make_range(module_handles.rbegin(), module_handles.rend())) {
-            compile_layer.removeModuleSet(handle);
-        }
-        module_handles.clear();
-        std::vector<ModuleHandle>().swap(module_handles); // realloc to size 0
+//        for (auto handle : llvm::make_range(module_handles.rbegin(), module_handles.rend())) {
+//            compile_layer.removeModuleSet(handle);
+//        }
+//        module_handles.clear();
+//        std::vector<ModuleHandle>().swap(module_handles); // realloc to size 0
     }
 
     std::unique_ptr<llvm::TargetMachine> &get_target_machine();

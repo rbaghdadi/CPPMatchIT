@@ -9,6 +9,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "./MType.h"
 #include "./CodegenUtils.h"
+#include "./ForLoop.h"
 
 /*
  * MType
@@ -258,9 +259,85 @@ void ElementType::dump() {
     underlying_types[2]->dump();
 }
 
+// wrapper for creating llvm::AllocaInst and then filling it with malloc'd space
+llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
+    llvm::AllocaInst *allocated_space = jit->get_builder().CreateAlloca(alloca_type, nullptr, name);
+    llvm::Value *space = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_to_malloc, alloca_type);
+    jit->get_builder().CreateStore(space, allocated_space);
+    return allocated_space;
+}
+
+// take the preallocated space and combine it.
+// ex:
+// Element<T> **ee = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
+// Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
+// T *t = (T*)malloc(sizeof(T) * num_prim_values)
+// e needs to be divided up evenly into chunks and placed at ee[0], ee[1],...
+// t needs to be divided up (either fixed, matched, or variable) and placed at e[0], e[1],...
+void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_struct_ptr_ptr_space,
+                                      llvm::AllocaInst *preallocated_struct_ptr_space,
+                                      llvm::AllocaInst *preallocated_T_ptr_space, llvm::AllocaInst *loop_idx,
+                                      llvm::Value *T_ptr_idx) {
+    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
+    // e_ptr_ptr[i] = &e_ptr[i];
+    // gep e_ptr[i]
+    std::vector<llvm::Value *> preallocated_struct_ptr_gep_idx;
+    preallocated_struct_ptr_gep_idx.push_back(cur_loop_idx);
+    llvm::LoadInst *preallocated_struct_ptr_space_load = jit->get_builder().CreateLoad(preallocated_struct_ptr_space);
+    llvm::Value *preallocate_struct_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_struct_ptr_space_load,
+                                                                                   preallocated_struct_ptr_gep_idx);
+    // gep e_ptr_ptr[i]
+    std::vector<llvm::Value *> preallocated_struct_ptr_ptr_gep_idx;
+    preallocated_struct_ptr_ptr_gep_idx.push_back(cur_loop_idx);
+    llvm::LoadInst *preallocated_struct_ptr_ptr_space_load =
+            jit->get_builder().CreateLoad(preallocated_struct_ptr_ptr_space);
+    llvm::Value *preallocate_struct_ptr_ptr_gep =
+            jit->get_builder().CreateInBoundsGEP(preallocated_struct_ptr_ptr_space_load, preallocated_struct_ptr_ptr_gep_idx);
+    jit->get_builder().CreateStore(preallocate_struct_ptr_gep, preallocate_struct_ptr_ptr_gep);
+
+    //  e_ptr[i].data = &t[T_ptr_idx];
+    std::vector<llvm::Value *> struct_ptr_data_gep_idxs;
+    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
+    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(2));
+    llvm::Value *struct_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_struct_ptr_gep,
+                                                                            struct_ptr_data_gep_idxs);
+    // get t[T_idx]
+    llvm::LoadInst *preallocated_T_ptr_space_load = jit->get_builder().CreateLoad(preallocated_T_ptr_space);
+    std::vector<llvm::Value *> T_ptr_gep_idx;
+    T_ptr_gep_idx.push_back(T_ptr_idx);
+    llvm::Value *T_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_T_ptr_space_load, T_ptr_gep_idx);
+    jit->get_builder().CreateStore(T_ptr_gep, struct_ptr_data_gep);
+}
+
+// there are always at least two counters that will be generated: the loop index and the loop bound.
+// In the return value, the loop index is at [0], and the loop bound is at [1]
+// if num_loop_counters > 2, then it is up to the calling function to determine what those are used for.
+llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counters, llvm::Value *num_structs,
+                                    llvm::Function *extern_wrapper_function, llvm::BasicBlock *loop_body,
+                                    llvm::BasicBlock *dummy) {
+    jit->get_builder().CreateBr(loop->get_counter_bb());
+
+    // counters
+    jit->get_builder().SetInsertPoint(loop->get_counter_bb());
+    llvm::AllocaInst *counters[3];
+    llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
+    loop->codegen_counters(counters, 3);
+    llvm::AllocaInst *loop_idx = counters[0];
+    llvm::AllocaInst *loop_bound = counters[1];
+    jit->get_builder().CreateStore(num_structs, loop_bound);
+    jit->get_builder().CreateBr(loop->get_condition_bb());
+
+    // comparison
+    loop->codegen_condition(loop_bound, loop_idx);
+    jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(), loop_body, dummy);
+
+    return counters;
+}
+
 llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
                                                          llvm::Function *function, llvm::AllocaInst *input_structs){
-    preallocate_matched_block(jit, CodegenUtils::get_i64(num_structs), CodegenUtils::get_i64(num_prim_values), function, input_structs);
+    preallocate_matched_block(jit, CodegenUtils::get_i64(num_structs), CodegenUtils::get_i64(num_prim_values),
+                              function, input_structs);
 }
 
 llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
@@ -270,97 +347,38 @@ llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *
     jit->get_builder().CreateBr(preallocate);
     jit->get_builder().SetInsertPoint(preallocate);
     // first create an llvm location for all of this
-    // this looks like %a = alloca {i32, i32, T*}**
-    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0), nullptr, "struct_ptr_ptr_pool");
-    llvm::AllocaInst *preallocated_struct_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(this->codegen_type(), 0), nullptr, "struct_ptr_pool");
-    llvm::AllocaInst *preallocated_T_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(this->get_user_type()->codegen_type(), 0), nullptr, "prim_ptr_pool");
-
-    // allocate space for the T* across all num_elements
-    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-    num_prim_values->getType()->dump();
-    llvm::Value *size_for_T_ptr = jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type()));//jit->get_builder().CreateMul(fixed_data_length, CodegenUtils::get_i64(this->_sizeof_T_type())));
-    llvm::Value *T_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_T_ptr, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0));
-    jit->get_builder().CreateStore(T_ptr, preallocated_T_ptr_space);
-
-    // allocate space for {i32, i32, T*}*
+    // this is like doing Element<T> **ee = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
+    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
+                                                                    jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
     // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-    llvm::Value *size_for_element_ptr = jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof()));
-    llvm::Value *element_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_element_ptr, llvm::PointerType::get(this->codegen_type(), 0));
-    jit->get_builder().CreateStore(element_ptr, preallocated_struct_ptr_space);
+    llvm::AllocaInst *preallocated_struct_ptr_space = allocator(jit, llvm::PointerType::get(this->codegen_type(), 0),
+                                                                jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof())), "struct_ptr_pool");
+    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
+    llvm::AllocaInst *preallocated_T_ptr_space = allocator(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
+                                                           jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
 
-    // allocate space for the whole {i32, i32, T*}**
-    // this is like doing Element<T> **e = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
-    llvm::Value *size_for_element_ptr_ptr = jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr()));
-    llvm::Value *element_ptr_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_element_ptr_ptr, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0));
-    jit->get_builder().CreateStore(element_ptr_ptr, preallocated_struct_ptr_ptr_space);
     // now take the memory pools and split it up across num_elements, but not in a fixed way
-    // create the for loop components
-    llvm::BasicBlock *loop_counter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_counters", function);
-    llvm::BasicBlock *loop_condition = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_condition", function);
-    llvm::BasicBlock *loop_increment = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_increment", function);
+    ForLoop loop(jit, function);
     llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-    jit->get_builder().CreateBr(loop_counter);
-
-    // counters
-    jit->get_builder().SetInsertPoint(loop_counter);
-    llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
-    llvm::AllocaInst *loop_idx = jit->get_builder().CreateAlloca(counter_type);
-    jit->get_builder().CreateStore(CodegenUtils::get_i64(0), loop_idx);
-    llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(counter_type);
-    jit->get_builder().CreateStore(num_structs, loop_bound);
-    // NEW COUNTER
-    llvm::AllocaInst *T_idx = jit->get_builder().CreateAlloca(counter_type);
-    jit->get_builder().CreateStore(CodegenUtils::get_i64(0), T_idx);
-    jit->get_builder().CreateBr(loop_condition);
-
-    // comparison
-    jit->get_builder().SetInsertPoint(loop_condition);
-    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
-    llvm::LoadInst *bound = jit->get_builder().CreateLoad(loop_bound);
-    llvm::Value *cmp = jit->get_builder().CreateICmpSLT(cur_loop_idx, bound);
-    jit->get_builder().CreateCondBr(cmp, loop_body, dummy);
+    llvm::AllocaInst **counters = preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+    llvm::AllocaInst *loop_idx = counters[0];
+    llvm::AllocaInst *loop_bound = counters[1];
+    llvm::AllocaInst *T_idx = counters[2];
 
     // loop body
+    // divide up the preallocated space appropriately
     jit->get_builder().SetInsertPoint(loop_body);
-    llvm::LoadInst *cur_loop_idx2 = jit->get_builder().CreateLoad(loop_idx);
-    // e_ptr_ptr[i] = &e_ptr[i];
-    // gep e_ptr[i]
-    std::vector<llvm::Value *> preallocated_e_ptr_gep_idx;
-    preallocated_e_ptr_gep_idx.push_back(cur_loop_idx2);
-    llvm::LoadInst *preallocated_ele_ptr_space_load = jit->get_builder().CreateLoad(preallocated_struct_ptr_space);
-    llvm::Value *preallocate_e_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_ele_ptr_space_load, preallocated_e_ptr_gep_idx);
-    // gep e_ptr_ptr[i]
-    std::vector<llvm::Value *> preallocated_e_ptr_ptr_gep_idx;
-    preallocated_e_ptr_ptr_gep_idx.push_back(cur_loop_idx2);
-    llvm::LoadInst *preallocated_ele_ptr_ptr_space_load = jit->get_builder().CreateLoad(
-            preallocated_struct_ptr_ptr_space);
-    llvm::Value *preallocate_e_ptr_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_ele_ptr_ptr_space_load, preallocated_e_ptr_ptr_gep_idx);
-    jit->get_builder().CreateStore(preallocate_e_ptr_gep, preallocate_e_ptr_ptr_gep);
+    llvm::LoadInst *T_ptr_idx = jit->get_builder().CreateLoad(T_idx);
+    divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
+                                     preallocated_T_ptr_space, loop_idx, T_ptr_idx);
 
-    // e_ptr[i].data = &t[T_idx];
-    // already have e_ptr[i], get .data
-    std::vector<llvm::Value *> e_ptr_data_gep_idxs;
-    e_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
-    e_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(2));
-    llvm::Value *e_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_e_ptr_gep, e_ptr_data_gep_idxs);
-    // get t[T_idx]
-    llvm::Value *T_ptr_idx = jit->get_builder().CreateLoad(T_idx);//jit->get_builder().CreateMul(cur_loop_idx2, fixed_data_length);
-    llvm::LoadInst *preallocated_T_ptr_space_load = jit->get_builder().CreateLoad(preallocated_T_ptr_space);
-    std::vector<llvm::Value *> T_ptr_gep_idx;
-    T_ptr_gep_idx.push_back(T_ptr_idx);
-    llvm::Value *T_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_T_ptr_space_load, T_ptr_gep_idx);
-    jit->get_builder().CreateStore(T_ptr_gep, e_ptr_data_gep);
     // increment T_ptr_idx based on the size of the original input
-    llvm::LoadInst *cur_loop_idx3 = jit->get_builder().CreateLoad(loop_idx);
+    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
     std::vector<llvm::Value *> input_struct_gep_idx;
-    input_struct_gep_idx.push_back(cur_loop_idx3);
+    input_struct_gep_idx.push_back(cur_loop_idx);
     llvm::Value *input_struct_gep = jit->get_builder().CreateInBoundsGEP(input_structs, input_struct_gep_idx); // we have the correct struct
     llvm::LoadInst *input_struct_load = jit->get_builder().CreateLoad(input_struct_gep);
-
-    // TODO left off here. I can't figure out how to get the length field correctly out of the struct.
-    // I need to pass in { ... }* to gep
-
     std::vector<llvm::Value *> data_gep_idxs;
     data_gep_idxs.push_back(CodegenUtils::get_i64(0));
     llvm::Value *data_ptr_ptr_gep = jit->get_builder().CreateInBoundsGEP(input_struct_load, data_gep_idxs);
@@ -372,14 +390,11 @@ llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *
     llvm::LoadInst *length = jit->get_builder().CreateLoad(field_two_gep); // we have the length of this struct's array now (i.e. num_prim_values for this single Element)
     llvm::Value *inc_T_idx = jit->get_builder().CreateAdd(T_ptr_idx, length);
     jit->get_builder().CreateStore(inc_T_idx, T_idx);
-    jit->get_builder().CreateBr(loop_increment);
+    jit->get_builder().CreateBr(loop.get_increment_bb());
 
     // loop increment
-    jit->get_builder().SetInsertPoint(loop_increment);
-    llvm::LoadInst *load = jit->get_builder().CreateLoad(loop_idx);
-    llvm::Value *inc = jit->get_builder().CreateAdd(load, CodegenUtils::get_i64(1));
-    jit->get_builder().CreateStore(inc, loop_idx);
-    jit->get_builder().CreateBr(loop_condition);
+    loop.codegen_increment(loop_idx);
+    jit->get_builder().CreateBr(loop.get_condition_bb());
 
     jit->get_builder().SetInsertPoint(dummy);
     return preallocated_struct_ptr_ptr_space;
@@ -398,101 +413,39 @@ llvm::AllocaInst *ElementType::preallocate_fixed_block(JIT *jit, llvm::Value *nu
     jit->get_builder().CreateBr(preallocate);
     jit->get_builder().SetInsertPoint(preallocate);
     // first create an llvm location for all of this
-    // this looks like %a = alloca {i32, i32, T*}**
-    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0), nullptr, "struct_ptr_ptr_pool");
-    llvm::AllocaInst *preallocated_struct_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(this->codegen_type(), 0), nullptr, "struct_ptr_pool");
-    llvm::AllocaInst *preallocated_T_ptr_space = jit->get_builder().CreateAlloca(llvm::PointerType::get(this->get_user_type()->codegen_type(), 0), nullptr, "prim_ptr_pool");
-
-    // allocate space for the T* across all num_elements
-    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-    llvm::Value *size_for_T_ptr = jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type()));
-    llvm::Value *T_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_T_ptr, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0));
-    jit->get_builder().CreateStore(T_ptr, preallocated_T_ptr_space);
-
-    // allocate space for {i32, i32, T*}*
-    // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-    llvm::Value *size_for_element_ptr = jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof()));
-    llvm::Value *element_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_element_ptr, llvm::PointerType::get(this->codegen_type(), 0));
-    jit->get_builder().CreateStore(element_ptr, preallocated_struct_ptr_space);
-
-    // allocate space for the whole {i32, i32, T*}**
     // this is like doing Element<T> **e = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
-    llvm::Value* size_for_element_ptr_ptr = jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr()));
-    llvm::Value *element_ptr_ptr = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_for_element_ptr_ptr, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0));
-    jit->get_builder().CreateStore(element_ptr_ptr, preallocated_struct_ptr_ptr_space);
-    // now take the memory pools and split it up across num_elements
-    // create the for loop components
-    llvm::BasicBlock *loop_counter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_counters", function);
-    llvm::BasicBlock *loop_condition = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_condition", function);
-    llvm::BasicBlock *loop_increment = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_increment", function);
+    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
+                                                                    jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
+    // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
+    llvm::AllocaInst *preallocated_struct_ptr_space = allocator(jit, llvm::PointerType::get(this->codegen_type(), 0),
+                                                                jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof())), "struct_ptr_pool");
+    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
+    llvm::AllocaInst *preallocated_T_ptr_space = allocator(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
+                                                           jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
+
+    // now take the memory pools and split it up evenly across num_elements
+    ForLoop loop(jit, function);
     llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-    jit->get_builder().CreateBr(loop_counter);
-
-    // counters
-    jit->get_builder().SetInsertPoint(loop_counter);
-    llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
-    llvm::AllocaInst *loop_idx = jit->get_builder().CreateAlloca(counter_type);
-    jit->get_builder().CreateStore(CodegenUtils::get_i64(0), loop_idx);
-    llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(counter_type);
-    jit->get_builder().CreateStore(num_structs, loop_bound);
-    jit->get_builder().CreateBr(loop_condition);
-
-    // comparison
-    jit->get_builder().SetInsertPoint(loop_condition);
-    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
-    llvm::LoadInst *bound = jit->get_builder().CreateLoad(loop_bound);
-    llvm::Value *cmp = jit->get_builder().CreateICmpSLT(cur_loop_idx, bound);
-    jit->get_builder().CreateCondBr(cmp, loop_body, dummy);
+    llvm::AllocaInst **counters = preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+    llvm::AllocaInst *loop_idx = counters[0];
+    llvm::AllocaInst *loop_bound = counters[1];
 
     // loop body
+    // divide up the preallocated space appropriately
     jit->get_builder().SetInsertPoint(loop_body);
-    llvm::LoadInst *cur_loop_idx2 = jit->get_builder().CreateLoad(loop_idx);
-    // e_ptr_ptr[i] = &e_ptr[i];
-    // gep e_ptr[i]
-    std::vector<llvm::Value *> preallocated_e_ptr_gep_idx;
-    preallocated_e_ptr_gep_idx.push_back(cur_loop_idx2);
-    llvm::LoadInst *preallocated_ele_ptr_space_load = jit->get_builder().CreateLoad(preallocated_struct_ptr_space);
-    llvm::Value *preallocate_e_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_ele_ptr_space_load, preallocated_e_ptr_gep_idx);
-    // gep e_ptr_ptr[i]
-    std::vector<llvm::Value *> preallocated_e_ptr_ptr_gep_idx;
-    preallocated_e_ptr_ptr_gep_idx.push_back(cur_loop_idx2);
-    llvm::LoadInst *preallocated_ele_ptr_ptr_space_load = jit->get_builder().CreateLoad(
-            preallocated_struct_ptr_ptr_space);
-    llvm::Value *preallocate_e_ptr_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_ele_ptr_ptr_space_load, preallocated_e_ptr_ptr_gep_idx);
-    jit->get_builder().CreateStore(preallocate_e_ptr_gep, preallocate_e_ptr_ptr_gep);
-
-    // e_ptr[i].data = &t[i * fixed_data_length];
-    // already have e_ptr[i], get .data
-    std::vector<llvm::Value *> e_ptr_data_gep_idxs;
-    e_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
-    e_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(2));
-    llvm::Value *e_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_e_ptr_gep, e_ptr_data_gep_idxs);
-    // get t[i * fixed_data_length]
-    llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(cur_loop_idx2, fixed_data_length);
-    CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(T_ptr_idx, llvm::Type::getInt32Ty(llvm::getGlobalContext())));
-    llvm::LoadInst *preallocated_T_ptr_space_load = jit->get_builder().CreateLoad(preallocated_T_ptr_space);
-    std::vector<llvm::Value *> T_ptr_gep_idx;
-    T_ptr_gep_idx.push_back(T_ptr_idx);
-    llvm::Value *T_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_T_ptr_space_load, T_ptr_gep_idx);
-    jit->get_builder().CreateStore(T_ptr_gep, e_ptr_data_gep);
-    jit->get_builder().CreateBr(loop_increment);
+    llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop_idx), fixed_data_length);
+    divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
+                                     preallocated_T_ptr_space, loop_idx, T_ptr_idx);
+    jit->get_builder().CreateBr(loop.get_increment_bb());
 
     // loop increment
-    jit->get_builder().SetInsertPoint(loop_increment);
-    llvm::LoadInst *load = jit->get_builder().CreateLoad(loop_idx);
-    llvm::Value *inc = jit->get_builder().CreateAdd(load, CodegenUtils::get_i64(1));
-    jit->get_builder().CreateStore(inc, loop_idx);
-    jit->get_builder().CreateBr(loop_condition);
+    loop.codegen_increment(loop_idx);
+    jit->get_builder().CreateBr(loop.get_condition_bb());
 
     jit->get_builder().SetInsertPoint(dummy);
     return preallocated_struct_ptr_ptr_space;
 }
-
-
-//llvm::Type *ElementType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
 
 /*
  * WrapperOutputType

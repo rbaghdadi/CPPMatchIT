@@ -58,16 +58,22 @@ public:
         mfunction->codegen_extern_wrapper_proto();
     }
 
+    unsigned int get_transform_size() {
+        return transform_size;
+    }
+
     void codegen() {
 
         init_codegen();
 
         // load the inputs to the wrapper function
         WrapperArgLoaderIB wal;
-        wal.set_mfunction(mfunction);
+//        wal.set_mfunction(mfunction);
+        wal.insert(mfunction->get_extern_wrapper());
         wal.codegen(jit);
         ExternArgLoaderIB eal;
-        eal.set_mfunction(mfunction);
+//        eal.set_mfunction(mfunction);
+//        eal.insert(mfunction->get_extern_wrapper());
 
         llvm::BasicBlock *loop_counter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_counters", mfunction->get_extern_wrapper());
         llvm::BasicBlock *loop_condition = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_condition", mfunction->get_extern_wrapper());
@@ -92,7 +98,6 @@ public:
                     jit, loop_bound_load, jit->get_builder().CreateMul(loop_bound_load, CodegenUtils::get_i64(transform_size)),
                     CodegenUtils::get_i64(transform_size), mfunction->get_extern_wrapper()); // the output element is the second argument to our extern function
         } else { // matched size, i.e. the number of primitive values in each output Element's array is allocated to be the same size as the input array
-            // TODO finished off here. Need to give
             num_prim_values_ctr = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
             jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]),
                                            num_prim_values_ctr); // this field contains the number of primitive values, which is static even though
@@ -106,6 +111,7 @@ public:
         jit->get_builder().CreateBr(loop_condition);
 
         // comparison
+        eal.insert(mfunction->get_extern_wrapper());
         jit->get_builder().SetInsertPoint(loop_condition);
         llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
         llvm::LoadInst *bound = jit->get_builder().CreateLoad(loop_bound);
@@ -127,7 +133,8 @@ public:
         eal.codegen(jit);
         // call the extern function
         ExternCallIB ec;
-        ec.set_mfunction(mfunction);
+        ec.insert(mfunction->get_extern_wrapper());
+        ec.set_extern_function(mfunction->get_extern());
         jit->get_builder().CreateBr(ec.get_basic_block());
         ec.set_extern_arg_allocs(eal.get_extern_input_arg_alloc());
         ec.codegen(jit);

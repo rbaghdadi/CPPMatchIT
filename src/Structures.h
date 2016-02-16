@@ -245,6 +245,7 @@ public:
             std::cerr << "About to malloc space for the data array in Element2. Make sure this is on purpose!" << std::endl;
             this->data = (T*)malloc(sizeof(T) * data_length);
         }
+        std::cerr << "memcpy " << data_length * sizeof(T) << " bytes" << std::endl;
         memcpy(this->data, data, data_length * sizeof(T));
         this->data_length = data_length;
     }

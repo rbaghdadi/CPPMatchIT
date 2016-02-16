@@ -23,12 +23,13 @@ protected:
      * The BasicBlock that instructions will be inserted into
      */
     llvm::BasicBlock *bb;
+    llvm::Function *function;
 
     /**
     * The MFunc associated with this InstructionBlock.
     * Required when running codegen.
     */
-    MFunc *mfunction;
+//    MFunc *mfunction;
     bool codegen_done = false;
 
 public:
@@ -37,13 +38,14 @@ public:
 
     llvm::BasicBlock *get_basic_block();
 
-    MFunc *get_mfunction();
+//    MFunc *get_mfunction();
 
-    void set_mfunction(MFunc *mfunction);
+//    void set_mfunction(MFunc *mfunction);
+    void insert(llvm::Function *function);
 
     virtual void codegen(JIT *jit, bool no_insert = false) = 0;
 
-    void force_insert(MFunc *mfunction);
+//    void force_insert(MFunc *mfunction);
 
 };
 
@@ -342,6 +344,12 @@ private:
     std::vector<llvm::AllocaInst *> extern_arg_allocs;
 
     /**
+     * The extern function to call.
+     * Required when running codegen.
+     */
+    llvm::Function *extern_function;
+
+    /**
      * The result of running the extern function.
      * Generated when running codegen.
      */
@@ -365,6 +373,8 @@ public:
     llvm::AllocaInst *get_extern_call_result_alloc();
 
     llvm::AllocaInst *get_secondary_extern_call_result_alloc();
+
+    void set_extern_function(llvm::Function *extern_function);
 
     void set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
