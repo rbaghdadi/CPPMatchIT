@@ -21,16 +21,7 @@ private:
 
 public:
 
-//    TransformStage(O (*transform)(I), std::string transform_name, JIT *jit, MType *param_type, MType *return_type) :
-//            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform) {
-//        std::vector<MType *> param_types;
-//        param_types.push_back(param_type);
-//        MType *stage_return_type = new MPointerType(new WrapperOutputType(return_type));
-//        MFunc *func = new MFunc(function_name, "TransformStage", new MPointerType(return_type), stage_return_type,
-//                                param_types, jit);
-//        set_function(func);
-//    }
-
+    // TODO I need deletes somewhere, or just don't pass these as pointers
     TransformStage(void (*transform)(const I*, O*), std::string transform_name, JIT *jit, MType *param_type, MType *return_type, unsigned int transform_size, bool is_fixed_transform_size) :
             Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform), transform_size(transform_size), is_fixed_transform_size(is_fixed_transform_size) {
         std::vector<MType *> extern_param_types;
@@ -68,26 +59,23 @@ public:
 
         // load the inputs to the wrapper function
         WrapperArgLoaderIB wal;
-//        wal.set_mfunction(mfunction);
         wal.insert(mfunction->get_extern_wrapper());
         wal.codegen(jit);
         ExternArgLoaderIB eal;
-//        eal.set_mfunction(mfunction);
-//        eal.insert(mfunction->get_extern_wrapper());
+        eal.insert(mfunction->get_extern_wrapper());
 
-        llvm::BasicBlock *loop_counter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_counters", mfunction->get_extern_wrapper());
-        llvm::BasicBlock *loop_condition = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_condition", mfunction->get_extern_wrapper());
-        llvm::BasicBlock *loop_increment = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_increment", mfunction->get_extern_wrapper());
+        ForLoop loop(jit, mfunction->get_extern_wrapper());
         llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy", mfunction->get_extern_wrapper());
-        jit->get_builder().CreateBr(loop_counter);
+        jit->get_builder().CreateBr(loop.get_counter_bb());
 
-        // various loop indices, counters
-        jit->get_builder().SetInsertPoint(loop_counter);
-        llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
-        llvm::AllocaInst *loop_idx = jit->get_builder().CreateAlloca(counter_type); // main loop index
-        jit->get_builder().CreateStore(CodegenUtils::get_i64(0), loop_idx);
-        llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(counter_type); // upper bound on the loop
+        // loop counters
+        jit->get_builder().SetInsertPoint(loop.get_counter_bb());
+        llvm::AllocaInst *counters[2];
+        loop.codegen_counters(counters, 2);
+        llvm::AllocaInst *loop_idx = counters[0];
+        llvm::AllocaInst *loop_bound = counters[1];
         jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 1]), loop_bound);
+
         llvm::AllocaInst *num_prim_values_ctr; // only used if this isn't fixed size
         // preallocate space for the output
         // get the output type underneath the pointer it is wrapper in
@@ -108,22 +96,15 @@ public:
                     jit->get_builder().CreateLoad(num_prim_values_ctr),
                     mfunction->get_extern_wrapper(), wal.get_args_alloc()[0]);
         }
-        jit->get_builder().CreateBr(loop_condition);
+        jit->get_builder().CreateBr(loop.get_condition_bb());
 
-        // comparison
-        eal.insert(mfunction->get_extern_wrapper());
-        jit->get_builder().SetInsertPoint(loop_condition);
-        llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
-        llvm::LoadInst *bound = jit->get_builder().CreateLoad(loop_bound);
-        llvm::Value *cmp = jit->get_builder().CreateICmpSLT(cur_loop_idx, bound);
-        jit->get_builder().CreateCondBr(cmp, eal.get_basic_block(), dummy);
+        // loop condition
+        loop.codegen_condition(loop_bound, loop_idx);
+        jit->get_builder().CreateCondBr(loop.get_condition()->get_loop_comparison(), eal.get_basic_block(), dummy);
 
         // loop increment
-        jit->get_builder().SetInsertPoint(loop_increment);
-        llvm::LoadInst *load = jit->get_builder().CreateLoad(loop_idx);
-        llvm::Value *inc = jit->get_builder().CreateAdd(load, CodegenUtils::get_i64(1));
-        jit->get_builder().CreateStore(inc, loop_idx);
-        jit->get_builder().CreateBr(loop_condition);
+        loop.codegen_increment(loop_idx);
+        jit->get_builder().CreateBr(loop.get_condition_bb());
 
         // loop body
         // get the inputs to the extern function
@@ -138,7 +119,7 @@ public:
         jit->get_builder().CreateBr(ec.get_basic_block());
         ec.set_extern_arg_allocs(eal.get_extern_input_arg_alloc());
         ec.codegen(jit);
-        jit->get_builder().CreateBr(loop_increment);
+        jit->get_builder().CreateBr(loop.get_increment_bb());
 
         // finish up the stage and allocate space for the outputs
         jit->get_builder().SetInsertPoint(dummy);
@@ -148,7 +129,7 @@ public:
         jit->get_builder().CreateStore(return_space, wrapper_result);
         llvm::LoadInst *temp_wrapper_result_load = jit->get_builder().CreateLoad(wrapper_result);
 
-        // store the preallocated space
+        // store the preallocated space in the output struct (these gep idxs are for the different fields in the output struct)
         std::vector<llvm::Value *> one_gep_idxs; // the outputs
         std::vector<llvm::Value *> two_gep_idxs; // the num_prim_counter field
         std::vector<llvm::Value *> three_gep_idxs; // the num_elements field

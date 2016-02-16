@@ -319,9 +319,8 @@ llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counte
 
     // counters
     jit->get_builder().SetInsertPoint(loop->get_counter_bb());
-    llvm::AllocaInst *counters[3];
-    llvm::Type *counter_type = llvm::Type::getInt64Ty(llvm::getGlobalContext());
-    loop->codegen_counters(counters, 3);
+    llvm::AllocaInst *counters[num_loop_counters];
+    loop->codegen_counters(counters, num_loop_counters);
     llvm::AllocaInst *loop_idx = counters[0];
     llvm::AllocaInst *loop_bound = counters[1];
     jit->get_builder().CreateStore(num_structs, loop_bound);
@@ -330,6 +329,10 @@ llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counte
     // comparison
     loop->codegen_condition(loop_bound, loop_idx);
     jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(), loop_body, dummy);
+
+    // loop increment
+    loop->codegen_increment(loop_idx);
+    jit->get_builder().CreateBr(loop->get_condition_bb());
 
     return counters;
 }
@@ -392,10 +395,6 @@ llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *
     jit->get_builder().CreateStore(inc_T_idx, T_idx);
     jit->get_builder().CreateBr(loop.get_increment_bb());
 
-    // loop increment
-    loop.codegen_increment(loop_idx);
-    jit->get_builder().CreateBr(loop.get_condition_bb());
-
     jit->get_builder().SetInsertPoint(dummy);
     return preallocated_struct_ptr_ptr_space;
 
@@ -438,10 +437,6 @@ llvm::AllocaInst *ElementType::preallocate_fixed_block(JIT *jit, llvm::Value *nu
     divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
                                      preallocated_T_ptr_space, loop_idx, T_ptr_idx);
     jit->get_builder().CreateBr(loop.get_increment_bb());
-
-    // loop increment
-    loop.codegen_increment(loop_idx);
-    jit->get_builder().CreateBr(loop.get_condition_bb());
 
     jit->get_builder().SetInsertPoint(dummy);
     return preallocated_struct_ptr_ptr_space;
