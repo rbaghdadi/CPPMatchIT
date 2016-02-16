@@ -82,23 +82,26 @@ public:
         jit->get_builder().CreateStore(CodegenUtils::get_i64(0), loop_idx);
         llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(counter_type); // upper bound on the loop
         jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 1]), loop_bound);
-        llvm::AllocaInst *num_prim_counter;
+        llvm::AllocaInst *num_prim_values_ctr; // only used if this isn't fixed size
         // preallocate space for the output
         // get the output type underneath the pointer it is wrapper in
         llvm::AllocaInst *space;
         if (is_fixed_transform_size) {
             llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
-//            CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(jit->get_builder().CreateMul(loop_bound_load, CodegenUtils::get_i64(transform_size)), llvm::Type::getInt32Ty(llvm::getGlobalContext())));
             space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->preallocate_fixed_block(
                     jit, loop_bound_load, jit->get_builder().CreateMul(loop_bound_load, CodegenUtils::get_i64(transform_size)),
                     CodegenUtils::get_i64(transform_size), mfunction->get_extern_wrapper()); // the output element is the second argument to our extern function
-        } else { // matched size
-            // TODO need to read from the wrapper input the num_prim_values
-            num_prim_counter = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-            CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(num_prim_counter, llvm::Type::getInt32Ty(llvm::getGlobalContext())));
-            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]), num_prim_counter); // this field contains the number of primitive values, which is static even though
+        } else { // matched size, i.e. the number of primitive values in each output Element's array is allocated to be the same size as the input array
+            // TODO finished off here. Need to give
+            num_prim_values_ctr = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]),
+                                           num_prim_values_ctr); // this field contains the number of primitive values, which is static even though
+            llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
             // across structs the sizes are variable
-
+            space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->preallocate_matched_block(
+                    jit, loop_bound_load,
+                    jit->get_builder().CreateLoad(num_prim_values_ctr),
+                    mfunction->get_extern_wrapper(), wal.get_args_alloc()[0]);
         }
         jit->get_builder().CreateBr(loop_condition);
 
@@ -139,9 +142,9 @@ public:
         llvm::LoadInst *temp_wrapper_result_load = jit->get_builder().CreateLoad(wrapper_result);
 
         // store the preallocated space
-        std::vector<llvm::Value *> one_gep_idxs;
-        std::vector<llvm::Value *> two_gep_idxs;
-        std::vector<llvm::Value *> three_gep_idxs;
+        std::vector<llvm::Value *> one_gep_idxs; // the outputs
+        std::vector<llvm::Value *> two_gep_idxs; // the num_prim_counter field
+        std::vector<llvm::Value *> three_gep_idxs; // the num_elements field
         one_gep_idxs.push_back(CodegenUtils::get_i32(0));
         one_gep_idxs.push_back(CodegenUtils::get_i32(0));
         two_gep_idxs.push_back(CodegenUtils::get_i32(0));
@@ -153,22 +156,19 @@ public:
         llvm::Value *field_one_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, one_gep_idxs);
         jit->get_builder().CreateStore(jit->get_builder().CreateLoad(space), field_one_gep);
         // store the number of primitive values across all the structs
-        // TODO if not fixed, need to create another counter that keeps track of the output lengths of everything
-        // or get it from the preallocate function
+        llvm::Value *num_prim_values;
         if (is_fixed_transform_size) {
-            llvm::Value *num_prim_types = jit->get_builder().CreateMul(CodegenUtils::get_i64(transform_size),
-                                                                       jit->get_builder().CreateLoad(loop_idx));
-            llvm::Value *field_two_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, two_gep_idxs);
-            jit->get_builder().CreateStore(num_prim_types, field_two_gep);
-            // store the number of structs being returned
-            llvm::Value *field_three_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, three_gep_idxs);
-            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop_idx), field_three_gep);
-            jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
+            num_prim_values = jit->get_builder().CreateMul(CodegenUtils::get_i64(transform_size),
+                                                                        jit->get_builder().CreateLoad(loop_idx));
         } else {
-            std::cerr << "not doing matched size yet" << std::endl;
-            exit(10);
+            num_prim_values = jit->get_builder().CreateLoad(num_prim_values_ctr);
         }
-
+        llvm::Value *field_two_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, two_gep_idxs);
+        jit->get_builder().CreateStore(num_prim_values, field_two_gep);
+        // store the number of structs being returned
+        llvm::Value *field_three_gep = jit->get_builder().CreateInBoundsGEP(temp_wrapper_result_load, three_gep_idxs);
+        jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop_idx), field_three_gep);
+        jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
     }
 
     void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
