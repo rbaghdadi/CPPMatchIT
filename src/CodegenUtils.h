@@ -141,8 +141,8 @@ llvm::ConstantInt *get_i32(int x);
 
 llvm::ConstantInt *get_i64(long x);
 
-void preallocate_block(ElementType *type, JIT *jit, int num_elements, int fixed_data_length, llvm::Function *function);
-void preallocate_block(ElementType *type, JIT *jit, llvm::Value *num_elements, llvm::Value *fixed_data_length, llvm::Function *function);
+llvm::Value *gep(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
+llvm::LoadInst *gep_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
 
 // if the type is X, do X *x = (X*)malloc(sizeof(X) * num_elements);
 //llvm::Value *codegen_mtype_block(MType *mtype, JIT *jit, int num_elements) {

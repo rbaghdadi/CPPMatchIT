@@ -33,6 +33,20 @@ int get_num_size_fields(MType *mtype) {
     }
 }
 
+// these are very specific geps
+llvm::LoadInst *gep_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx) {
+    llvm::LoadInst *load = jit->get_builder().CreateLoad(gep(jit, gep_this, ptr_idx, struct_idx));
+    return load;
+}
+
+llvm::Value *gep(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx) {
+    std::vector<llvm::Value *> idxs;
+    idxs.push_back(get_i64(ptr_idx));
+    idxs.push_back(get_i32(struct_idx));
+    llvm::Value *gep = jit->get_builder().CreateInBoundsGEP(gep_this, idxs);
+    return gep;
+}
+
 
 // call this when your return type is a File
 // these input_args are returned by load_wrapper_input_args
