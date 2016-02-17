@@ -9,7 +9,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -v -std=c++11 ${MD5_FLAGS} ${LLVM
 #set(FILE_DUPS_FILES apps/file_dups/main.cpp apps/file_dups/Stages.cpp)
 set(CORRELATION_FILES apps/correlation/Stages.cpp)
 #set(SOURCE_FILES src/Stage.cpp src/MFunc.cpp src/JIT.cpp src/LLVM.cpp src/MType.cpp src/CodegenUtils.cpp src/ForLoop.cpp src/InstructionBlock.cpp src/Utils.cpp apps/file_dups/main.cpp src/TransformStage.h)
-set(SOURCE_FILES src/ComparisonStage.h src/FilterStage.h src/Pipeline.cpp src/MType.cpp src/JIT.cpp src/Utils.cpp src/LLVM.cpp apps/file_dups/Stages.cpp apps/file_dups/main.cpp src/TransformStage.h src/InstructionBlock.cpp src/MFunc.cpp src/Stage.cpp src/CodegenUtils.cpp src/ForLoop.cpp)
+set(SOURCE_FILES src/MType.cpp src/JIT.cpp src/Utils.cpp src/LLVM.cpp src/test.cpp src/TransformStage.h src/FilterStage.h src/InstructionBlock.cpp src/MFunc.cpp src/Stage.cpp src/CodegenUtils.cpp src/ForLoop.cpp src/Pipeline.cpp)
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY /Users/JRay/Documents/Research/CPPMatchIT/bin)
 add_executable(CPPMatchIT ${SOURCE_FILES})

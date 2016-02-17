@@ -84,6 +84,7 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function
 std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst *wrapper_input_arg_alloc,
                                                       llvm::AllocaInst *preallocated_output,
                                                       llvm::AllocaInst *loop_idx) {
+    std::vector<llvm::AllocaInst *> arg_types;
     // load the full input array
     llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc);
     input_arg_load->setAlignment(8);
@@ -99,17 +100,16 @@ std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst
     llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
     extern_input_arg_alloc->setAlignment(8);
     jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
-
-    // get the outputs
-    llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output);
-    llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, element_idxs);
-    llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
-    llvm::AllocaInst *output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
-    jit->get_builder().CreateStore(output_gep_load, output_alloc);
-
-    std::vector<llvm::AllocaInst *> arg_types;
     arg_types.push_back(extern_input_arg_alloc);
-    arg_types.push_back(output_alloc);
+    // get the outputs (if applicable)
+    if (preallocated_output) {
+        llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output);
+        llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, element_idxs);
+        llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
+        llvm::AllocaInst *output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
+        jit->get_builder().CreateStore(output_gep_load, output_alloc);
+        arg_types.push_back(output_alloc);
+    }
 
     return arg_types;
 }
@@ -252,7 +252,13 @@ llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
         loaded_args.push_back(arg_loaded);
     }
     llvm::CallInst *extern_call_result = jit->get_builder().CreateCall(extern_function, loaded_args);
-    return nullptr;
+    if (extern_call_result->getType()->isVoidTy()) {
+        return nullptr;
+    } else {
+        llvm::AllocaInst *extern_call_alloc = jit->get_builder().CreateAlloca(extern_call_result->getType());
+        jit->get_builder().CreateStore(extern_call_result, extern_call_alloc);
+        return extern_call_alloc;
+    }
 }
 
 void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm::AllocaInst *output_idx,

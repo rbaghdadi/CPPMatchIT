@@ -256,12 +256,13 @@ public:
                                                       int fixed_data_length,
                                                       llvm::Function *function) = 0;
 
-    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                        llvm::Value *num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) = 0;
+    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                            llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                            bool allocate_outer_only = false) = 0;
 
     virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) = 0;
+                                                        llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                        bool allocate_outer_only = false) = 0;
 
 };
 
@@ -294,12 +295,12 @@ public:
                                                       int fixed_data_length,
                                                       llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                        llvm::Value *num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 
 };
 
@@ -329,12 +330,12 @@ public:
                                                       int fixed_data_length,
                                                       llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                        llvm::Value *num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 
 };
 
@@ -442,12 +443,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 };
 
 /*
@@ -493,12 +494,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 
 };
 
@@ -535,12 +536,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 
 //    void codegen_pool(JIT *jit, int num_elements) {
 //        // creates {i32, i8*}*
@@ -656,12 +657,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function);
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs);
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only = false);
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs);
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only = false);
 
     // preallocate a block of Element* objects that have a fixed size for data length
     // we will allocate space like this: {i32, i32, T*}**
@@ -757,12 +758,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 };
 
 /*
@@ -791,12 +792,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 };
 
 /*
@@ -822,12 +823,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 };
 
 /*
@@ -855,12 +856,12 @@ public:
                                               int fixed_data_length,
                                               llvm::Function *function) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs,
-                                                llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
+                                                    bool allocate_outer_only) { }
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs) { }
+    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 
 };
 

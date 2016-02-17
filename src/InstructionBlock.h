@@ -97,7 +97,7 @@ private:
      * The allocated space for all the outputs.
      * Required when running codegen.
      */
-    llvm::AllocaInst *preallocated_output_space;
+    llvm::AllocaInst *preallocated_output_space = nullptr;
 
     /**
      * The loop index.
@@ -378,7 +378,7 @@ public:
 
     void set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
-    void set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result_alloc);
+//    void set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result_alloc);
 
     void codegen(JIT *jit, bool no_insert = false);
 

@@ -72,10 +72,8 @@ void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
 void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(wrapper_input_arg_alloc);
     assert(loop_idx_alloc);
-//    assert(function);
-    assert(preallocated_output_space);
+//    assert(preallocated_output_space);
     assert(!codegen_done);
-//    bb->insertInto(mfunction->get_extern_wrapper());
     jit->get_builder().SetInsertPoint(bb);
     extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, wrapper_input_arg_alloc, preallocated_output_space,
                                                                  loop_idx_alloc);
@@ -235,9 +233,9 @@ void ExternCallIB::set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_
 }
 
 // used for a stage like FilterStage which needs to store the input data rather than the output of the filter function
-void ExternCallIB::set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result) {
-    this->extern_call_result_alloc = secondary_extern_call_result;
-}
+//void ExternCallIB::set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result) {
+//    this->extern_call_result_alloc = secondary_extern_call_result;
+//}
 
 void ExternCallIB::set_extern_function(llvm::Function *extern_function) {
     this->extern_function = extern_function;

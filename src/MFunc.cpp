@@ -12,13 +12,11 @@ void MFunc::codegen_extern_proto() {
     // set up function parameters
     std::vector<llvm::Type *> param_types;
     for (std::vector<MType*>::iterator iter = extern_param_types.begin(); iter != extern_param_types.end(); iter++) {
-//        param_types.push_back(llvm::PointerType::get((*iter)->codegen_type(), 0));
         param_types.push_back((*iter)->codegen_type());
     }
-//    param_types.push_back(extern_return_type->codegen_type());
     // add the return type
-//    llvm::FunctionType *function_type = llvm::FunctionType::get(extern_return_type->codegen_type(), param_types, false);
-    llvm::FunctionType *function_type = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), param_types, false);
+//    llvm::FunctionType *function_type = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()), param_types, false);
+    llvm::FunctionType *function_type = llvm::FunctionType::get(extern_return_type->codegen_type(), param_types, false);
     // create the function
     extern_function = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, extern_name,
                                              jit->get_module().get());
@@ -28,13 +26,8 @@ void MFunc::codegen_extern_wrapper_proto() {
     // set up function parameters
     std::vector<llvm::Type *> param_types;
     for (std::vector<MType *>::iterator iter = extern_wrapper_param_types.begin(); iter != extern_wrapper_param_types.end(); iter++) {
-//        param_types.push_back(llvm::PointerType::get(llvm::PointerType::get((*iter)->codegen_type(), 0), 0));
         param_types.push_back((*iter)->codegen_type());
     }
-    // also add a int that says how many elements are in the input array
-//    param_types.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-    // how many total elements in all the data arrays coming in
-//    param_types.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
     // add the return type
     llvm::FunctionType *function_type = llvm::FunctionType::get(extern_wrapper_return_type->codegen_type(),
                                                                 param_types, false);

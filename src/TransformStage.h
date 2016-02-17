@@ -31,13 +31,15 @@ public:
         extern_wrapper_param_types.push_back(new MPointerType(new MPointerType(param_type)));
         extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements coming in
         extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        std::vector<MType *> return_types;
-        MType *stage_return_type = new MPointerType(new MPointerType(return_type));//new MPointerType(new WrapperOutputType(return_type));
-        return_types.push_back(stage_return_type); // the actual data type passed back
-        return_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements going out
-        return_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        MPointerType *combined_return_type = new MPointerType(new MStructType(mtype_struct, return_types));
-        MFunc *func = new MFunc(function_name, "TransformStage", new MPointerType(return_type), combined_return_type,
+        std::vector<MType *> extern_wrapper_return_types;
+        MType *stage_return_type = new MPointerType(new MPointerType(return_type));
+        extern_wrapper_return_types.push_back(stage_return_type); // the actual data type passed back
+        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements going out
+        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
+        MPointerType *pointer_return_type = new MPointerType(new MStructType(mtype_struct, extern_wrapper_return_types));
+//        MFunc *func = new MFunc(function_name, "TransformStage", new MPointerType(return_type), pointer_return_type,
+//                                extern_param_types, extern_wrapper_param_types, jit);
+        MFunc *func = new MFunc(function_name, "TransformStage", new MPrimType(mtype_void, 0), pointer_return_type,
                                 extern_param_types, extern_wrapper_param_types, jit);
         set_function(func);
     }
@@ -91,10 +93,9 @@ public:
                                            num_prim_values_ctr); // this field contains the number of primitive values, which is static even though
             llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
             // across structs the sizes are variable
-            space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->preallocate_matched_block(
-                    jit, loop_bound_load,
-                    jit->get_builder().CreateLoad(num_prim_values_ctr),
-                    mfunction->get_extern_wrapper(), wal.get_args_alloc()[0]);
+            space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->
+                    preallocate_matched_block(jit, loop_bound_load, jit->get_builder().CreateLoad(num_prim_values_ctr),
+                                              mfunction->get_extern_wrapper(), wal.get_args_alloc()[0], false);
         }
         jit->get_builder().CreateBr(loop.get_condition_bb());
 
@@ -147,7 +148,7 @@ public:
         llvm::Value *num_prim_values;
         if (is_fixed_transform_size) {
             num_prim_values = jit->get_builder().CreateMul(CodegenUtils::get_i64(transform_size),
-                                                                        jit->get_builder().CreateLoad(loop_idx));
+                                                           jit->get_builder().CreateLoad(loop_idx));
         } else {
             num_prim_values = jit->get_builder().CreateLoad(num_prim_values_ctr);
         }
