@@ -70,10 +70,11 @@ public:
 
             // loop counters
             jit->get_builder().SetInsertPoint(loop.get_counter_bb());
-            llvm::AllocaInst *counters[2];
-            loop.codegen_counters(counters, 2);
+            llvm::AllocaInst *counters[3];
+            loop.codegen_counters(counters, 3);
             llvm::AllocaInst *loop_idx = counters[0];
             llvm::AllocaInst *loop_bound = counters[1];
+            llvm::AllocaInst *ret_idx = counters[2];
             jit->get_builder().CreateStore(
                     jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 1]), loop_bound);
 
@@ -122,13 +123,17 @@ public:
             jit->get_builder().SetInsertPoint(store_block);
             // get the output space
             llvm::LoadInst *output_load = jit->get_builder().CreateLoad(space);
+            llvm::LoadInst *ret_idx_load = jit->get_builder().CreateLoad(ret_idx);
             std::vector<llvm::Value *> output_struct_idxs;
-            output_struct_idxs.push_back(jit->get_builder().CreateLoad(loop_idx));
+            output_struct_idxs.push_back(ret_idx_load);
             llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, output_struct_idxs);
             // get the input
             llvm::LoadInst *input_load = jit->get_builder().CreateLoad(eal.get_extern_input_arg_alloc()[0]);
             // copy the input pointer to the output pointer
             jit->get_builder().CreateStore(input_load, output_gep);
+            // increment ret idx
+            llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(ret_idx_load, CodegenUtils::get_i64(1));
+            jit->get_builder().CreateStore(ret_idx_inc, ret_idx);
             jit->get_builder().CreateBr(loop.get_increment_bb());
 
             // finish up the stage and allocate space for the outputs
@@ -142,9 +147,9 @@ public:
             llvm::LoadInst *temp_wrapper_result_load = jit->get_builder().CreateLoad(wrapper_result);
 
             // store the preallocated space in the output struct (these gep idxs are for the different fields in the output struct)
-            llvm::Value *field_one = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 0);
-            llvm::Value *field_two = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 1);
-            llvm::Value *field_three = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 2);
+            llvm::Value *field_one = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 0); // the data elements
+            llvm::Value *field_two = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 1); // num prim values across all the dat elements
+            llvm::Value *field_three = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 2); // num data elements
 
             // store all the processed structs in field one
             jit->get_builder().CreateStore(jit->get_builder().CreateLoad(space), field_one);
@@ -153,7 +158,7 @@ public:
             num_prim_values = jit->get_builder().CreateLoad(num_prim_values_ctr);
             jit->get_builder().CreateStore(num_prim_values, field_two);
             // store the number of structs being returned
-            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop_idx), field_three);
+            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(ret_idx), field_three);
             jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
             codegen_done = true;
         }

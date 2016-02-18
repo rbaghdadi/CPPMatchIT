@@ -17,8 +17,10 @@ class TruncateTransform : public TransformStage<const Element2<float>, Element2<
 public:
 
     TruncateTransform(void (*transform)(const Element2<float>*, Element2<float>*), JIT *jit) :
-//            TransformStage(transform, "my_truncate_matched", jit, new ElementType(create_type<float>()), new ElementType(create_type<float>()), 0, false) { }
-            TransformStage(transform, "my_truncate_fixed", jit, new ElementType(create_type<float>()), new ElementType(create_type<float>()), 5, true) {}
+//            TransformStage(transform, "my_truncate_matched", jit, new ElementType(create_type<float>()),
+// new ElementType(create_type<float>()), 0, false) { }
+            TransformStage(transform, "my_truncate_fixed", jit, new ElementType(create_type<float>()),
+                           new ElementType(create_type<float>()), 5, true) {}
 };
 
 class Filter : public FilterStage<const Element2<float>> {
@@ -35,7 +37,8 @@ class Segmentation : public SegmentationStage<const Element2<float>, Segment<flo
 public:
 
     Segmentation(void (*segment)(const Element2<float>*, Segment<float>**), JIT *jit) :
-            SegmentationStage(segment, "segmentor", jit, new ElementType(create_type<float>()), new SegmentType(create_type<float>()), 4, 0.5) {}
+            SegmentationStage(segment, "segmentor", jit, new ElementType(create_type<float>()),
+                              new SegmentType(create_type<float>()), 4, 0.5) {}
 
 };
 
@@ -65,7 +68,7 @@ extern "C" void my_truncate_fixed(const Element2<float> *in, Element2<float> *ou
 
 extern "C" bool my_filter(const Element2<float> *in) {
     std::cerr << "fake filtering things" << std::endl;
-    return true;
+    return false;
 }
 
 extern "C" void segmentor(const Element2<float> *in, Segment<float> **out) {
@@ -102,10 +105,10 @@ int main() {
     inputs.push_back(another_element);
 
     Pipeline pipeline;
+    pipeline.register_stage(&filter);
+    pipeline.register_stage(&trunc_fixed);
 //    pipeline.register_stage(&filter);
-//    pipeline.register_stage(&trunc_fixed);
-//    pipeline.register_stage(&filter);
-    pipeline.register_stage(&seg);
+//    pipeline.register_stage(&seg);
     // this says there are 10 total primitive values (floats in this case) across inputs.size() number of input structs
     // it doesn't matter if this is fixed, matched, or variable size. It's just the raw total of prim values.
     // If there is not a fixed size, then the preallocation code will need to be changed as follows:
