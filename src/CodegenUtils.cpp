@@ -96,8 +96,8 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function
 
 // load a single input argument from the wrapper inputs
 std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst *wrapper_input_arg_alloc,
-                                                      llvm::AllocaInst *preallocated_output,
-                                                      llvm::AllocaInst *loop_idx) {
+                                                      llvm::AllocaInst *preallocated_output, llvm::AllocaInst *loop_idx,
+                                                      bool is_segmentation_stage) {
     std::vector<llvm::AllocaInst *> arg_types;
     // load the full input array
     llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc);
@@ -109,7 +109,6 @@ std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst
     element_idxs.push_back(loop_idx_load);
     llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(input_arg_load, element_idxs);
     llvm::LoadInst *element_load = jit->get_builder().CreateLoad(element_gep);
-    // the individual element type is the underlying type of this pointer, so get the alignment there
     element_load->setAlignment(8);
     llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
     extern_input_arg_alloc->setAlignment(8);
@@ -119,9 +118,15 @@ std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst
     if (preallocated_output) {
         llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output);
         llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, element_idxs);
-        llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
-        llvm::AllocaInst *output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
-        jit->get_builder().CreateStore(output_gep_load, output_alloc);
+        llvm::AllocaInst *output_alloc;
+        if (!is_segmentation_stage) {
+            llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
+            output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
+            jit->get_builder().CreateStore(output_gep_load, output_alloc);
+        } else { // the argument should be a ** type, not *, so pass in the gep instead of the load
+            output_alloc = jit->get_builder().CreateAlloca(output_gep->getType());
+            jit->get_builder().CreateStore(output_gep, output_alloc);
+        }
         arg_types.push_back(output_alloc);
     }
 

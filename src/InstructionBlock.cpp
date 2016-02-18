@@ -69,14 +69,18 @@ void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
     this->loop_idx_alloc = loop_idx;
 }
 
+void ExternArgLoaderIB::set_segmentation_stage() {
+    is_segmentation_stage = true;
+}
+
 void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(wrapper_input_arg_alloc);
     assert(loop_idx_alloc);
-//    assert(preallocated_output_space);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, wrapper_input_arg_alloc, preallocated_output_space,
-                                                                 loop_idx_alloc);
+    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, wrapper_input_arg_alloc,
+                                                                 preallocated_output_space, loop_idx_alloc,
+                                                                 is_segmentation_stage);
     codegen_done = true;
 }
 

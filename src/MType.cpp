@@ -77,7 +77,7 @@ bool MType::is_ptr_type() {
 bool MType::is_struct_type() {
     return mtype_code == mtype_struct || mtype_code == mtype_file || mtype_code == mtype_element ||
            mtype_code == mtype_comparison_element || mtype_code == mtype_segments ||
-           mtype_code == mtype_segmented_element;
+           mtype_code == mtype_segment;
 }
 
 bool MType::is_mtype_marray_type() {
@@ -93,7 +93,7 @@ bool MType::is_mtype_element_type() {
 }
 
 bool MType::is_mtype_segmented_element_type() {
-    return mtype_code == mtype_segmented_element;
+    return mtype_code == mtype_segment;
 }
 
 bool MType::is_mtype_segments_type() {
@@ -158,7 +158,7 @@ MType *MType::get_void_type() {
 
 llvm::Type *MPrimType::codegen_type() {
     if (is_void_type()) {
-      return llvm::Type::getVoidTy(llvm::getGlobalContext());
+        return llvm::Type::getVoidTy(llvm::getGlobalContext());
     } else if (is_int_type()) {
         return llvm::IntegerType::get(llvm::getGlobalContext(), get_bits());
     } else if (is_bool_type()) {
@@ -261,6 +261,17 @@ void ElementType::dump() {
     underlying_types[2]->dump();
 }
 
+void SegmentType::dump() {
+    std::cerr << "SegmentType has tag type ";
+    underlying_types[0]->dump();
+    std::cerr << " and length type ";
+    underlying_types[1]->dump();
+    std::cerr << " and offset type ";
+    underlying_types[2]->dump();
+    std::cerr << " and data type ";
+    underlying_types[3]->dump();
+}
+
 // wrapper for creating llvm::AllocaInst and then filling it with malloc'd space
 llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
     llvm::AllocaInst *allocated_space = jit->get_builder().CreateAlloca(alloca_type, nullptr, name);
@@ -279,7 +290,7 @@ llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size
 void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_struct_ptr_ptr_space,
                                       llvm::AllocaInst *preallocated_struct_ptr_space,
                                       llvm::AllocaInst *preallocated_T_ptr_space, llvm::AllocaInst *loop_idx,
-                                      llvm::Value *T_ptr_idx) {
+                                      llvm::Value *T_ptr_idx, MType *mtype) {
     llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
     // e_ptr_ptr[i] = &e_ptr[i];
     // gep e_ptr[i]
@@ -300,10 +311,11 @@ void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_s
     //  e_ptr[i].data = &t[T_ptr_idx];
     std::vector<llvm::Value *> struct_ptr_data_gep_idxs;
     struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
-    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(2));
+    // TODO this won't work for types like comparison b/c that has 2 arrays (I think?) Or can I just keep it at 1 array?
+    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
     llvm::Value *struct_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_struct_ptr_gep,
                                                                             struct_ptr_data_gep_idxs);
-    // get t[T_idx]
+    // get t[T_ptr_idx]
     llvm::LoadInst *preallocated_T_ptr_space_load = jit->get_builder().CreateLoad(preallocated_T_ptr_space);
     std::vector<llvm::Value *> T_ptr_gep_idx;
     T_ptr_gep_idx.push_back(T_ptr_idx);
@@ -339,13 +351,13 @@ llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counte
     return counters;
 }
 
-llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
+llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
                                                          llvm::AllocaInst *input_structs, bool allocate_outer_only) {
     preallocate_matched_block(jit, CodegenUtils::get_i64(num_structs), CodegenUtils::get_i64(num_prim_values), function,
                               input_structs, allocate_outer_only);
 }
 
-llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                          llvm::Function *function, llvm::AllocaInst *input_structs,
                                                          bool allocate_outer_only) { // input_structs are the inputs fed into the stage (the {i64, i64, T*}** part)
     llvm::BasicBlock *preallocate = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
@@ -386,7 +398,7 @@ llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *
         jit->get_builder().SetInsertPoint(loop_body);
         llvm::LoadInst *T_ptr_idx = jit->get_builder().CreateLoad(T_idx);
         divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
-                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx);
+                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx, this);
 
         // increment T_ptr_idx based on the size of the original input
         llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
@@ -414,27 +426,30 @@ llvm::AllocaInst *ElementType::preallocate_matched_block(JIT *jit, llvm::Value *
 
 }
 
-llvm::AllocaInst *ElementType::preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
+llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
                                                        int fixed_data_length, llvm::Function *function) {
     return preallocate_fixed_block(jit, CodegenUtils::get_i64(num_structs), CodegenUtils::get_i64(num_prim_values),
                                    CodegenUtils::get_i64(fixed_data_length), function);
 }
 
-llvm::AllocaInst *ElementType::preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                        llvm::Value *fixed_data_length, llvm::Function *function) {
     llvm::BasicBlock *preallocate = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
     jit->get_builder().CreateBr(preallocate);
     jit->get_builder().SetInsertPoint(preallocate);
     // first create an llvm location for all of this
     // this is like doing Element<T> **e = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
-    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
-                                                                    jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
+    llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
+            allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
+                      jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
     // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-    llvm::AllocaInst *preallocated_struct_ptr_space = allocator(jit, llvm::PointerType::get(this->codegen_type(), 0),
-                                                                jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof())), "struct_ptr_pool");
+    llvm::AllocaInst *preallocated_struct_ptr_space =
+            allocator(jit, llvm::PointerType::get(this->codegen_type(), 0),
+                      jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof())), "struct_ptr_pool");
     // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-    llvm::AllocaInst *preallocated_T_ptr_space = allocator(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
-                                                           jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
+    llvm::AllocaInst *preallocated_T_ptr_space =
+            allocator(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
+                      jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
 
     // now take the memory pools and split it up evenly across num_elements
     ForLoop loop(jit, function);
@@ -449,7 +464,7 @@ llvm::AllocaInst *ElementType::preallocate_fixed_block(JIT *jit, llvm::Value *nu
     jit->get_builder().SetInsertPoint(loop_body);
     llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop_idx), fixed_data_length);
     divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
-                                     preallocated_T_ptr_space, loop_idx, T_ptr_idx);
+                                     preallocated_T_ptr_space, loop_idx, T_ptr_idx, this);
     jit->get_builder().CreateBr(loop.get_increment_bb());
 
     jit->get_builder().SetInsertPoint(dummy);

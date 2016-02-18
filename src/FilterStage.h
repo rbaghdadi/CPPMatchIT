@@ -80,15 +80,13 @@ public:
             llvm::AllocaInst *num_prim_values_ctr; // only used if this isn't fixed size
             // preallocate space for the output
             // get the output type underneath the pointer it is wrapper in
-            llvm::AllocaInst *space;
             // matched size, i.e. the number of primitive values in each output Element's array is allocated to be the same size as the input array
             num_prim_values_ctr = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-            jit->get_builder().CreateStore(
-                    jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]),
-                    num_prim_values_ctr); // this field contains the number of primitive values, which is static even though
+            jit->get_builder().CreateStore(jit->get_builder().CreateLoad(wal.get_args_alloc()[wal.get_args_alloc().size() - 2]),
+                                           num_prim_values_ctr); // this field contains the number of primitive values, which is static even though
             llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
             // across structs the sizes are variable
-            space = mfunction->get_extern_param_types()[0]->get_underlying_types()[0]->
+            llvm::AllocaInst *space = mfunction->get_extern_param_types()[0]->get_underlying_types()[0]->
                     preallocate_matched_block(jit, loop_bound_load, jit->get_builder().CreateLoad(num_prim_values_ctr),
                                               mfunction->get_extern_wrapper(), wal.get_args_alloc()[0], true);
             jit->get_builder().CreateBr(loop.get_condition_bb());
@@ -105,8 +103,7 @@ public:
             // get the inputs to the extern function
             eal.set_loop_idx_alloc(loop_idx);
             eal.set_wrapper_input_arg_alloc(wal.get_args_alloc()[0]);
-            eal.codegen(
-                    jit); // don't set preallocated output space b/c the user isn't getting an output passed to their function
+            eal.codegen(jit); // don't set preallocated output space b/c the user isn't getting an output passed to their function
             // call the extern function
             ExternCallIB ec;
             ec.insert(mfunction->get_extern_wrapper());

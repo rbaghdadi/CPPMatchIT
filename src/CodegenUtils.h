@@ -77,8 +77,8 @@ llvm::Value *get_mtype_segments_size(JIT *jit, llvm::AllocaInst *data_to_store_a
 std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function *function);
 
 std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst *wrapper_input_arg_alloc,
-                                                      llvm::AllocaInst *preallocated_output,
-                                                      llvm::AllocaInst *loop_idx);
+                                                      llvm::AllocaInst *preallocated_output, llvm::AllocaInst *loop_idx,
+                                                      bool is_segmentation_stage = false);
 
 llvm::AllocaInst * create_extern_call(JIT *jit, llvm::Function *extern_function,
                                       std::vector<llvm::AllocaInst *> extern_arg_allocs);

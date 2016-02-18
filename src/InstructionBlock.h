@@ -106,6 +106,11 @@ private:
     llvm::AllocaInst *loop_idx_alloc;
 
     /**
+     * Is this the SegmentationStage?
+     */
+    bool is_segmentation_stage = false;
+
+    /**
      * The allocated space for the input elements for the extern function.
      * Generated when codegen is called.
      */
@@ -126,6 +131,8 @@ public:
     void set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space);
 
     void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
+
+    void set_segmentation_stage();
 
     void codegen(JIT *jit, bool no_insert = false);
 

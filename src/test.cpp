@@ -9,6 +9,7 @@
 #include "./CodegenUtils.h"
 #include "./TransformStage.h"
 #include "./FilterStage.h"
+#include "./SegmentationStage.h"
 #include "./Pipeline.h"
 
 class TruncateTransform : public TransformStage<const Element2<float>, Element2<float>> {
@@ -17,7 +18,7 @@ public:
 
     TruncateTransform(void (*transform)(const Element2<float>*, Element2<float>*), JIT *jit) :
 //            TransformStage(transform, "my_truncate_matched", jit, new ElementType(create_type<float>()), new ElementType(create_type<float>()), 0, false) { }
-     TransformStage(transform, "my_truncate_fixed", jit, new ElementType(create_type<float>()), new ElementType(create_type<float>()), 5, true) {}
+            TransformStage(transform, "my_truncate_fixed", jit, new ElementType(create_type<float>()), new ElementType(create_type<float>()), 5, true) {}
 };
 
 class Filter : public FilterStage<const Element2<float>> {
@@ -29,9 +30,17 @@ public:
 
 };
 
+class Segmentation : public SegmentationStage<const Element2<float>, Segment<float>> {
+
+public:
+
+    Segmentation(void (*segment)(const Element2<float>*, Segment<float>**), JIT *jit) :
+            SegmentationStage(segment, "segmentor", jit, new ElementType(create_type<float>()), new SegmentType(create_type<float>()), 4, 0.5) {}
+
+};
+
 // for the matched size
 extern "C" void my_truncate_matched(const Element2<float> *in, Element2<float> *out) {
-    std::cerr << "in here" << std::endl;
     out->set_tag(in->get_tag());
     out->set_data(in->get_data(), in->get_data_length());
     std::cerr << "done and the elements of this array are: ";
@@ -44,7 +53,6 @@ extern "C" void my_truncate_matched(const Element2<float> *in, Element2<float> *
 
 // for the fixed size
 extern "C" void my_truncate_fixed(const Element2<float> *in, Element2<float> *out) {
-    std::cerr << "in here" << std::endl;
     out->set_tag(in->get_tag());
     out->set_data(in->get_data(), 5); // 5 is the transform size
     std::cerr << "done and the elements of this array are: ";
@@ -60,6 +68,14 @@ extern "C" bool my_filter(const Element2<float> *in) {
     return true;
 }
 
+extern "C" void segmentor(const Element2<float> *in, Segment<float> **out) {
+    int seg_ctr = 0;
+    for (int i = 0; i < in->get_data_length() - 2; i+=2) {
+        out[seg_ctr++]->set_data(&(in->get_data()[i]), 4, i);
+    }
+    std::cerr << "seg ctr output = " << seg_ctr << std::endl;
+}
+
 int main() {
 
     LLVM::init();
@@ -69,26 +85,27 @@ int main() {
     TruncateTransform trunc_matched(my_truncate_matched, &jit);
     TruncateTransform trunc_fixed(my_truncate_fixed, &jit);
     Filter filter(my_filter, &jit);
-
+    Segmentation seg(segmentor, &jit);
 
     Element2<float> *an_element = new Element2<float>();
     an_element->set_tag(10L);
-    float f1[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
-    an_element->set_data(f1, 10);
+    float f1[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.0, 9.0}; // padding for the segmentation
+    an_element->set_data(f1, 12);
 
     Element2<float> *another_element = new Element2<float>();
     another_element->set_tag(29L);
-    float f2[] = {10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0};
-    another_element->set_data(f2, 10);
+    float f2[] = {10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 19.0, 19.0}; // padding for the segmentation
+    another_element->set_data(f2, 12);
 
     std::vector<const void *> inputs;
     inputs.push_back(an_element);
     inputs.push_back(another_element);
 
     Pipeline pipeline;
-    pipeline.register_stage(&filter);
-    pipeline.register_stage(&trunc_fixed);
-    pipeline.register_stage(&filter);
+//    pipeline.register_stage(&filter);
+//    pipeline.register_stage(&trunc_fixed);
+//    pipeline.register_stage(&filter);
+    pipeline.register_stage(&seg);
     // this says there are 10 total primitive values (floats in this case) across inputs.size() number of input structs
     // it doesn't matter if this is fixed, matched, or variable size. It's just the raw total of prim values.
     // If there is not a fixed size, then the preallocation code will need to be changed as follows:
@@ -100,7 +117,7 @@ int main() {
     // matched
     // this says there are 20 total primitive values that will be passed along from input to output in the first stage
     // TODO abstract this away from the user
-    pipeline.codegen(&jit, 20, inputs.size());
+    pipeline.codegen(&jit, 24, inputs.size());
     // fixed
     // this says there are trunc_fixed.get_transform_size() * inputs.size() total primitive values that will be passed along
     // from input to output in the first stage (so in this case of truncation, this value is NOT the number of primitive values

@@ -250,9 +250,50 @@ public:
         this->data_length = data_length;
     }
 
-//    void add_data_element(T element) const {
-//        data[data_length++] = element;
-//    }
+};
+
+template <typename T>
+class Segment {
+private:
+
+    long tag;
+    long data_length;
+    long offset;
+    T *data;
+
+public:
+
+    Segment() {
+        data_length = 0;
+        data = nullptr;
+    }
+
+    long get_tag() const {
+        return tag;
+    }
+
+    long get_data_length() const {
+        return data_length;
+    }
+
+    T *get_data() const {
+        return data;
+    }
+
+    void set_tag(long tag) {
+        this->tag = tag;
+    }
+
+    void set_data(T *data, long data_length, long offset) {
+        if (!this->data) {
+            std::cerr << "About to malloc space for the data array in Element2. Make sure this is on purpose!" << std::endl;
+            this->data = (T*)malloc(sizeof(T) * data_length);
+        }
+        std::cerr << "memcpy " << data_length * sizeof(T) << " bytes" << std::endl;
+        memcpy(this->data, data, data_length * sizeof(T));
+        this->data_length = data_length;
+        this->offset = offset;
+    }
 
 };
 
