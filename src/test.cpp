@@ -11,39 +11,9 @@
 #include "./FilterStage.h"
 #include "./SegmentationStage.h"
 #include "./Pipeline.h"
+#include "./StageFactory.h"
 
-class TruncateTransform : public TransformStage<const Element2<float>, Element2<float>> {
-
-public:
-
-    TruncateTransform(void (*transform)(const Element2<float>*, Element2<float>*), JIT *jit) :
-//            TransformStage(transform, "my_truncate_matched", jit, new ElementType(create_type<float>()),
-// new ElementType(create_type<float>()), 0, false) { }
-            TransformStage(transform, "my_truncate_fixed", jit, new ElementType(create_type<float>()),
-                           new ElementType(create_type<float>()), 5, true) {}
-};
-
-class Filter : public FilterStage<const Element2<float>> {
-
-public:
-
-    Filter(bool (*filter)(const Element2<float>*), JIT *jit) : FilterStage(filter, "my_filter", jit,
-                                                                           new ElementType(create_type<float>())) { }
-
-};
-
-class Segmentation : public SegmentationStage<const Element2<float>, Segment<float>> {
-
-public:
-
-    Segmentation(void (*segment)(const Element2<float>*, Segment<float>**), JIT *jit) :
-            SegmentationStage(segment, "segmentor", jit, new ElementType(create_type<float>()),
-                              new SegmentType(create_type<float>()), 4, 0.5) {}
-
-};
-
-// for the matched size
-extern "C" void my_truncate_matched(const Element2<float> *in, Element2<float> *out) {
+extern "C" void my_truncate_matched(const FloatElement *in, FloatElement *out) {
     out->set_tag(in->get_tag());
     out->set_data(in->get_data(), in->get_data_length());
     std::cerr << "done and the elements of this array are: ";
@@ -54,8 +24,7 @@ extern "C" void my_truncate_matched(const Element2<float> *in, Element2<float> *
     std::cerr << std::endl;
 }
 
-// for the fixed size
-extern "C" void my_truncate_fixed(const Element2<float> *in, Element2<float> *out) {
+extern "C" void my_truncate_fixed(const FloatElement *in, FloatElement *out) {
     out->set_tag(in->get_tag());
     out->set_data(in->get_data(), 5); // 5 is the transform size
     std::cerr << "done and the elements of this array are: ";
@@ -66,12 +35,12 @@ extern "C" void my_truncate_fixed(const Element2<float> *in, Element2<float> *ou
     std::cerr << std::endl;
 }
 
-extern "C" bool my_filter(const Element2<float> *in) {
+extern "C" bool my_filter(const FloatElement *in) {
     std::cerr << "fake filtering things" << std::endl;
-    return false;
+    return true;
 }
 
-extern "C" void segmentor(const Element2<float> *in, Segment<float> **out) {
+extern "C" void segmentor(const FloatElement *in, FloatSegment **out) {
     int seg_ctr = 0;
     for (int i = 0; i < in->get_data_length() - 2; i+=2) {
         out[seg_ctr++]->set_data(&(in->get_data()[i]), 4, i);
@@ -85,17 +54,20 @@ int main() {
     JIT jit;
     register_utils(&jit);
 
-    TruncateTransform trunc_matched(my_truncate_matched, &jit);
-    TruncateTransform trunc_fixed(my_truncate_fixed, &jit);
-    Filter filter(my_filter, &jit);
-    Segmentation seg(segmentor, &jit);
+    TransformStage<const FloatElement, FloatElement> trunc_matched =
+            create_transform_stage(&jit, my_truncate_matched, "my_truncate_matched");
+    TransformStage<const FloatElement, FloatElement> trunc_fixed =
+            create_transform_stage(&jit, my_truncate_fixed, "my_truncate_fixed");
+    FilterStage<const FloatElement> filter = create_filter_stage(&jit, my_filter, "my_filter");
+    SegmentationStage<const FloatElement, FloatSegment> segment =
+            create_segmentation_stage(&jit, segmentor, "segmentor", 4, 0.5);
 
-    Element2<float> *an_element = new Element2<float>();
+    FloatElement *an_element = new FloatElement();
     an_element->set_tag(10L);
     float f1[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.0, 9.0}; // padding for the segmentation
     an_element->set_data(f1, 12);
 
-    Element2<float> *another_element = new Element2<float>();
+    FloatElement *another_element = new FloatElement();
     another_element->set_tag(29L);
     float f2[] = {10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 19.0, 19.0}; // padding for the segmentation
     another_element->set_data(f2, 12);
@@ -105,10 +77,10 @@ int main() {
     inputs.push_back(another_element);
 
     Pipeline pipeline;
-    pipeline.register_stage(&filter);
+//    pipeline.register_stage(&filter);
     pipeline.register_stage(&trunc_fixed);
 //    pipeline.register_stage(&filter);
-//    pipeline.register_stage(&seg);
+//    pipeline.register_stage(&segment);
     // this says there are 10 total primitive values (floats in this case) across inputs.size() number of input structs
     // it doesn't matter if this is fixed, matched, or variable size. It's just the raw total of prim values.
     // If there is not a fixed size, then the preallocation code will need to be changed as follows:

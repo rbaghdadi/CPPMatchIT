@@ -10,7 +10,6 @@
 #include "./Structures.h"
 #include "./JIT.h"
 
-// TODO does everything work if the user returns a single type like an mtype_int?
 /**
  * All the possible types available for users to use in their stages
  */
@@ -40,21 +39,6 @@ typedef enum {
  */
 
 class MType {
-private:
-
-    /*
-     * Premade types
-     */
-
-    static MType *void_type;
-    static MType *bool_type;
-    static MType *char_type;
-    static MType *short_type;
-    static MType *int_type;
-    static MType *long_type;
-    static MType *float_type;
-    static MType *double_type;
-
 protected:
 
     mtype_code_t mtype_code;
@@ -84,6 +68,28 @@ protected:
         }
     }
 
+    size_t sizeof_mtype(MType *type) {
+        switch (type->get_mtype_code()) {
+            case mtype_bool:
+                return sizeof(bool);
+            case mtype_char:
+                return sizeof(char);
+            case mtype_short:
+                return sizeof(short);
+            case mtype_int:
+                return sizeof(int);
+            case mtype_long:
+                return sizeof(long);
+            case mtype_float:
+                return sizeof(float);
+            case mtype_double:
+                return sizeof(double);
+            default:
+                std::cerr << "bad user type for MType" << type->get_mtype_code() << std::endl;
+                exit(8);
+        }
+    }
+
     MType(mtype_code_t mtype_code, unsigned int bits) : mtype_code(mtype_code), bits(bits) {}
 
 public:
@@ -106,10 +112,6 @@ public:
      * Generate LLVM code for this MType
      */
     virtual llvm::Type *codegen_type() = 0;
-
-    virtual size_t _sizeof() { }
-
-//    virtual llvm::Value *codegen_pool(JIT *jit, int num_elements) = 0;
 
     /**
      * Get the types underlying this current MType.
@@ -198,46 +200,6 @@ public:
     bool is_mtype_stage();
 
     /**
-     * Get preconstructed mtype_bool
-     */
-    static MType *get_bool_type();
-
-    /**
-    * Get preconstructed mtype_char
-    */
-    static MType *get_char_type();
-
-    /**
-    * Get preconstructed mtype_short
-    */
-    static MType *get_short_type();
-
-    /**
-    * Get preconstructed mtype_int
-    */
-    static MType *get_int_type();
-
-    /**
-    * Get preconstructed mtype_long
-    */
-    static MType *get_long_type();
-
-    /**
-    * Get preconstructed mtype_float
-    */
-    static MType *get_float_type();
-
-    /**
-    * Get preconstructed mtype_double
-    */
-    static MType *get_double_type();
-
-    /**
-    * Get preconstructed mtype_void
-    */
-    static MType *get_void_type();
-
-    /**
      * Print out all the types associated with this MType
      */
     virtual void dump() = 0;
@@ -247,28 +209,39 @@ public:
      */
     void set_bits(unsigned int bits);
 
-//    virtual size_t _sizeof() = 0;
-
+    /**
+     * How to allocate a block of fixed size for this MType
+     */
     virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                       llvm::Value *fixed_data_length, llvm::Function *function);
 
+    /**
+     * How to allocate a block of fixed size for this MType
+     */
     virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
                                                       int fixed_data_length,
                                                       llvm::Function *function);
 
+    /**
+     * How to allocate a block of matched size for this MType
+     */
     virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                         llvm::Function *function, llvm::AllocaInst *input_structs,
                                                         bool allocate_outer_only = false);
-
+    /**
+     * How to allocate a block of matched size for this MType
+     */
     virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
                                                         llvm::Function *function, llvm::AllocaInst *input_structs,
                                                         bool allocate_outer_only = false);
 
-    virtual MType* get_user_type() { }
+    virtual MType* get_user_type() { std::cerr << "wtf" << std::endl; return nullptr; }
 
-    virtual size_t _sizeof_ptr() { }
+    virtual size_t _sizeof_ptr() { return 0; }
 
-    virtual size_t _sizeof_T_type() { }
+    virtual size_t _sizeof_T_type() { return 0;}
+
+    virtual size_t _sizeof() { return 0; }
 
 };
 
@@ -277,6 +250,17 @@ public:
  */
 
 class MPrimType : public MType {
+private:
+
+    static MPrimType *void_type;
+    static MPrimType *bool_type;
+    static MPrimType *char_type;
+    static MPrimType *short_type;
+    static MPrimType *int_type;
+    static MPrimType *long_type;
+    static MPrimType *float_type;
+    static MPrimType *double_type;
+
 public:
 
     MPrimType(mtype_code_t mtype_code, unsigned int bits) : MType(mtype_code, bits) {
@@ -293,20 +277,45 @@ public:
         return bits / 8;
     }
 
+    /**
+     * Get preconstructed mtype_bool
+     */
+    static MPrimType *get_bool_type();
 
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
+    /**
+     * Get preconstructed mtype_char
+     */
+    static MPrimType *get_char_type();
 
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
+    /**
+     * Get preconstructed mtype_short
+     */
+    static MPrimType *get_short_type();
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
+    /**
+     * Get preconstructed mtype_int
+     */
+    static MPrimType *get_int_type();
 
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
+    /**
+     * Get preconstructed mtype_long
+     */
+    static MPrimType *get_long_type();
+
+    /**
+     * Get preconstructed mtype_float
+     */
+    static MPrimType *get_float_type();
+
+    /**
+     * Get preconstructed mtype_double
+     */
+    static MPrimType *get_double_type();
+
+    /**
+     * Get preconstructed mtype_void
+     */
+    static MPrimType *get_void_type();
 
 };
 
@@ -317,7 +326,7 @@ public:
 
     MPointerType(MType *pointer_type) : MType(mtype_ptr, 64) {
         underlying_types.push_back(pointer_type);
-    } // TODO 64 is platform specific
+    }
 
     ~MPointerType() {}
 
@@ -329,20 +338,6 @@ public:
         return 8;
     }
 
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-
 };
 
 template <typename T>
@@ -350,64 +345,64 @@ struct create_type;
 
 template <>
 struct create_type<bool> {
-    operator MType*() {
-        return MType::get_bool_type();
+    operator MPrimType*() {
+        return MPrimType::get_bool_type();
     }
 };
 
 template <>
 struct create_type<char> {
-    operator MType*() {
-        return MType::get_char_type();
+    operator MPrimType*() {
+        return MPrimType::get_char_type();
     }
 };
 
 template <>
 struct create_type<unsigned char> {
-    operator MType*() {
-        return MType::get_char_type();
+    operator MPrimType*() {
+        return MPrimType::get_char_type();
     }
 };
 
 template <>
 struct create_type<short> {
-    operator MType*() {
-        return MType::get_short_type();
+    operator MPrimType*() {
+        return MPrimType::get_short_type();
     }
 };
 
 template <>
 struct create_type<int> {
-    operator MType*() {
-        return MType::get_int_type();
+    operator MPrimType*() {
+        return MPrimType::get_int_type();
     }
 };
 
 template <>
 struct create_type<unsigned int> {
-    operator MType*() {
-        return MType::get_int_type();
+    operator MPrimType*() {
+        return MPrimType::get_int_type();
     }
 };
 
 template <>
 struct create_type<long> {
-    operator MType*() {
-        return MType::get_long_type();
+    operator MPrimType*() {
+        return MPrimType::get_long_type();
     }
 };
 
 template <>
 struct create_type<float> {
-    operator MType*() {
-        return MType::get_float_type();
+    operator MPrimType*() {
+        return MPrimType::get_float_type();
     }
 };
 
 template <>
 struct create_type<double> {
-    operator MType*() {
-        return MType::get_double_type();
+    operator MPrimType*() {
+        return MPrimType::get_double_type();
     }
 };
 
@@ -418,10 +413,9 @@ struct create_type<T *> {
     }
 };
 
-template <typename T>
-MPointerType *create_pointer_type() {
-    return new MPointerType(create_type<T>());
-}
+/*
+ * MStructType
+ */
 
 class MStructType : public MType {
 public:
@@ -438,131 +432,14 @@ public:
 
     llvm::Type *codegen_type();
 
-//    llvm::Value *codegen_pool(JIT *jit, int num_elements);
-
-    size_t _sizeof() { return 0; }
-
-//    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-//                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-//
-//    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-//                                              int fixed_data_length,
-//                                              llvm::Function *function) { }
-//
-//    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-//                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
-//                                                    bool allocate_outer_only) {  }
-//
-//    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-//                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-};
-
-/*
- * MArrayType
- */
-
-// MArrayType data type: MPointerType pointing to:
-// MPrimType with type code: 3
-// followed by
-// MPrimType with type code: 5
-// MPrimType with type code: 5
-class MArrayType : public MStructType {
-public:
-
-    MArrayType(MType *user_type) : MStructType(mtype_marray) {
-        MType *i = create_type<int>();
-        MPointerType *user_ptr = new MPointerType(user_type);
-        underlying_types.push_back(user_ptr);
-        underlying_types.push_back(i);
-        underlying_types.push_back(i);
-        set_bits(user_ptr->get_bits() + i->get_bits() * 2);
-        std::cerr << "MArray has this many bits: " << user_ptr->get_bits() + i->get_bits() * 2 << std::endl;
-    }
-
-    void dump();
-
-//    // if the type is X, do X *x = (X*)malloc(sizeof(X) * num_elements);
-//    void codegen_pool(JIT *jit, int num_elements, llvm::AllocaInst *malloc_dest) {
-//        llvm::Type *marray_type = llvm::PointerType::get(codegen_type(), 0); // creates {i8*,i32,i32}*
-//        size_t pool_size = sizeof(MArrayType) * num_elements;
-//        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, llvm::);
-//
-////        llvm::Type *ptr_ptr_type = llvm::PointerType::get(llvm::PointerType::get(codegen(), 0), 0);
-////        size_t malloc_size = sizeof(MArrayType*) * num_elements;
-////        llvm::Value *malloced = CodegenUtils::codegen_c_malloc64_and_cast(jit, malloc_size, ptr_ptr_type);
-////        jit->get_builder().CreateStore(malloced, malloc_dest);
-//    }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-
-};
-
-
-template <typename T>
-MArrayType *create_marraytype() {
-    return new MArrayType(create_type<T *>());
-};
-
-/*
- * FileType
- */
-
-class FileType : public MStructType {
-public:
-
-    FileType() : MStructType(mtype_file) {
-        MType *i = create_type<int>(); // the length of the filepath
-        MType *c = new MPointerType(create_type<char>()); // the filepath
-        underlying_types.push_back(i);
-        underlying_types.push_back(c);
-    }
-
-    void dump();
-
     size_t _sizeof() {
-        return sizeof(File);
+        size_t total = 0;
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            total += sizeof(*iter);
+        }
     }
 
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-
-//    void codegen_pool(JIT *jit, int num_elements) {
-//        // creates {i32, i8*}*
-//        llvm::Type *file_type = llvm::PointerType::get(codegen_type(), 0);
-//        // allocate enough space for num_elements worth of FileType
-//        size_t pool_size = sizeof(FileType) * num_elements;
-//        // mallocs i8* and casts to {i32, i8*}*
-//        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, file_type);
-//    }
-
 };
-
-FileType *create_filetype();
-
-
 
 /*
  * ElementType
@@ -572,6 +449,7 @@ class ElementType : public MStructType {
 private:
 
     MType *user_type;
+    static ElementType *float_element_type;
 
 public:
 
@@ -593,19 +471,19 @@ public:
     size_t _sizeof() {
         switch (user_type->get_mtype_code()) {
             case mtype_bool:
-                return sizeof(Element2<bool>);
+                return sizeof(Element<bool>);
             case mtype_char:
-                return sizeof(Element2<char>);
+                return sizeof(Element<char>);
             case mtype_short:
-                return sizeof(Element2<short>);
+                return sizeof(Element<short>);
             case mtype_int:
-                return sizeof(Element2<int>);
+                return sizeof(Element<int>);
             case mtype_long:
-                return sizeof(Element2<long>);
+                return sizeof(Element<long>);
             case mtype_float:
-                return sizeof(Element2<float>);
+                return sizeof(Element<float>);
             case mtype_double:
-                return sizeof(Element2<double>);
+                return sizeof(Element<double>);
             default:
                 std::cerr << "bad user type for ElementType " << user_type->get_mtype_code() << std::endl;
                 exit(8);
@@ -615,19 +493,19 @@ public:
     size_t _sizeof_ptr() {
         switch (user_type->get_mtype_code()) {
             case mtype_bool:
-                return sizeof(Element2<bool>*);
+                return sizeof(Element<bool>*);
             case mtype_char:
-                return sizeof(Element2<char>*);
+                return sizeof(Element<char>*);
             case mtype_short:
-                return sizeof(Element2<short>*);
+                return sizeof(Element<short>*);
             case mtype_int:
-                return sizeof(Element2<int>*);
+                return sizeof(Element<int>*);
             case mtype_long:
-                return sizeof(Element2<long>*);
+                return sizeof(Element<long>*);
             case mtype_float:
-                return sizeof(Element2<float>*);
+                return sizeof(Element<float>*);
             case mtype_double:
-                return sizeof(Element2<double>*);
+                return sizeof(Element<double>*);
             default:
                 std::cerr << "bad user type for ElementType" << user_type->get_mtype_code() << std::endl;
                 exit(8);
@@ -635,40 +513,13 @@ public:
     }
 
     size_t _sizeof_T_type() {
-        switch (user_type->get_mtype_code()) {
-            case mtype_bool:
-                return sizeof(bool);
-            case mtype_char:
-                return sizeof(char);
-            case mtype_short:
-                return sizeof(short);
-            case mtype_int:
-                return sizeof(int);
-            case mtype_long:
-                return sizeof(long);
-            case mtype_float:
-                return sizeof(float);
-            case mtype_double:
-                return sizeof(double);
-            default:
-                std::cerr << "bad user type for ElementType" << user_type->get_mtype_code() << std::endl;
-                exit(8);
-        }
+        sizeof_mtype(user_type);
     }
 
-//    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-//                                              llvm::Value *fixed_data_length, llvm::Function *function);
-//
-//    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-//                                              int fixed_data_length,
-//                                              llvm::Function *function);
-//
-//    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-//                                                    llvm::Function *function, llvm::AllocaInst *input_structs,
-//                                                    bool allocate_outer_only = false);
-//
-//    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-//                                                    llvm::AllocaInst *input_structs, bool allocate_outer_only = false);
+    /**
+     * Get preconstructed FloatElementType
+     */
+    static ElementType *get_float_element_type();
 
 };
 
@@ -680,6 +531,7 @@ class SegmentType : public MStructType {
 private:
 
     MType *user_type;
+    static SegmentType *float_segment_type;
 
 public:
 
@@ -698,7 +550,6 @@ public:
         return user_type;
     }
 
-    // get the size of a full element
     size_t _sizeof() {
         switch (user_type->get_mtype_code()) {
             case mtype_bool:
@@ -744,214 +595,28 @@ public:
     }
 
     size_t _sizeof_T_type() {
-        switch (user_type->get_mtype_code()) {
-            case mtype_bool:
-                return sizeof(bool);
-            case mtype_char:
-                return sizeof(char);
-            case mtype_short:
-                return sizeof(short);
-            case mtype_int:
-                return sizeof(int);
-            case mtype_long:
-                return sizeof(long);
-            case mtype_float:
-                return sizeof(float);
-            case mtype_double:
-                return sizeof(double);
-            default:
-                std::cerr << "bad user type for SegmentType" << user_type->get_mtype_code() << std::endl;
-                exit(8);
-        }
+        sizeof_mtype(user_type);
     }
+
+    /**
+     * Get preconstructed FloatSegmentType
+     */
+    static SegmentType *get_float_segment_type();
 
 };
 
-
-
-/*
- * ElementType
- */
-
-//class ElementType : public MStructType {
-//private:
-//
-//    mtype_code_t user_mtype_code;
-//
-//public:
-//
-//    ElementType(MType *user_type) : MStructType(mtype_element), user_mtype_code(user_type->get_mtype_code()) {
-//        MType *i = create_type<int>(); // the length of the filepath
-//        MType *c = new MPointerType(create_type<char>()); // the filepath
-//        MType *user_ptr = new MPointerType(user_type);
-//        underlying_types.push_back(i); // filepath length
-//        underlying_types.push_back(i); // data length
-//        underlying_types.push_back(c); // filepath
-//        underlying_types.push_back(user_ptr); // data array
-//    }
-//
-//    void dump();
-//
-//    size_t _sizeof() {
-//        switch (user_mtype_code) {
-//            case mtype_bool:
-//                return sizeof(Element<bool>);
-//            case mtype_char:
-//                return sizeof(Element<char>);
-//            case mtype_short:
-//                return sizeof(Element<short>);
-//            case mtype_int:
-//                return sizeof(Element<int>);
-//            case mtype_long:
-//                return sizeof(Element<long>);
-//            case mtype_float:
-//                return sizeof(Element<float>);
-//            case mtype_double:
-//                return sizeof(Element<double>);
-//            default:
-//                std::cerr << "bad user type for ElementType";
-//                exit(8);
-//        }
-//    }
-//
-////    void codegen_pool(JIT *jit, int num_elements) {
-////        // creates {i32, i8*}*
-////        llvm::Type *file_type = llvm::PointerType::get(codegen_type(), 0);
-////        // allocate enough space for num_elements worth of FileType
-////        size_t pool_size = sizeof(FileType) * num_elements;
-////        // mallocs i8* and casts to {i32, i8*}*
-////        llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, file_type);
-////    }
-//
-//};
-
-/*
- * WrapperOutputType
- */
-
-class WrapperOutputType : public MStructType {
-public:
-
-    WrapperOutputType(MType *user_type) : MStructType(mtype_wrapper_output) {
-        MPointerType *user_ptr = new MPointerType(new MArrayType(new MPointerType(user_type)));
-        underlying_types.push_back(user_ptr);
-        set_bits(user_ptr->get_bits());
+template <>
+struct create_type<FloatElement> {
+    operator ElementType*() {
+        return ElementType::get_float_element_type();
     }
-
-    void dump();
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
 };
 
-/*
- * SegmentedElement
- */
-
-class SegmentedElementType : public MStructType {
-public:
-
-    SegmentedElementType(MType *user_type) : MStructType(mtype_segment) {
-        MType *c = new MPointerType(new MArrayType(create_type<char>()));
-        MType *user_ptr = new MPointerType(new MArrayType(user_type));
-        MType *i = create_type<int>();
-        underlying_types.push_back(c);
-        underlying_types.push_back(user_ptr);
-        underlying_types.push_back(i); // the offset
-        set_bits(c->get_bits() + user_ptr->get_bits() + i->get_bits());
+template <>
+struct create_type<FloatSegment> {
+    operator SegmentType*() {
+        return SegmentType::get_float_segment_type();
     }
-
-    void dump();
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-};
-
-/*
- * SegmentsType
- */
-
-class SegmentsType : public MStructType {
-public:
-
-    SegmentsType(MType *user_type) : MStructType(mtype_segments) {
-        MType *user_ptr = new MPointerType(new MArrayType(new MPointerType(new SegmentedElementType(user_type))));
-//        MType *i = create_type<int>();
-        underlying_types.push_back(user_ptr);
-//        underlying_types.push_back(i);
-        set_bits(user_ptr->get_bits());// + i->get_bits());
-    }
-
-    void dump();
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-};
-
-/*
- * ComparisonElementType
- */
-
-class ComparisonElementType : public MStructType {
-public:
-
-    ComparisonElementType(MType *user_type) : MStructType(mtype_comparison_element) {
-        MType *c = new MPointerType(new MArrayType(create_type<char>()));
-        MType *user_ptr = new MPointerType(new MArrayType(user_type));
-        underlying_types.push_back(c);
-        underlying_types.push_back(c);
-        underlying_types.push_back(user_ptr);
-        set_bits(c->get_bits() * 2 + user_ptr->get_bits());
-    }
-
-    void dump();
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                              llvm::Value *fixed_data_length, llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                              int fixed_data_length,
-                                              llvm::Function *function) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                bool allocate_outer_only) { }
-
-    llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
-                                                llvm::AllocaInst *input_structs, bool allocate_outer_only) { }
-
 };
 
 
@@ -1026,54 +691,18 @@ struct mtype_of<void> {
 };
 
 template <>
-struct mtype_of<FileType> {
-    operator mtype_code_t() {
-        return mtype_file;
-    }
-};
-
-template <>
-struct mtype_of<ElementType> {
+struct mtype_of<FloatElement> {
     operator mtype_code_t() {
         return mtype_element;
     }
 };
 
 template <>
-struct mtype_of<ComparisonElementType> {
-    operator mtype_code_t() {
-        return mtype_comparison_element;
-    }
-};
-
-template <>
-struct mtype_of<SegmentsType> {
-    operator mtype_code_t() {
-        return mtype_segments;
-    }
-};
-
-template <>
-struct mtype_of<SegmentedElementType> {
+struct mtype_of<FloatSegment> {
     operator mtype_code_t() {
         return mtype_segment;
     }
 };
-
-// get how many counters are associated with a type so we know what to return from a stage
-// For example, a FileType has a char* type in it, so from the stage we would want to return a single
-// counter that contains all the chars we need to allocate space for all the char* types when we create input to the next stage
-//template <typename T>
-//struct get_num_size_fields {
-//};
-//
-//template <>
-//struct get_num_size_fields<FileType> {
-//    operator int() {
-//        return 1;
-//    }
-//};
-
 
 
 #endif //MATCHIT_MTYPE_H

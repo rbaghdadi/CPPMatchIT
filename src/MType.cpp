@@ -26,13 +26,8 @@ unsigned int MType::get_bits() {
             bits_sum += (*iter)->get_bits();
         }
     }
-//    else {
-//        bits_sum += this->bits;
-//    }
     return bits_sum + this->bits;
-//    return bits;
 }
-
 
 std::vector<MType *> MType::get_underlying_types() {
     return underlying_types;
@@ -108,47 +103,6 @@ bool MType::is_mtype_stage() {
     return mtype_code == mtype_wrapper_output;
 }
 
-MType *MType::bool_type = new MPrimType(mtype_bool, 1);
-MType *MType::char_type = new MPrimType(mtype_char, 8);
-MType *MType::short_type = new MPrimType(mtype_short, 16);
-MType *MType::int_type = new MPrimType(mtype_int, 32);
-MType *MType::long_type = new MPrimType(mtype_long, 64);
-MType *MType::float_type = new MPrimType(mtype_float, 32);
-MType *MType::double_type = new MPrimType(mtype_double, 64);
-MType *MType::void_type = new MPrimType(mtype_void, 0);
-
-MType *MType::get_bool_type() {
-    return bool_type;
-}
-
-MType *MType::get_char_type() {
-    return char_type;
-}
-
-MType *MType::get_short_type() {
-    return short_type;
-}
-
-MType *MType::get_int_type() {
-    return int_type;
-}
-
-MType *MType::get_long_type() {
-    return long_type;
-}
-
-MType *MType::get_float_type() {
-    return float_type;
-}
-
-MType *MType::get_double_type() {
-    return double_type;
-}
-
-MType *MType::get_void_type() {
-    return void_type;
-}
-
 /*
  * MPrimType
  */
@@ -206,47 +160,12 @@ llvm::Type *MStructType::codegen_type() {
 }
 
 void MStructType::dump() {
-
+    int ctr = 0;
+    for (std::vector<MType*>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+        std::cerr << "Field " << ctr++ << " has type: ";
+        (*iter)->dump();
+    }
 }
-
-//// if the type is X, do X *x = (X*)malloc(sizeof(X) * num_elements);
-//llvm::Value *MStructType::codegen_pool(JIT *jit, int num_elements) {
-//    // get the llvm type representing X
-//    llvm::Type *llvm_type = llvm::PointerType::get(codegen_type(), 0);
-//    // allocate enough space for num_elements worth of this type
-//    size_t pool_size = sizeof(*this) * num_elements;
-//    // mallocs i8* and casts to X*
-//    llvm::Value *pool = CodegenUtils::codegen_c_malloc64_and_cast(jit, pool_size, llvm_type);
-//}
-
-/*
- * MArrayType
- */
-
-void MArrayType::dump() {
-    std::cerr << "MArrayType data type: ";
-    underlying_types[0]->dump();
-    std::cerr << " and ";
-    underlying_types[1]->dump();
-    underlying_types[2]->dump();
-}
-
-//llvm::Type *MArrayType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
-
-/*
- * FileType
- */
-
-void FileType::dump() {
-    std::cerr << "FileType has field type ";
-    underlying_types[0]->dump();
-}
-
-//llvm::Type *FileType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
 
 /*
  * ElementType
@@ -261,6 +180,10 @@ void ElementType::dump() {
     underlying_types[2]->dump();
 }
 
+/*
+ * SegmentType
+ */
+
 void SegmentType::dump() {
     std::cerr << "SegmentType has tag type ";
     underlying_types[0]->dump();
@@ -271,6 +194,65 @@ void SegmentType::dump() {
     std::cerr << " and data type ";
     underlying_types[3]->dump();
 }
+
+/*
+ * Uniqued types
+ */
+
+MPrimType *MPrimType::bool_type = new MPrimType(mtype_bool, 1);
+MPrimType *MPrimType::char_type = new MPrimType(mtype_char, 8);
+MPrimType *MPrimType::short_type = new MPrimType(mtype_short, 16);
+MPrimType *MPrimType::int_type = new MPrimType(mtype_int, 32);
+MPrimType *MPrimType::long_type = new MPrimType(mtype_long, 64);
+MPrimType *MPrimType::float_type = new MPrimType(mtype_float, 32);
+MPrimType *MPrimType::double_type = new MPrimType(mtype_double, 64);
+MPrimType *MPrimType::void_type = new MPrimType(mtype_void, 0);
+ElementType *ElementType::float_element_type = new ElementType(MPrimType::get_float_type());
+SegmentType *SegmentType::float_segment_type = new SegmentType(MPrimType::get_float_type());
+
+MPrimType *MPrimType::get_bool_type() {
+    return bool_type;
+}
+
+MPrimType *MPrimType::get_char_type() {
+    return char_type;
+}
+
+MPrimType *MPrimType::get_short_type() {
+    return short_type;
+}
+
+MPrimType *MPrimType::get_int_type() {
+    return int_type;
+}
+
+MPrimType *MPrimType::get_long_type() {
+    return long_type;
+}
+
+MPrimType *MPrimType::get_float_type() {
+    return float_type;
+}
+
+MPrimType *MPrimType::get_double_type() {
+    return double_type;
+}
+
+MPrimType *MPrimType::get_void_type() {
+    return void_type;
+}
+
+ElementType *ElementType::get_float_element_type() {
+    return float_element_type;
+}
+
+SegmentType *SegmentType::get_float_segment_type() {
+    return float_segment_type;
+}
+
+/*
+ * Preallocation stuff
+ */
 
 // wrapper for creating llvm::AllocaInst and then filling it with malloc'd space
 llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
@@ -333,7 +315,7 @@ llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counte
 
     // counters
     jit->get_builder().SetInsertPoint(loop->get_counter_bb());
-    llvm::AllocaInst *counters[num_loop_counters];
+    llvm::AllocaInst **counters = (llvm::AllocaInst **)malloc(sizeof(llvm::AllocaInst *) * num_loop_counters);
     loop->codegen_counters(counters, num_loop_counters);
     llvm::AllocaInst *loop_idx = counters[0];
     llvm::AllocaInst *loop_bound = counters[1];
@@ -421,6 +403,7 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_st
         jit->get_builder().CreateStore(inc_T_idx, T_idx);
         jit->get_builder().CreateBr(loop.get_increment_bb());
         jit->get_builder().SetInsertPoint(dummy);
+        free(counters);
     }
     return preallocated_struct_ptr_ptr_space;
 
@@ -468,97 +451,8 @@ llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_stru
     jit->get_builder().CreateBr(loop.get_increment_bb());
 
     jit->get_builder().SetInsertPoint(dummy);
+
+    free(counters);
+
     return preallocated_struct_ptr_ptr_space;
 }
-
-/*
- * WrapperOutputType
- */
-
-void WrapperOutputType::dump() {
-    std::cerr << "WrapperOutputType has field types ";
-    underlying_types[0]->dump();
-}
-
-//llvm::Type *WrapperOutputType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
-
-/*
- * SegmentedElementType
- */
-
-void SegmentedElementType::dump() {
-    std::cerr << "SegmentedElementType has field types ";
-    underlying_types[0]->dump();
-    std::cerr << " and ";
-    underlying_types[1]->dump();
-    std::cerr << " and ";
-    underlying_types[2]->dump();
-}
-
-//llvm::Type *SegmentedElementType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
-
-/*
- * SegmentsType
- */
-
-void SegmentsType::dump() {
-    std::cerr << "SegmentsType has field types ";
-    underlying_types[0]->dump();
-}
-
-//llvm::Type *SegmentsType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
-
-/*
- * ComparisonElement
- */
-
-void ComparisonElementType::dump() {
-    std::cerr << "ComparisonElementType has field types ";
-    underlying_types[0]->dump();
-    std::cerr << " and ";
-    underlying_types[1]->dump();
-    std::cerr << " and ";
-    underlying_types[2]->dump();
-}
-
-//llvm::Type *ComparisonElementType::codegen() {
-//    return create_struct_type(underlying_types);
-//}
-
-//int main() {
-//    MArrayType *t = create_marraytype<char>();
-//    FileType *f = create_filetype();
-//    ElementType *e = create_elementtype<float>();
-//    t->dump();
-//    f->dump();
-//    e->dump();
-//
-//    return 0;
-//}
-
-/*
- * MStructType
- */
-//
-//llvm::Type *MStructType::codegen() {
-//    std::vector<llvm::Type*> llvm_types;
-//    for (std::vector<MType*>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-//        llvm_types.push_back((*iter)->codegen());
-//    }
-//    llvm::ArrayRef<llvm::Type*> struct_fields(llvm_types);
-//    return llvm::StructType::get(llvm::getGlobalContext(), struct_fields);
-//}
-//
-//void MStructType::dump() {
-//    std::cerr << "MStructType with type code: " << mtype_code << " and field types " << std::endl;
-//    for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-//        (*iter)->dump();
-//        std::cerr << "###" << std::endl;
-//    }
-//}

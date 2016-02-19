@@ -20,36 +20,18 @@ private:
 public:
 
     FilterStage(bool (*filter)(const I*), std::string filter_name, JIT *jit, MType *param_type) :
-            Stage(jit, mtype_of<I>(), mtype_bool, filter_name), filter(filter) {
-        std::vector<MType *> extern_param_types;
-        extern_param_types.push_back(new MPointerType(param_type));
-        std::vector<MType *> extern_wrapper_param_types;
-        extern_wrapper_param_types.push_back(new MPointerType(new MPointerType(param_type)));
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements coming in
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        std::vector<MType *> extern_wrapper_return_types;
-        MType *stage_return_type = new MPointerType(new MPointerType(param_type));
-        extern_wrapper_return_types.push_back(stage_return_type); // the actual data type passed back
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements going out
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        MPointerType *pointer_return_type = new MPointerType(new MStructType(mtype_struct, extern_wrapper_return_types));
-        MFunc *func = new MFunc(function_name, "TransformStage", create_type<bool>(), pointer_return_type,
-                                extern_param_types, extern_wrapper_param_types, jit);
-        set_function(func);
-
-//        std::vector<MType *> param_types;
-//        param_types.push_back(param_type);
-//        MType *stage_return_type = new MPointerType(new WrapperOutputType(param_type));
-//        MFunc *func = new MFunc(function_name, "FilterStage", create_type<bool>(), stage_return_type,
-//                                param_types, jit);
-//        set_function(func);
-    }
+            Stage(jit, "FilterStage", filter_name, param_type, param_type, MPrimType::get_bool_type()),
+            filter(filter) { }
 
     ~FilterStage() {}
 
     void init_codegen() {
         mfunction->codegen_extern_proto();
         mfunction->codegen_extern_wrapper_proto();
+    }
+
+    bool is_filter() {
+        return true;
     }
 
     void codegen() {
@@ -148,7 +130,7 @@ public:
 
             // store the preallocated space in the output struct (these gep idxs are for the different fields in the output struct)
             llvm::Value *field_one = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 0); // the data elements
-            llvm::Value *field_two = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 1); // num prim values across all the dat elements
+            llvm::Value *field_two = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 1); // num prim values across all the data elements
             llvm::Value *field_three = CodegenUtils::gep(jit, temp_wrapper_result_load, 0, 2); // num data elements
 
             // store all the processed structs in field one

@@ -18,36 +18,76 @@ class Stage {
 
 protected:
 
-    // these reference the wrapper functions, not the extern function that is what actually does work
     JIT *jit;
     MFunc *mfunction;
-    std::string function_name;
-    mtype_code_t input_mtype_code;
-    mtype_code_t output_mtype_code;
-    ForLoop *loop;
+//    mtype_code_t input_mtype_code;
+//    mtype_code_t output_mtype_code;
     bool codegen_done = false;
+    std::vector<MType *> mtypes_to_delete;
 
-    WrapperOutputStructIB *return_struct;
-    ForLoopEndIB *for_loop_end;
-    ExternArgLoaderIB *extern_init;
-    WrapperArgLoaderIB *load_input_args;
-    ExternCallIB *extern_call;
-    ExternCallStoreIB *extern_call_store;
 
 public:
 
-    Stage(JIT *jit, mtype_code_t input_type_code, mtype_code_t output_type_code, std::string function_name) :
-            jit(jit), function_name(function_name), input_mtype_code(input_type_code),
-            output_mtype_code(output_type_code) {
-        return_struct = new WrapperOutputStructIB();
-        for_loop_end = new ForLoopEndIB();
-        extern_init = new ExternArgLoaderIB();
-        load_input_args = new WrapperArgLoaderIB();
-        extern_call = new ExternCallIB();
-        extern_call_store = new ExternCallStoreIB();
+    // input_type: this is the type I in the subclasses. It's the user type that is going to be fed into the extern function
+    // output_type: this is the type O in the subclasses. It's the user type of the data that will be output from this stage
+    // (not including the additional counters and such that I manually add on)
+    // extern_return_type: this is the output type of the extern call. It will usually be mvoid_type, but in the case of
+    // something like filter, it will be mbool_type
+    Stage(JIT *jit, std::string stage_name, std::string function_name, MType *input_type, MType *output_type,
+          MType *extern_return_type) : jit(jit) {
+
+        MPointerType *input_type_ptr = new MPointerType(input_type);
+        MPointerType *output_type_ptr = new MPointerType(output_type);
+        MPointerType *input_type_ptr_ptr = new MPointerType(input_type_ptr);
+        MPointerType *output_type_ptr_ptr = new MPointerType(output_type_ptr);
+
+        mtypes_to_delete.push_back(input_type_ptr);
+        mtypes_to_delete.push_back(output_type_ptr);
+        mtypes_to_delete.push_back(input_type_ptr_ptr);
+        mtypes_to_delete.push_back(output_type_ptr_ptr);
+
+        // inputs to the extern function
+        std::vector<MType *> extern_param_types;
+        extern_param_types.push_back(input_type_ptr);
+        if (!is_filter()) {
+            if (!is_segmentation()) {
+                // give the user an array of pointers to hold all of the generated segments
+                extern_param_types.push_back(output_type_ptr);
+            } else {
+                extern_param_types.push_back(output_type_ptr_ptr);
+            }
+        }
+
+        // inputs to the wrapper, with the additional counters added on
+        std::vector<MType *> extern_wrapper_param_types;
+        extern_wrapper_param_types.push_back(input_type_ptr_ptr);
+        extern_wrapper_param_types.push_back(MPrimType::get_long_type()); // the number of data elements coming in
+        extern_wrapper_param_types.push_back(MPrimType::get_long_type()); // the total size of the arrays in the data elements coming in
+
+        // return type of the wrapper, with the additional counters added on
+        std::vector<MType *> extern_wrapper_return_types;
+        extern_wrapper_return_types.push_back(output_type_ptr_ptr); // the actual data type passed back
+        extern_wrapper_return_types.push_back(MPrimType::get_long_type()); // the number of data elements going out
+        extern_wrapper_return_types.push_back(MPrimType::get_long_type()); // the total size of the arrays in the data elements coming in
+        MStructType *return_type_struct_ptr = new MStructType(mtype_struct, extern_wrapper_return_types);
+        MPointerType *pointer_return_type = new MPointerType(return_type_struct_ptr);
+        mtypes_to_delete.push_back(return_type_struct_ptr);
+        mtypes_to_delete.push_back(pointer_return_type);
+
+        MFunc *func = new MFunc(function_name, stage_name, extern_return_type, pointer_return_type,
+                                extern_param_types, extern_wrapper_param_types, jit);
+        set_function(func);
+
     }
 
-    virtual ~Stage() { }
+    virtual ~Stage() {
+        if (mfunction) {
+            delete mfunction;
+        }
+        for (std::vector<MType *>::iterator iter = mtypes_to_delete.begin(); iter != mtypes_to_delete.end(); iter++) {
+            delete (*iter);
+        }
+    }
 
     std::string get_function_name();
 
@@ -57,32 +97,17 @@ public:
 
     virtual void init_codegen() = 0;
 
-    virtual void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eibb,
-                                        ExternCallIB *ecbb, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) = 0;
+    virtual void codegen() = 0;
 
-    virtual llvm::BasicBlock *branch_to_after_store();
+    virtual bool is_filter();
 
-    virtual void codegen();
+    virtual bool is_transform();
 
-    void set_for_loop(ForLoop *loop);
+    virtual bool is_segmentation();
 
-    mtype_code_t get_input_mtype_code();
-
-    mtype_code_t get_output_mtype_code();
+    virtual bool is_comparison();
 
     JIT *get_jit();
-
-    WrapperOutputStructIB *get_return_struct();
-
-    ForLoopEndIB *get_for_loop_end();
-
-    ExternArgLoaderIB *get_extern_init();
-
-    WrapperArgLoaderIB *get_load_input_args();
-
-    ExternCallIB *get_extern_call();
-
-    ExternCallStoreIB *get_extern_call_store();
 
 };
 

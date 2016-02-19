@@ -21,32 +21,20 @@ private:
 
 public:
 
-    // TODO I need deletes somewhere, or just don't pass these as pointers
-    TransformStage(void (*transform)(const I*, O*), std::string transform_name, JIT *jit, MType *param_type, MType *return_type, unsigned int transform_size, bool is_fixed_transform_size) :
-            Stage(jit, mtype_of<I>(), mtype_of<O>(), transform_name), transform(transform), transform_size(transform_size), is_fixed_transform_size(is_fixed_transform_size) {
-        std::vector<MType *> extern_param_types;
-        extern_param_types.push_back(new MPointerType(param_type));
-        extern_param_types.push_back(new MPointerType(return_type));
-        std::vector<MType *> extern_wrapper_param_types;
-        extern_wrapper_param_types.push_back(new MPointerType(new MPointerType(param_type)));
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements coming in
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        std::vector<MType *> extern_wrapper_return_types;
-        MType *stage_return_type = new MPointerType(new MPointerType(return_type));
-        extern_wrapper_return_types.push_back(stage_return_type); // the actual data type passed back
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements going out
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        MPointerType *pointer_return_type = new MPointerType(new MStructType(mtype_struct, extern_wrapper_return_types));
-        MFunc *func = new MFunc(function_name, "TransformStage", new MPrimType(mtype_void, 0), pointer_return_type,
-                                extern_param_types, extern_wrapper_param_types, jit);
-        set_function(func);
-    }
+    TransformStage(void (*transform)(const I*, O*), std::string transform_name, JIT *jit, MType *param_type,
+                   MType *return_type, unsigned int transform_size, bool is_fixed_transform_size) :
+            Stage(jit, "TransformStage", transform_name, param_type, return_type, MPrimType::get_void_type()),
+            transform(transform), transform_size(transform_size), is_fixed_transform_size(is_fixed_transform_size) { }
 
     ~TransformStage() { }
 
     void init_codegen() {
         mfunction->codegen_extern_proto();
         mfunction->codegen_extern_wrapper_proto();
+    }
+
+    bool is_transform() {
+        return true;
     }
 
     unsigned int get_transform_size() {
@@ -155,26 +143,6 @@ public:
             jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
             codegen_done = true;
         }
-    }
-
-    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
-                                ExternCallIB *ec, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
-
-//        // build the body
-//        eal->set_mfunction(mfunction);
-//        eal->set_loop_idx_alloc(loop_idx);
-//        eal->set_wrapper_input_arg_alloc(args[0]);
-//        eal->codegen(jit, false);
-//        jit->get_builder().CreateBr(ec->get_basic_block());
-//
-//        // create the call
-//        std::vector<llvm::AllocaInst *> sliced;
-//        sliced.push_back(eal->get_extern_input_arg_alloc());
-//        ec->set_mfunction(mfunction);
-//        ec->set_extern_arg_allocs(sliced);
-//        ec->codegen(jit, false);
-//        jit->get_builder().CreateBr(branch_to);
-
     }
 
 };

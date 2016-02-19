@@ -18,43 +18,18 @@ private:
 
 public:
 
-    SegmentationStage(void (*segment)(I*, O**), std::string segmentation_name, JIT *jit, MType *param_type, MType *return_type,
-                      unsigned int segment_size, float overlap) :
-            Stage(jit, mtype_of<I>(), mtype_of<O>(), segmentation_name), segment(segment), segment_size(segment_size), overlap(overlap) {
-        std::vector<MType *> extern_param_types;
-        extern_param_types.push_back(new MPointerType(param_type));
-        extern_param_types.push_back(new MPointerType(new MPointerType(return_type))); // give the user an array of pointers to hold all of the generated segments
-        std::vector<MType *> extern_wrapper_param_types;
-        extern_wrapper_param_types.push_back(new MPointerType(new MPointerType(param_type)));
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements coming in
-        extern_wrapper_param_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        std::vector<MType *> extern_wrapper_return_types;
-        MType *stage_return_type = new MPointerType(new MPointerType(return_type));
-        extern_wrapper_return_types.push_back(stage_return_type); // the actual data type passed back
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the number of data elements going out
-        extern_wrapper_return_types.push_back(new MPrimType(mtype_long, 64)); // the total size of the arrays in the data elements coming in
-        MPointerType *pointer_return_type = new MPointerType(new MStructType(mtype_struct, extern_wrapper_return_types));
-        MFunc *func = new MFunc(function_name, "TransformStage", new MPrimType(mtype_void, 0), pointer_return_type,
-                                extern_param_types, extern_wrapper_param_types, jit);
-        set_function(func);
-    }
-
-//    SegmentationStage(O (*segment)(I), std::string segmentation_name, JIT *jit, MType *param_type, MType *return_type) :
-//            Stage(jit, mtype_of<I>(), mtype_of<O>(), segmentation_name), segment(segment) {
-////        MType *return_type = create_type<O>();
-////        MType *param_type = create_type<I>();
-//        std::vector<MType *> param_types;
-//        param_types.push_back(param_type);
-//        MType *segment_type = return_type->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]->get_underlying_types()[0]; // this gets the type SegmentedElement<T>*
-//        segment_type->dump();
-//        MType *stage_return_type = new MPointerType(new WrapperOutputType(segment_type));
-//        MFunc *func = new MFunc(function_name, "SegmentationStage", new MPointerType(return_type), stage_return_type, param_types, jit);
-//        set_function(func);
-//    }
+    SegmentationStage(void (*segment)(const I*, O**), std::string segmentation_name, JIT *jit, MType *param_type,
+                      MType *return_type, unsigned int segment_size, float overlap) :
+            Stage(jit, "SegmentationStage", segmentation_name, param_type, return_type, MPrimType::get_void_type()),
+            segment(segment), segment_size(segment_size), overlap(overlap) { }
 
     void init_codegen() {
         mfunction->codegen_extern_proto();
         mfunction->codegen_extern_wrapper_proto();
+    }
+
+    bool is_segmentation() {
+        return true;
     }
 
     void codegen() {
@@ -104,15 +79,13 @@ public:
                     jit->get_builder().CreateUIToFP(jit->get_builder().CreateLoad(num_prim_values_ctr), llvm::Type::getFloatTy(llvm::getGlobalContext()));
             llvm::Value *numerator =
                     jit->get_builder().CreateFSub(num_prim_values_float, jit->get_builder().CreateFMul(segment_size_float,
-                                                                                                      overlap_float));
+                                                                                                       overlap_float));
             llvm::Value *denominator =
                     jit->get_builder().CreateFSub(segment_size_float, jit->get_builder().CreateFMul(segment_size_float,
-                                                                                                   overlap_float));
+                                                                                                    overlap_float));
             llvm::Value *num_segments =
                     jit->get_builder().CreateSub(jit->get_builder().CreateFPToUI(jit->get_builder().CreateFDiv(numerator, denominator),
-                                                    llvm::Type::getInt64Ty(llvm::getGlobalContext())), CodegenUtils::get_i64(1));
-            CodegenUtils::codegen_fprintf_int(jit, jit->get_builder().CreateTruncOrBitCast(num_segments, llvm::Type::getInt32Ty(llvm::getGlobalContext())));
-            llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound);
+                                                                                 llvm::Type::getInt64Ty(llvm::getGlobalContext())), CodegenUtils::get_i64(1));
             llvm::AllocaInst *space = mfunction->get_extern_param_types()[1]->get_underlying_types()[0]->get_underlying_types()[0]->
                     preallocate_fixed_block(jit, num_segments,
                                             jit->get_builder().CreateMul(num_segments, CodegenUtils::get_i64(segment_size)),
@@ -168,25 +141,6 @@ public:
             jit->get_builder().CreateRet(jit->get_builder().CreateLoad(wrapper_result));
             codegen_done = true;
         }
-    }
-
-    void stage_specific_codegen(std::vector<llvm::AllocaInst *> args, ExternArgLoaderIB *eal,
-                                ExternCallIB *ec, llvm::BasicBlock *branch_to, llvm::AllocaInst *loop_idx) {
-        // build the body
-        // outer loop
-//        eal->set_mfunction(mfunction);
-//        eal->set_loop_idx_alloc(loop_idx);
-//        eal->set_wrapper_input_arg_alloc(args[0]);
-//        eal->codegen(jit, false);
-//        jit->get_builder().CreateBr(ec->get_basic_block());
-//
-//        // create the call
-//        std::vector<llvm::AllocaInst *> sliced;
-//        sliced.push_back(eal->get_extern_input_arg_alloc());
-//        ec->set_mfunction(mfunction);
-//        ec->set_extern_arg_allocs(sliced);
-//        ec->codegen(jit, false);
-//        jit->get_builder().CreateBr(branch_to);
     }
 
 };
