@@ -26,10 +26,9 @@ protected:
     llvm::Function *function;
 
     /**
-    * The MFunc associated with this InstructionBlock.
-    * Required when running codegen.
-    */
-//    MFunc *mfunction;
+     * The MFunc associated with this InstructionBlock.
+     * Required when running codegen.
+     */
     bool codegen_done = false;
 
 public:
@@ -38,40 +37,42 @@ public:
 
     llvm::BasicBlock *get_basic_block();
 
-//    MFunc *get_mfunction();
-
-//    void set_mfunction(MFunc *mfunction);
     void insert(llvm::Function *function);
 
     virtual void codegen(JIT *jit, bool no_insert = false) = 0;
-
-//    void force_insert(MFunc *mfunction);
 
 };
 
 /**
  * Give names to the arguments input to a wrapper function,
- * create AllocaInst values for them, and load them
+ * create AllocaInst values for them, and load them.
+ * There will always be 3 inputs: the data, the number of values in all the data arrays, and the number of data structs
  */
-class WrapperArgLoaderIB : public InstructionBlock  {
+class StageArgLoaderIB : public InstructionBlock  {
 
 private:
 
     /**
-     * The local allocated space for all the inputs to the wrapper functions.
+     * The local allocated space for all the inputs to the stage functions.
      * Generated when codegen is called.
      */
     std::vector<llvm::AllocaInst *> args_alloc;
 
 public:
 
-    WrapperArgLoaderIB() {
+    StageArgLoaderIB() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "wrapper_arg_loader");
     }
 
-    ~WrapperArgLoaderIB() { }
+    ~StageArgLoaderIB() { }
 
     std::vector<llvm::AllocaInst *> get_args_alloc();
+
+    llvm::AllocaInst *get_data();
+
+    llvm::AllocaInst *get_data_array_size();
+
+    llvm::AllocaInst *get_num_data_structs();
 
     void codegen(JIT *jit, bool no_insert = false);
 
@@ -87,11 +88,10 @@ private:
 
     /**
      * The allocated space for the whole argument passed into the wrapper function.
-     * We will extract a single extern_input_arg_alloc from this.
-     * This comes from InputWrapperArgLoaded.
+     * This comes from StageArgLoaderIB.
      * Required when running codegen.
      */
-    llvm::AllocaInst *wrapper_input_arg_alloc;
+    llvm::AllocaInst *stage_input_arg_alloc;
 
     /**
      * The allocated space for all the outputs.
@@ -126,7 +126,9 @@ public:
 
     std::vector<llvm::AllocaInst *> get_extern_input_arg_alloc();
 
-    void set_wrapper_input_arg_alloc(llvm::AllocaInst *wrapper_input_arg_alloc);
+    llvm::AllocaInst *get_preallocated_output_space();
+
+    void set_stage_input_arg_alloc(llvm::AllocaInst *stage_input_arg_alloc);
 
     void set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space);
 
@@ -138,10 +140,56 @@ public:
 
 };
 
+///**
+// * Initializes the output struct that holds the array of output data and the
+// * size of that array
+// */
+//class WrapperOutputStructIB : public InstructionBlock  {
+//
+//private:
+//
+//    /**
+//     * The maximum bound on the for loop for calling the extern function.
+//     * Required when running codegen.
+//     */
+//    llvm::AllocaInst *loop_bound_alloc;
+//
+//    /**
+//    * The number of slots in the output array that have been allocated (malloc) so far.
+//    * From LoopCountersIB.
+//    * Required when running codegen.
+//    */
+//    llvm::AllocaInst *malloc_size_alloc;
+//
+//    /**
+//     * The output structure.
+//     * Generated when running codegen.
+//     */
+//    llvm::AllocaInst *wrapper_output_struct_alloc;
+//
+//
+//public:
+//
+//    WrapperOutputStructIB() {
+//        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "wrapper_output_struct_alloc");
+//    }
+//
+//    ~WrapperOutputStructIB() { }
+//
+//    llvm::AllocaInst *get_wrapper_output_struct_alloc();
+//
+//    void set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc);
+//
+//    void set_malloc_size_alloc(llvm::AllocaInst *malloc_size_alloc);
+//
+//    void codegen(JIT *jit, bool no_insert = false);
+//
+//};
+
 /**
  * Create the various loop control/storage indices that will be used during execution of a stage.
  */
-class LoopCountersIB : public InstructionBlock {
+class ForLoopCountersIB : public InstructionBlock {
 
 private:
 
@@ -150,7 +198,7 @@ private:
      * This is the final input arg in the wrapper function's arg list.
      * It's here just to store it with the other counters--we don't need to restore it.
      */
-    llvm::AllocaInst *max_loop_bound_alloc;
+    llvm::AllocaInst *loop_bound_alloc;
 
     /**
      * The loop index.
@@ -163,82 +211,30 @@ private:
      * calling the extern function.
      * Generated when running codegen.
      */
-    llvm::AllocaInst *output_idx_alloc;
-
-    /**
-     * The number of slots in the output array that have been allocated (malloc) so far.
-     * Generated when running codegen.
-     */
-    llvm::AllocaInst *malloc_size_alloc;
-
+    llvm::AllocaInst *return_idx_alloc;
 
 public:
 
-    ~LoopCountersIB() { }
+    ~ForLoopCountersIB() { }
 
-    LoopCountersIB() {
+    ForLoopCountersIB() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_counters");
     }
 
     llvm::AllocaInst *get_loop_idx_alloc();
 
-    llvm::AllocaInst *get_max_loop_bound_alloc();
+    llvm::AllocaInst *get_loop_bound_alloc();
 
-    llvm::AllocaInst *get_output_idx_alloc();
+    llvm::AllocaInst *get_return_idx_alloc();
 
-    llvm::AllocaInst *get_malloc_size_alloc();
-
-    void set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound_alloc);
+    void set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc);
 
     void codegen(JIT *jit, bool no_insert = false);
 };
 
 /**
- * Initializes the output struct that holds the array of output data and the
- * size of that array
+ * Create the for loop component that checks whether the loop is done.
  */
-class WrapperOutputStructIB : public InstructionBlock  {
-
-private:
-
-    /**
-     * The maximum bound on the for loop for calling the extern function.
-     * Required when running codegen.
-     */
-    llvm::AllocaInst *max_loop_bound_alloc;
-
-    /**
-    * The number of slots in the output array that have been allocated (malloc) so far.
-    * From LoopCountersIB.
-    * Required when running codegen.
-    */
-    llvm::AllocaInst *malloc_size_alloc;
-
-    /**
-     * The output structure.
-     * Generated when running codegen.
-     */
-    llvm::AllocaInst *wrapper_output_struct_alloc;
-
-
-public:
-
-    WrapperOutputStructIB() {
-        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "wrapper_output_struct_alloc");
-    }
-
-    ~WrapperOutputStructIB() { }
-
-    llvm::AllocaInst *get_wrapper_output_struct_alloc();
-
-    void set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound_alloc);
-
-    void set_malloc_size_alloc(llvm::AllocaInst *malloc_size_alloc);
-
-    void codegen(JIT *jit, bool no_insert = false);
-
-};
-
 class ForLoopConditionIB : public InstructionBlock {
 
 private:
@@ -280,14 +276,17 @@ public:
 
 };
 
+/**
+ * Create the for loop component that increments the loop idx
+ */
 class ForLoopIncrementIB : public InstructionBlock {
 
 private:
 
     /**
-    * Current loop index.
-    * Required when running codegen.
-    */
+     * Current loop index.
+     * Required when running codegen.
+     */
     llvm::AllocaInst *loop_idx_alloc;
 
 public:
@@ -304,43 +303,43 @@ public:
 
 };
 
-/**
- * Finish up processing and return the generated data, whatever that may be.
- */
-class ForLoopEndIB : public InstructionBlock {
+///**
+// * Finish up processing and return the generated data, whatever that may be.
+// */
+//class ForLoopEndIB : public InstructionBlock {
+//
+//private:
+//
+//    /**
+//     * The output struct of the wrapper function
+//     * Required when running codegen.
+//     */
+//    llvm::AllocaInst *wrapper_output_struct_alloc;
+//
+//    /**
+//    * The current index input the output array for storing the results of
+//    * calling the extern function.
+//    * Required when running codegen.
+//    */
+//    llvm::AllocaInst *output_idx_alloc;
+//
+//public:
+//
+//    ForLoopEndIB() {
+//        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.end");
+//    }
+//
+//    ~ForLoopEndIB() { }
+//
+//    void set_wrapper_output_struct(llvm::AllocaInst *wrapper_output_struct_alloc);
+//
+//    void set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc);
+//
+//    void codegen(JIT *jit, bool no_insert = false);
+//
+//};
 
-private:
-
-    /**
-     * The output struct of the wrapper function
-     * Required when running codegen.
-     */
-    llvm::AllocaInst *wrapper_output_struct_alloc;
-
-    /**
-    * The current index input the output array for storing the results of
-    * calling the extern function.
-    * Required when running codegen.
-    */
-    llvm::AllocaInst *output_idx_alloc;
-
-public:
-
-    ForLoopEndIB() {
-        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.end");
-    }
-
-    ~ForLoopEndIB() { }
-
-    void set_wrapper_output_struct(llvm::AllocaInst *wrapper_output_struct_alloc);
-
-    void set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc);
-
-    void codegen(JIT *jit, bool no_insert = false);
-
-};
-
-class ExternCallIB : public InstructionBlock  {
+class ExternCallIB : public InstructionBlock {
 
 private:
 
@@ -362,13 +361,6 @@ private:
      */
     llvm::AllocaInst *extern_call_result_alloc;
 
-    /**
-     * If the result of the extern call is not actually going to be returned from the
-     * wrapper function (as in a FilterStage), then this contains the actual data
-     * that will be in the output of the wrapper.
-     */
-    llvm::AllocaInst *secondary_extern_call_result_alloc = nullptr;
-
 public:
 
     ExternCallIB() {
@@ -379,69 +371,103 @@ public:
 
     llvm::AllocaInst *get_extern_call_result_alloc();
 
-    llvm::AllocaInst *get_secondary_extern_call_result_alloc();
-
     void set_extern_function(llvm::Function *extern_function);
 
     void set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
-//    void set_secondary_extern_call_result_alloc(llvm::AllocaInst *secondary_extern_call_result_alloc);
-
     void codegen(JIT *jit, bool no_insert = false);
 
 };
 
-/**
- * Creates the LLVM code to store the result of an extern call (or the secondary result).
- */
-class ExternCallStoreIB : public InstructionBlock  {
+// TODO can the preallocator functions be split out from MType?
+class PreallocatorIB : public InstructionBlock {
 
-private:
+protected:
 
     /**
-     * The output struct of the wrapper function
+     * Current loop index.
      * Required when running codegen.
      */
-    llvm::AllocaInst *wrapper_output_struct_alloc;
+    llvm::AllocaInst *loop_bound_alloc;
 
     /**
-     * The current index input the output array for storing the results of
-     * calling the extern function.
-     * Required when running codegen.
+     * The fixed size of all data arrays output from this block.
+     * Required when running fixed preallocator codegen.
      */
-    llvm::AllocaInst *output_idx_alloc;
+    int fixed_size = 0;
 
     /**
-     * The data to store.
+     * The type to preallocate space for.
      * Required when running codegen.
      */
-    llvm::AllocaInst *data_to_store_alloc;
+    MType *base_type;
 
     /**
-     * The number of slots in the output array that have been allocated (malloc) so far.
+     * The number of data elements that space needs to be allocated for.
      * Required when running codegen.
      */
-    llvm::AllocaInst *malloc_size_alloc;
+    llvm::Value *data_array_size;
+
+    /**
+     * The input data to the stage.
+     * Required when running matched preallocator codegen.
+     */
+    llvm::AllocaInst *input_data;
+
+    /**
+     * If true, only allocate space for the outer struct and not the inner data elements.
+     * Used when the stage is a FilterStage.
+     */
+    bool preallocate_outer_only = false;
+
+    /**
+     * The preallocated space.
+     * Generated during codegen.
+     */
+    llvm::AllocaInst *preallocated_space;
 
 public:
 
-    ExternCallStoreIB() {
-        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "store");
+    void set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc);
+
+    void set_fixed_size(int fixed_size);
+
+    void set_data_array_size(llvm::Value *data_array_size);
+
+    void set_base_type(MType *base_type);
+
+    void set_input_data(llvm::AllocaInst *input_data);
+
+    void set_preallocate_outer_only(bool preallocate_outer_only);
+
+    llvm::AllocaInst *get_preallocated_space();
+
+    virtual void codegen(JIT *jit, bool no_insert = false) = 0;
+
+};
+
+class FixedPreallocatorIB : public PreallocatorIB {
+
+public:
+
+    FixedPreallocatorIB() {
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
     }
-
-    ~ExternCallStoreIB() { }
-
-    void set_wrapper_output_struct_alloc(llvm::AllocaInst *wrapper_output_struct_alloc);
-
-    void set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc);
-
-    void set_data_to_store(llvm::AllocaInst *extern_call_result);
-
-    void set_malloc_size(llvm::AllocaInst *malloc_size);
 
     void codegen(JIT *jit, bool no_insert = false);
 
 };
 
+class MatchedPreallocatorIB : public PreallocatorIB {
+
+public:
+
+    MatchedPreallocatorIB() {
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
+    }
+
+    void codegen(JIT *jit, bool no_insert = false);
+
+};
 
 #endif //MATCHIT_INSTRUCTIONBLOCK_H

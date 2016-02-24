@@ -308,29 +308,28 @@ void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_s
 // there are always at least two counters that will be generated: the loop index and the loop bound.
 // In the return value, the loop index is at [0], and the loop bound is at [1]
 // if num_loop_counters > 2, then it is up to the calling function to determine what those are used for.
-llvm::AllocaInst **preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counters, llvm::Value *num_structs,
-                                    llvm::Function *extern_wrapper_function, llvm::BasicBlock *loop_body,
-                                    llvm::BasicBlock *dummy) {
+void preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counters, llvm::Value *num_structs,
+                      llvm::Function *extern_wrapper_function, llvm::BasicBlock *loop_body,
+                      llvm::BasicBlock *dummy) {
     jit->get_builder().CreateBr(loop->get_counter_bb());
 
     // counters
     jit->get_builder().SetInsertPoint(loop->get_counter_bb());
-    llvm::AllocaInst **counters = (llvm::AllocaInst **)malloc(sizeof(llvm::AllocaInst *) * num_loop_counters);
-    loop->codegen_counters(counters, num_loop_counters);
-    llvm::AllocaInst *loop_idx = counters[0];
-    llvm::AllocaInst *loop_bound = counters[1];
+    llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
     jit->get_builder().CreateStore(num_structs, loop_bound);
+    loop->codegen_counters(loop_bound);
+//
     jit->get_builder().CreateBr(loop->get_condition_bb());
 
     // comparison
-    loop->codegen_condition(loop_bound, loop_idx);
+    loop->codegen_condition();
     jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(), loop_body, dummy);
 
     // loop increment
-    loop->codegen_increment(loop_idx);
+    loop->codegen_loop_idx_increment();
     jit->get_builder().CreateBr(loop->get_condition_bb());
 
-    return counters;
+//    return counters;
 }
 
 llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
@@ -342,10 +341,6 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, long num_structs, l
 llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                          llvm::Function *function, llvm::AllocaInst *input_structs,
                                                          bool allocate_outer_only) { // input_structs are the inputs fed into the stage (the {i64, i64, T*}** part)
-    llvm::BasicBlock *preallocate = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
-    jit->get_builder().CreateBr(preallocate);
-    jit->get_builder().SetInsertPoint(preallocate);
-    // first create an llvm location for all of this
     // this is like doing Element<T> **ee = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
     llvm::AllocaInst *preallocated_struct_ptr_ptr_space = allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
                                                                     jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
@@ -366,14 +361,14 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_st
                                                                "prim_ptr_pool");
 
         // now take the memory pools and split it up across num_elements, but not in a fixed way
-        ForLoop loop(jit, function);
+        ForLoop loop(jit);
+        loop.init_codegen(function);
         llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body",
                                                                function);
         llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-        llvm::AllocaInst **counters = preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
-        llvm::AllocaInst *loop_idx = counters[0];
-        llvm::AllocaInst *loop_bound = counters[1];
-        llvm::AllocaInst *T_idx = counters[2];
+        preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+        llvm::AllocaInst *loop_idx = loop.get_loop_idx();
+        llvm::AllocaInst *T_idx = loop.get_return_idx();
 
         // loop body
         // divide up the preallocated space appropriately
@@ -403,7 +398,6 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_st
         jit->get_builder().CreateStore(inc_T_idx, T_idx);
         jit->get_builder().CreateBr(loop.get_increment_bb());
         jit->get_builder().SetInsertPoint(dummy);
-        free(counters);
     }
     return preallocated_struct_ptr_ptr_space;
 
@@ -417,9 +411,6 @@ llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, long num_structs, lon
 
 llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
                                                        llvm::Value *fixed_data_length, llvm::Function *function) {
-    llvm::BasicBlock *preallocate = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
-    jit->get_builder().CreateBr(preallocate);
-    jit->get_builder().SetInsertPoint(preallocate);
     // first create an llvm location for all of this
     // this is like doing Element<T> **e = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
     llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
@@ -435,12 +426,12 @@ llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_stru
                       jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
 
     // now take the memory pools and split it up evenly across num_elements
-    ForLoop loop(jit, function);
+    ForLoop loop(jit);
+    loop.init_codegen(function);
     llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-    llvm::AllocaInst **counters = preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
-    llvm::AllocaInst *loop_idx = counters[0];
-    llvm::AllocaInst *loop_bound = counters[1];
+    preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+    llvm::AllocaInst *loop_idx = loop.get_loop_idx();
 
     // loop body
     // divide up the preallocated space appropriately
@@ -451,8 +442,6 @@ llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_stru
     jit->get_builder().CreateBr(loop.get_increment_bb());
 
     jit->get_builder().SetInsertPoint(dummy);
-
-    free(counters);
 
     return preallocated_struct_ptr_ptr_space;
 }

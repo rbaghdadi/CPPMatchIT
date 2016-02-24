@@ -92,9 +92,9 @@ llvm::Value * create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_a
 llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::AllocaInst *max_loop_bound,
                                              llvm::AllocaInst *malloc_size);
 
-void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm::AllocaInst *output_idx,
-                  llvm::AllocaInst *data_to_store, llvm::Function *insert_into, llvm::AllocaInst *malloc_size_alloc,
-                  ExternCallStoreIB *extern_call_store_ib, MFunc *mfunction);
+//void store_result(llvm::AllocaInst *wrapper_output_struct_alloc, JIT *jit, llvm::AllocaInst *output_idx,
+//                  llvm::AllocaInst *data_to_store, llvm::Function *insert_into, llvm::AllocaInst *malloc_size_alloc,
+//                  ExternCallStoreIB *extern_call_store_ib, MFunc *mfunction);
 
 void return_data(JIT *jit, llvm::AllocaInst *wrapper_output_struct_alloc, llvm::AllocaInst *output_idx);
 
@@ -140,6 +140,8 @@ llvm::ConstantInt *get_i1(int zero_or_one);
 llvm::ConstantInt *get_i32(int x);
 
 llvm::ConstantInt *get_i64(long x);
+
+llvm::Value *as_i32(JIT *jit, llvm::Value *i);
 
 llvm::Value *gep(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
 llvm::LoadInst *gep_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);

@@ -37,7 +37,7 @@ extern "C" void my_truncate_fixed(const FloatElement *in, FloatElement *out) {
 
 extern "C" bool my_filter(const FloatElement *in) {
     std::cerr << "fake filtering things" << std::endl;
-    return true;
+    return false;
 }
 
 extern "C" void segmentor(const FloatElement *in, FloatSegment **out) {
@@ -59,8 +59,8 @@ int main() {
     TransformStage<const FloatElement, FloatElement> trunc_fixed =
             create_transform_stage(&jit, my_truncate_fixed, "my_truncate_fixed");
     FilterStage<const FloatElement> filter = create_filter_stage(&jit, my_filter, "my_filter");
-    SegmentationStage<const FloatElement, FloatSegment> segment =
-            create_segmentation_stage(&jit, segmentor, "segmentor", 4, 0.5);
+//    SegmentationStage<const FloatElement, FloatSegment> segment =
+//            create_segmentation_stage(&jit, segmentor, "segmentor", 4, 0.5);
 
     FloatElement *an_element = new FloatElement();
     an_element->set_tag(10L);
@@ -77,9 +77,9 @@ int main() {
     inputs.push_back(another_element);
 
     Pipeline pipeline;
-//    pipeline.register_stage(&filter);
+    pipeline.register_stage(&filter);
     pipeline.register_stage(&trunc_fixed);
-//    pipeline.register_stage(&filter);
+    pipeline.register_stage(&filter);
 //    pipeline.register_stage(&segment);
     // this says there are 10 total primitive values (floats in this case) across inputs.size() number of input structs
     // it doesn't matter if this is fixed, matched, or variable size. It's just the raw total of prim values.

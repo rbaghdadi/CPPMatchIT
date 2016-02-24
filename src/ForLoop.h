@@ -12,35 +12,60 @@ class ForLoop {
 private:
 
     JIT *jit;
-    llvm::BasicBlock *counter;
-    ForLoopIncrementIB *increment;
+    ForLoopCountersIB *counters;
+    ForLoopIncrementIB *loop_idx_increment;
+    ForLoopIncrementIB *return_idx_increment;
     ForLoopConditionIB *condition;
-    llvm::Function *function;
+    MFunc *mfunction;
 
 public:
 
-    ForLoop(JIT *jit, llvm::Function *function) : jit(jit), function(function) {
-        counter = llvm::BasicBlock::Create(llvm::getGlobalContext(), "counters", function);
-        increment = new ForLoopIncrementIB();
-        increment->insert(function);
+    ForLoop(JIT *jit, MFunc *mfunction) : jit(jit), mfunction(mfunction) {
+        counters = new ForLoopCountersIB();
+        loop_idx_increment = new ForLoopIncrementIB();
+        return_idx_increment = new ForLoopIncrementIB();
         condition = new ForLoopConditionIB();
-        condition->insert(function);
+    }
+
+    ForLoop(JIT *jit) : jit(jit) {
+        counters = new ForLoopCountersIB();
+        loop_idx_increment = new ForLoopIncrementIB();
+        return_idx_increment = new ForLoopIncrementIB();
+        condition = new ForLoopConditionIB();
     }
 
     ~ForLoop() {
-        if (increment) {
-            delete increment;
+        if (counters) {
+            delete counters;
+        }
+        if (loop_idx_increment) {
+            delete loop_idx_increment;
+        }
+        if (return_idx_increment) {
+            delete return_idx_increment;
         }
         if (condition) {
             delete condition;
         }
     }
 
-    void codegen_counters(llvm::AllocaInst **counters, int num_counters_to_allocate);
+    void init_codegen();
 
-    void codegen_increment(llvm::AllocaInst *loop_idx);
+    void init_codegen(llvm::Function *function);
 
-    void codegen_condition(llvm::AllocaInst *loop_bound, llvm::AllocaInst *loop_idx);
+    void codegen_loop_idx_increment();
+
+    void codegen_return_idx_increment();
+
+    void codegen_condition();
+
+    void codegen_counters(llvm::AllocaInst *loop_bound);
+
+    llvm::AllocaInst *get_loop_idx();
+
+    llvm::AllocaInst *get_loop_bound();
+
+    llvm::AllocaInst *get_return_idx();
 
     llvm::BasicBlock *get_counter_bb();
 
@@ -53,55 +78,5 @@ public:
     ForLoopConditionIB *get_condition();
 
 };
-
-// llvm code for a for loop
-//class ForLoop {
-//
-//private:
-//
-//    JIT *jit;
-//    LoopCountersIB *loop_counter_basic_block;
-//    ForLoopIncrementIB *for_loop_increment_basic_block;
-//    ForLoopConditionIB *for_loop_condition_basic_block;
-//    llvm::AllocaInst *max_loop_bound;
-//    llvm::BasicBlock *branch_to_after_counter;
-//    llvm::BasicBlock *branch_to_true_condition;
-//    llvm::BasicBlock *branch_to_false_condition;
-//
-//public:
-//
-//    ForLoop(JIT *jit) : jit(jit) {
-//        loop_counter_basic_block = new LoopCountersIB();
-//        for_loop_increment_basic_block = new ForLoopIncrementIB();
-//        for_loop_condition_basic_block = new ForLoopConditionIB();
-//    }
-//
-//    void set_mfunction(MFunc *mfunction);
-//
-//    void codegen();
-//
-//    llvm::AllocaInst *get_max_loop_bound();
-//
-//    llvm::BasicBlock *get_branch_to_after_counter();
-//
-//    llvm::BasicBlock *get_branch_to_true_condition();
-//
-//    llvm::BasicBlock *get_branch_to_false_condition();
-//
-//    LoopCountersIB *get_loop_counter_basic_block();
-//
-//    ForLoopIncrementIB *get_for_loop_increment_basic_block();
-//
-//    ForLoopConditionIB *get_for_loop_condition_basic_block();
-//
-//    void set_max_loop_bound(llvm::AllocaInst *max_loop_bound);
-//
-//    void set_branch_to_after_counter(llvm::BasicBlock *branch_to_after_counter);
-//
-//    void set_branch_to_true_condition(llvm::BasicBlock *branch_to_true_condition);
-//
-//    void set_branch_to_false_condition(llvm::BasicBlock *branch_to_false_condition);
-//
-//};
 
 #endif //CPPMATCHIT_FORLOOP_H
