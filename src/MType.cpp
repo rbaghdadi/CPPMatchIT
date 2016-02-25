@@ -308,17 +308,16 @@ void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_s
 // there are always at least two counters that will be generated: the loop index and the loop bound.
 // In the return value, the loop index is at [0], and the loop bound is at [1]
 // if num_loop_counters > 2, then it is up to the calling function to determine what those are used for.
-void preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counters, llvm::Value *num_structs,
-                      llvm::Function *extern_wrapper_function, llvm::BasicBlock *loop_body,
-                      llvm::BasicBlock *dummy) {
+void preallocate_loop(JIT *jit, ForLoop *loop, llvm::Value *num_structs, llvm::Function *extern_wrapper_function,
+                      llvm::BasicBlock *loop_body, llvm::BasicBlock *dummy) {
     jit->get_builder().CreateBr(loop->get_counter_bb());
 
     // counters
     jit->get_builder().SetInsertPoint(loop->get_counter_bb());
+    // TODO move to loop counters
     llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
     jit->get_builder().CreateStore(num_structs, loop_bound);
     loop->codegen_counters(loop_bound);
-//
     jit->get_builder().CreateBr(loop->get_condition_bb());
 
     // comparison
@@ -328,8 +327,6 @@ void preallocate_loop(JIT *jit, ForLoop *loop, int num_loop_counters, llvm::Valu
     // loop increment
     loop->codegen_loop_idx_increment();
     jit->get_builder().CreateBr(loop->get_condition_bb());
-
-//    return counters;
 }
 
 llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values, llvm::Function *function,
@@ -366,7 +363,7 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_st
         llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body",
                                                                function);
         llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-        preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+        preallocate_loop(jit, &loop, num_structs, function, loop_body, dummy);
         llvm::AllocaInst *loop_idx = loop.get_loop_idx();
         llvm::AllocaInst *T_idx = loop.get_return_idx();
 
@@ -430,7 +427,7 @@ llvm::AllocaInst *MType::preallocate_fixed_block(JIT *jit, llvm::Value *num_stru
     loop.init_codegen(function);
     llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-    preallocate_loop(jit, &loop, 3, num_structs, function, loop_body, dummy);
+    preallocate_loop(jit, &loop, num_structs, function, loop_body, dummy);
     llvm::AllocaInst *loop_idx = loop.get_loop_idx();
 
     // loop body

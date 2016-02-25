@@ -14,18 +14,6 @@ llvm::BasicBlock *InstructionBlock::get_basic_block() {
     return bb;
 }
 
-//MFunc *InstructionBlock::get_mfunction() {
-//    return mfunction;
-//}
-//
-//void InstructionBlock::set_mfunction(MFunc *mfunction) {
-//    this->mfunction = mfunction;
-//}
-
-//void InstructionBlock::force_insert(MFunc *mfunction) {
-//    bb->insertInto(mfunction->get_extern_wrapper());
-//}
-
 void InstructionBlock::insert(llvm::Function *function) {
     assert(bb);
     this->function = function;
@@ -63,7 +51,7 @@ void StageArgLoaderIB::codegen(JIT *jit, bool no_insert) {
  * ExternArgLoaderIB
  */
 
-std::vector<llvm::AllocaInst *> ExternArgLoaderIB::get_extern_input_arg_alloc() {
+std::vector<llvm::AllocaInst *> ExternArgLoaderIB::get_extern_input_arg_allocs() {
     return extern_input_arg_alloc;
 }
 
@@ -75,8 +63,8 @@ void ExternArgLoaderIB::set_stage_input_arg_alloc(llvm::AllocaInst *wrapper_inpu
     this->stage_input_arg_alloc = wrapper_input_arg_alloc;
 }
 
-void ExternArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
-    this->preallocated_output_space = preallocated_output_space;
+void ExternArgLoaderIB::set_no_output_param() {
+    has_output_param = false;
 }
 
 void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
@@ -87,14 +75,17 @@ void ExternArgLoaderIB::set_segmentation_stage() {
     is_segmentation_stage = true;
 }
 
+void ExternArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
+    this->preallocated_output_space = preallocated_output_space;
+}
+
 void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(stage_input_arg_alloc);
     assert(loop_idx_alloc);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, stage_input_arg_alloc,
-                                                                 preallocated_output_space, loop_idx_alloc,
-                                                                 is_segmentation_stage);
+    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, stage_input_arg_alloc, preallocated_output_space, loop_idx_alloc,
+                                                                 is_segmentation_stage, has_output_param);
     codegen_done = true;
 }
 
@@ -126,34 +117,6 @@ void ForLoopCountersIB::codegen(JIT *jit, bool no_insert) {
     return_idx_alloc = CodegenUtils::init_i64(jit, 0, "output_idx_alloc");
     codegen_done = true;
 }
-
-///*
-// * WrapperOutputStructIB
-// */
-//
-//llvm::AllocaInst *WrapperOutputStructIB::get_wrapper_output_struct_alloc() {
-//    return wrapper_output_struct_alloc;
-//}
-//
-//void WrapperOutputStructIB::set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc) {
-//    this->loop_bound_alloc = loop_bound_alloc;
-//}
-//
-//void WrapperOutputStructIB::set_malloc_size_alloc(llvm::AllocaInst *malloc_size_alloc) {
-//    this->malloc_size_alloc = malloc_size_alloc;
-//}
-//
-//void WrapperOutputStructIB::codegen(JIT *jit, bool no_insert) {
-//    assert(loop_bound_alloc);
-//    assert(malloc_size_alloc);
-////    assert(mfunction);
-//    assert(!codegen_done);
-////    bb->insertInto(mfunction->get_extern_wrapper());
-//    jit->get_builder().SetInsertPoint(bb);
-////    wrapper_output_struct_alloc = CodegenUtils::init_wrapper_output_struct(jit, mfunction, loop_bound_alloc,
-////                                                                           malloc_size_alloc);
-//    codegen_done = true;
-//}
 
 /*
  * ForLoopConditionIB
@@ -195,39 +158,13 @@ void ForLoopIncrementIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
 
 void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
     assert(loop_idx_alloc);
-//    assert(mfunction);
     assert(!codegen_done);
-//    bb->insertInto(mfunction->get_extern_wrapper());
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
     CodegenUtils::increment_i64(jit, loop_idx_alloc);
     codegen_done = true;
 }
-
-///*
-// * ForLoopEndIB
-// */
-//
-//
-//void ForLoopEndIB::set_wrapper_output_struct(llvm::AllocaInst *wrapper_output_struct_alloc) {
-//    this->wrapper_output_struct_alloc = wrapper_output_struct_alloc;
-//}
-//
-//void ForLoopEndIB::set_output_idx_alloc(llvm::AllocaInst *output_idx) {
-//    this->output_idx_alloc = output_idx;
-//}
-//
-//void ForLoopEndIB::codegen(JIT *jit, bool no_insert) {
-//    assert(wrapper_output_struct_alloc);
-//    assert(output_idx_alloc);
-////    assert(mfunction);
-//    assert(!codegen_done);
-////    bb->insertInto(mfunction->get_extern_wrapper());
-//    jit->get_builder().SetInsertPoint(bb);
-//    CodegenUtils::return_data(jit, wrapper_output_struct_alloc, output_idx_alloc);
-//    codegen_done = true;
-//}
 
 /*
  * ExternCallIB
@@ -260,8 +197,8 @@ void ExternCallIB::codegen(JIT *jit, bool no_insert) {
  * PreallocatorIB
  */
 
-void PreallocatorIB::set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc) {
-    this->loop_bound_alloc = loop_bound_alloc;
+void PreallocatorIB::set_num_output_structs_alloc(llvm::AllocaInst *num_output_structs_alloc) {
+    this->loop_bound_alloc = num_output_structs_alloc;
 }
 
 void PreallocatorIB::set_fixed_size(int fixed_size) {
@@ -299,6 +236,7 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
     assert(data_array_size);
     assert(fixed_size != 0);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
+
     preallocated_space = base_type->preallocate_fixed_block(jit, loop_bound_load, data_array_size,
                                                             CodegenUtils::get_i64(fixed_size), function);
     codegen_done = true;

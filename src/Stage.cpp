@@ -28,6 +28,66 @@ bool Stage::is_comparison() {
     return false;
 }
 
+void Stage::init_stage() {
+    MPointerType *input_type_ptr = new MPointerType(stage_input_type);
+    MPointerType *output_type_ptr = new MPointerType(stage_return_type);
+    MPointerType *input_type_ptr_ptr = new MPointerType(input_type_ptr);
+    MPointerType *output_type_ptr_ptr = new MPointerType(output_type_ptr);
+
+    mtypes_to_delete.push_back(input_type_ptr);
+    mtypes_to_delete.push_back(output_type_ptr);
+    mtypes_to_delete.push_back(input_type_ptr_ptr);
+    mtypes_to_delete.push_back(output_type_ptr_ptr);
+
+    // inputs to the extern function
+    std::vector<MType *> extern_param_types;
+    extern_param_types.push_back(input_type_ptr);
+    if (!is_filter()) {
+        if (!is_segmentation()) {
+            // give the user an array of pointers to hold all of the generated segments
+            extern_param_types.push_back(output_type_ptr);
+        } else {
+            extern_param_types.push_back(output_type_ptr_ptr);
+        }
+    }
+
+    // inputs to the stage, with the additional counters added on
+    std::vector<MType *> extern_wrapper_param_types;
+    extern_wrapper_param_types.push_back(input_type_ptr_ptr);
+    // the number of data elements coming in
+    extern_wrapper_param_types.push_back(MPrimType::get_long_type());
+    // the total size of the arrays in the data elements coming in
+    extern_wrapper_param_types.push_back(MPrimType::get_long_type());
+
+    // return type of the stage, with the additional counters added on
+    std::vector<MType *> extern_wrapper_return_types;
+    // the actual data type passed back
+    extern_wrapper_return_types.push_back(output_type_ptr_ptr);
+    // the number of data elements going out
+    extern_wrapper_return_types.push_back(MPrimType::get_long_type());
+    // the total size of the arrays in the data going out
+    extern_wrapper_return_types.push_back(MPrimType::get_long_type());
+    MStructType *return_type_struct_ptr = new MStructType(mtype_struct, extern_wrapper_return_types);
+    MPointerType *pointer_return_type = new MPointerType(return_type_struct_ptr);
+    mtypes_to_delete.push_back(return_type_struct_ptr);
+    mtypes_to_delete.push_back(pointer_return_type);
+
+    MFunc *func = new MFunc(function_name, stage_name, extern_return_type, pointer_return_type,
+                            extern_param_types, extern_wrapper_param_types, jit);
+
+    set_function(func);
+
+    loop = new ForLoop(jit, mfunction);
+    stage_arg_loader = new StageArgLoaderIB();
+    extern_arg_loader = new ExternArgLoaderIB();
+    call = new ExternCallIB();
+    if (is_fixed_size) {
+        preallocator = new FixedPreallocatorIB();
+    } else {
+        preallocator = new MatchedPreallocatorIB();
+    }
+}
+
 void Stage::init_codegen() {
     mfunction->codegen_extern_proto();
     mfunction->codegen_extern_wrapper_proto();
@@ -37,7 +97,6 @@ void Stage::codegen() {
     if (!codegen_done) {
         // create the prototypes
         init_codegen();
-        jit->dump();
 
         // Load the inputs to the stage
         stage_arg_loader->insert(mfunction->get_extern_wrapper());
@@ -66,7 +125,8 @@ void Stage::codegen() {
         // stage, then the sum of the lengths of all M float[] arrays is stored in here. This value is needed for preallocation
         // of later stages. It can usually be calculated just from the input values, but in the case of a FilterStage,
         // it has to be computed on the fly since we don't know which FloatElements (or w/e type) will be kept ahead of time.
-        llvm::AllocaInst *output_data_array_size = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+        // TODO move this to the loop counter thing
+        llvm::AllocaInst *output_data_array_size = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()), nullptr, "output_size");
         jit->get_builder().CreateStore(CodegenUtils::get_i64(0), output_data_array_size);
         llvm::LoadInst *loop_bound = jit->get_builder().CreateLoad(loop_bound_alloc);
 
@@ -87,13 +147,19 @@ void Stage::codegen() {
         // Process the data through the extern function in the loop body
         // Get the current input to the extern function
         extern_arg_loader->set_loop_idx_alloc(loop->get_loop_idx());
+        if (is_filter()) {
+            extern_arg_loader->set_no_output_param();
+        }
         extern_arg_loader->set_preallocated_output_space(preallocator->get_preallocated_space());
         extern_arg_loader->set_stage_input_arg_alloc(stage_arg_loader->get_data());
+        if (is_segmentation()) {
+            extern_arg_loader->set_segmentation_stage();
+        }
         extern_arg_loader->codegen(jit);
         jit->get_builder().CreateBr(call->get_basic_block());
 
         // Call the extern function
-        call->set_extern_arg_allocs(extern_arg_loader->get_extern_input_arg_alloc());
+        call->set_extern_arg_allocs(extern_arg_loader->get_extern_input_arg_allocs());
         call->codegen(jit);
         handle_extern_output(output_data_array_size);
         jit->get_builder().CreateBr(loop->get_increment_bb());
@@ -112,10 +178,10 @@ void Stage::handle_extern_output(llvm::AllocaInst *output_data_array_size) {
     loop->codegen_return_idx_increment();
 }
 
-llvm::Value *Stage::compute_data_array_size() {
+llvm::Value *Stage::compute_preallocation_data_array_size() {
     if (is_fixed_size) {
         return jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop->get_loop_bound()),
-                                                                         CodegenUtils::get_i64(fixed_size));
+                                            CodegenUtils::get_i64(fixed_size));
     } else {
         return jit->get_builder().CreateLoad(stage_arg_loader->get_data_array_size());
     }
@@ -140,7 +206,7 @@ llvm::AllocaInst *Stage::finish_stage(llvm::AllocaInst *output_data_array_size) 
     jit->get_builder().CreateStore(filled_preallocated_space, data_field);
     if (!is_filter()) {
         if (is_fixed_size) {
-            llvm::Value *data_array_size_comp = jit->get_builder().CreateMul(loop->get_loop_bound(),
+            llvm::Value *data_array_size_comp = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(compute_num_output_structs()), //jit->get_builder().CreateLoad(loop->get_loop_bound()),
                                                                              CodegenUtils::get_i64(fixed_size));
             jit->get_builder().CreateStore(data_array_size_comp, output_data_array_size);
         } else {
@@ -148,9 +214,14 @@ llvm::AllocaInst *Stage::finish_stage(llvm::AllocaInst *output_data_array_size) 
             jit->get_builder().CreateStore(input_data_array_size, output_data_array_size);
         }
     }
+    finalize_data_array_size(output_data_array_size);
     jit->get_builder().CreateStore(jit->get_builder().CreateLoad(output_data_array_size), data_array_size);
     jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop->get_return_idx()), num_output_base_elements);
     return final_stage_output;
+}
+
+llvm::AllocaInst *Stage::compute_num_output_structs() {
+    return loop->get_loop_bound();
 }
 
 void Stage::preallocate() {
@@ -161,7 +232,7 @@ void Stage::preallocate() {
     jit->get_builder().CreateBr(preallocator->get_basic_block());
     jit->get_builder().SetInsertPoint(preallocator->get_basic_block());
     preallocator->set_base_type(stage_return_type);
-    preallocator->set_loop_bound_alloc(loop->get_loop_bound());
+    preallocator->set_num_output_structs_alloc(compute_num_output_structs());//loop->get_loop_bound());
     if (is_fixed_size) {
         preallocator->set_fixed_size(fixed_size);
     } else { // matched
@@ -169,6 +240,8 @@ void Stage::preallocate() {
         preallocator->set_input_data(stage_arg_loader->get_data());
         preallocator->set_preallocate_outer_only(is_filter());
     }
-    preallocator->set_data_array_size(compute_data_array_size());
+    preallocator->set_data_array_size(compute_preallocation_data_array_size());
     preallocator->codegen(jit, true);
 }
+
+void Stage::finalize_data_array_size(llvm::AllocaInst *output_data_array_size) { }

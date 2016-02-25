@@ -25,6 +25,9 @@ protected:
     bool codegen_done = false;
     bool is_fixed_size;
     unsigned int fixed_size;
+    std::string function_name;
+    std::string stage_name;
+    MType *extern_return_type;
     std::vector<MType *> mtypes_to_delete;
 
     // Building blocks for a given stage
@@ -44,65 +47,7 @@ public:
     Stage(JIT *jit, std::string stage_name, std::string function_name, MType *input_type, MType *output_type,
           MType *extern_return_type, bool is_fixed_size = false, unsigned int fixed_size = 0) :
             jit(jit), stage_input_type(input_type), stage_return_type(output_type), is_fixed_size(is_fixed_size),
-            fixed_size(fixed_size) {
-
-        MPointerType *input_type_ptr = new MPointerType(input_type);
-        MPointerType *output_type_ptr = new MPointerType(output_type);
-        MPointerType *input_type_ptr_ptr = new MPointerType(input_type_ptr);
-        MPointerType *output_type_ptr_ptr = new MPointerType(output_type_ptr);
-
-        mtypes_to_delete.push_back(input_type_ptr);
-        mtypes_to_delete.push_back(output_type_ptr);
-        mtypes_to_delete.push_back(input_type_ptr_ptr);
-        mtypes_to_delete.push_back(output_type_ptr_ptr);
-
-        // inputs to the extern function
-        std::vector<MType *> extern_param_types;
-        extern_param_types.push_back(input_type_ptr);
-        if (!is_filter()) {
-            if (!is_segmentation()) {
-                // give the user an array of pointers to hold all of the generated segments
-                extern_param_types.push_back(output_type_ptr);
-            } else {
-                extern_param_types.push_back(output_type_ptr_ptr);
-            }
-        }
-
-        // inputs to the stage, with the additional counters added on
-        std::vector<MType *> extern_wrapper_param_types;
-        extern_wrapper_param_types.push_back(input_type_ptr_ptr);
-        // the number of data elements coming in
-        extern_wrapper_param_types.push_back(MPrimType::get_long_type());
-        // the total size of the arrays in the data elements coming in
-        extern_wrapper_param_types.push_back(MPrimType::get_long_type());
-
-        // return type of the stage, with the additional counters added on
-        std::vector<MType *> extern_wrapper_return_types;
-        // the actual data type passed back
-        extern_wrapper_return_types.push_back(output_type_ptr_ptr);
-        // the number of data elements going out
-        extern_wrapper_return_types.push_back(MPrimType::get_long_type());
-        // the total size of the arrays in the data going out
-        extern_wrapper_return_types.push_back(MPrimType::get_long_type());
-        MStructType *return_type_struct_ptr = new MStructType(mtype_struct, extern_wrapper_return_types);
-        MPointerType *pointer_return_type = new MPointerType(return_type_struct_ptr);
-        mtypes_to_delete.push_back(return_type_struct_ptr);
-        mtypes_to_delete.push_back(pointer_return_type);
-
-        MFunc *func = new MFunc(function_name, stage_name, extern_return_type, pointer_return_type,
-                                extern_param_types, extern_wrapper_param_types, jit);
-
-        set_function(func);
-
-        loop = new ForLoop(jit, mfunction);
-        stage_arg_loader = new StageArgLoaderIB();
-        extern_arg_loader = new ExternArgLoaderIB();
-        call = new ExternCallIB();
-        if (is_fixed_size) {
-            preallocator = new FixedPreallocatorIB();
-        } else {
-            preallocator = new MatchedPreallocatorIB();
-        }
+            fixed_size(fixed_size), function_name(function_name), stage_name(stage_name), extern_return_type(extern_return_type) {
     }
 
     virtual ~Stage() {
@@ -116,6 +61,8 @@ public:
             delete (*iter);
         }
     }
+
+    void init_stage();
 
     std::string get_function_name();
 
@@ -147,12 +94,26 @@ public:
 
     virtual bool is_comparison();
 
-    virtual llvm::Value *compute_data_array_size();
+    /**
+     * How to compute the amount of space that we need to preallocate
+     */
+    virtual llvm::Value *compute_preallocation_data_array_size();
 
     /**
      * Preallocate output space based on the type.
      */
     virtual void preallocate();
+
+    /**
+     * The number of output structs returned across all the extern calls.
+     * Will usually just be the loop bound value.
+     */
+    virtual llvm::AllocaInst *compute_num_output_structs();
+
+    /**
+     * Can update the number of data array elements to be stored if necessary
+     */
+    virtual void finalize_data_array_size(llvm::AllocaInst *output_data_array_size);
 
     /**
      * Do the final malloc for the output struct, save the outputs to it, return from the stage
