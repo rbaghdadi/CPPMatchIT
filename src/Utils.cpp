@@ -12,7 +12,7 @@ extern "C" void c_fprintf(int l) {
     fprintf(stderr, "%d\n", l);
 }
 
-extern "C" void print_float(float f) {
+extern "C" void c_fprintf_float(float f) {
     fprintf(stderr, "%f\n", f);
 }
 
@@ -42,6 +42,12 @@ void register_utils(JIT *jit) {
     llvm::FunctionType *llvm_intr_memcpy_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
                                                                       llvm_intr_memcpy_args, false);
     jit->get_module()->getOrInsertFunction("llvm.memcpy.p0i8.p0i8.i32", llvm_intr_memcpy_ft);
+
+    std::vector<llvm::Type *> llvm_intr_fceil_args;
+    llvm_intr_fceil_args.push_back(llvm::Type::getFloatTy(llvm::getGlobalContext()));
+    llvm::FunctionType *llvm_intr_fceil_ft = llvm::FunctionType::get(llvm::Type::getFloatTy(llvm::getGlobalContext()),
+                                                                     llvm_intr_fceil_args, false);
+    jit->get_module()->getOrInsertFunction("llvm.ceil.f32", llvm_intr_fceil_ft);
 
     // llvm is very strict, so we can't use the same malloc call for both 32 and 64 bit data
     std::vector<llvm::Type *> c_malloc32_args;
@@ -76,6 +82,12 @@ void register_utils(JIT *jit) {
     llvm::FunctionType *c_print_int_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
                                                                  c_print_int_args, true);
     jit->get_module()->getOrInsertFunction("c_fprintf", c_print_int_ft);
+
+    std::vector<llvm::Type *> c_print_float_args;
+    c_print_float_args.push_back(llvm::Type::getFloatTy(llvm::getGlobalContext()));
+    llvm::FunctionType *c_print_float_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                                 c_print_float_args, true);
+    jit->get_module()->getOrInsertFunction("c_fprintf_float", c_print_float_ft);
 
     llvm::FunctionType *print_sep_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
                                                                std::vector<llvm::Type *>(), false);

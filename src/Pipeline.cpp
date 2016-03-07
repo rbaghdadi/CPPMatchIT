@@ -19,10 +19,6 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
 }
 
-//void Pipeline::execute(JIT *jit, const void **data, long total_bytes_in_arrays, long total_elements) {
-//    jit->run("pipeline", data);
-//}
-
 void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
 
     assert(!stages.empty());
@@ -73,8 +69,9 @@ void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
     }
     llvm_func_args.push_back(CodegenUtils::get_i64(num_prim_values));
     llvm_func_args.push_back(CodegenUtils::get_i64(num_structs));
+
     /*
-     * Create the block calls and chain them together
+     * Create the stage calls and chain them together
      */
 
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
@@ -87,7 +84,7 @@ void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
     for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
         (*iter)->codegen();
         jit->get_builder().SetInsertPoint(wrapper_block);
-//        // split out the fields of the returned struct
+        // split out the fields of the returned struct
         llvm::LoadInst *field_one = CodegenUtils::gep_and_load(jit, call, 0, 0);
         llvm::LoadInst *field_two = CodegenUtils::gep_and_load(jit, call, 0, 1);
         llvm::LoadInst *field_three = CodegenUtils::gep_and_load(jit, call, 0, 2);

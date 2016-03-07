@@ -27,15 +27,6 @@ llvm::Value *as_i32(JIT *jit, llvm::Value *i) {
     return jit->get_builder().CreateTruncOrBitCast(i, llvm::Type::getInt32Ty(llvm::getGlobalContext()));
 }
 
-int get_num_size_fields(MType *mtype) {
-    switch (mtype->get_mtype_code()) {
-        case mtype_file:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
 // these are very specific geps
 llvm::LoadInst *gep_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx) {
     llvm::LoadInst *load = jit->get_builder().CreateLoad(gep(jit, gep_this, ptr_idx, struct_idx));
@@ -68,30 +59,36 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function
 }
 
 // load a single input argument from the wrapper inputs
-std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, llvm::AllocaInst *wrapper_input_arg_alloc,
+std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc,
                                                       llvm::AllocaInst *preallocated_output_space,
-                                                      llvm::AllocaInst *loop_idx, bool is_segmentation_stage,
-                                                      bool has_output_param) {
+                                                      std::vector<llvm::AllocaInst *> loop_idxs,
+                                                      bool is_segmentation_stage, bool has_output_param,
+                                                      llvm::AllocaInst *output_idx) {
     std::vector<llvm::AllocaInst *> arg_types;
     // load the full input array
-    llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc);
-    input_arg_load->setAlignment(8);
-    llvm::LoadInst *loop_idx_load = jit->get_builder().CreateLoad(loop_idx);
-    loop_idx_load->setAlignment(8);
-    // extract the specific element from the full input array
-    std::vector<llvm::Value *> element_idxs;
-    element_idxs.push_back(loop_idx_load);
-    llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(input_arg_load, element_idxs);
-    llvm::LoadInst *element_load = jit->get_builder().CreateLoad(element_gep);
-    element_load->setAlignment(8);
-    llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
-    extern_input_arg_alloc->setAlignment(8);
-    jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
-    arg_types.push_back(extern_input_arg_alloc);
+    int ctr = 0;
+    for (std::vector<llvm::AllocaInst *>::iterator loop_idx = loop_idxs.begin(); loop_idx != loop_idxs.end(); loop_idx++) {
+        llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc[ctr++]);
+        input_arg_load->setAlignment(8);
+        llvm::LoadInst *loop_idx_load = jit->get_builder().CreateLoad(*loop_idx);
+        loop_idx_load->setAlignment(8);
+        // extract the specific element from the full input array
+        std::vector<llvm::Value *> element_idxs;
+        element_idxs.push_back(loop_idx_load);
+        llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(input_arg_load, element_idxs);
+        llvm::LoadInst *element_load = jit->get_builder().CreateLoad(element_gep);
+        element_load->setAlignment(8);
+        llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
+        extern_input_arg_alloc->setAlignment(8);
+        jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
+        arg_types.push_back(extern_input_arg_alloc);
+    }
     // get the outputs (if applicable)
     if (has_output_param) {
+        std::vector<llvm::Value *> output_element_idx;
+        output_element_idx.push_back(jit->get_builder().CreateLoad(output_idx));
         llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output_space);
-        llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, element_idxs);
+        llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, output_element_idx);
         llvm::AllocaInst *output_alloc;
         if (!is_segmentation_stage) {
             llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
@@ -123,79 +120,6 @@ void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size) {
     llvm::Value *add = jit->get_builder().CreateAdd(load, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), step_size));
     jit->get_builder().CreateStore(add, i64_val)->setAlignment(8);
 }
-
-//// Output struct has type { x**, i64}* where x is whatever struct is returned from a single application of a stage
-//// TODO does this need to gep through the original allocated space, or can we keep loading/allocating/storing as I do?
-//llvm::AllocaInst *init_wrapper_output_struct(JIT *jit, MFunc *mfunction, llvm::AllocaInst *max_loop_bound,
-//                                             llvm::AllocaInst *malloc_size) {
-//    MType *extern_wrapper_return_type = mfunction->get_extern_wrapper_return_type();
-//    llvm::Type *llvm_return_type = extern_wrapper_return_type->codegen_type();
-//
-//    // working example: say we have our return type as WrapperOutputs of Files.
-//    // this looks like W = { { { { i8*, i32, i32 } * } **, i32, i32 } * } *
-//    // Let X = { {i8*, i32, i32} *}, i.e. the FileType class
-//    // this gives us { {X**, i32, i32} * } *
-//    // the outermost pointer is a pointer created to the WrapperOutput
-//    // the pointer directly to the left of that is the pointer to the MArray in WrapperOutput that holds FileType* as T
-//
-//    // we have to allocate space for 3 separate components here. The first is for W. This is sizeof(W) bytes (8)
-//    // next, is the inner part of W, i.e.  { { { i8*, i32, i32 } * } **, i32, i32 } *. This is sizeof(MArray) bytes (16)
-//    // Finally, we allocate X**. This is sizeof(whatever type X* is) * num_elements
-//
-//    // TODO get the number of bytes correctly, so no hardcoding (have to call the actual structure not the type itself)
-//    size_t wrapper_output_size = 8;
-//    size_t marray_output_size = 16;
-//    size_t inner_type_output_size = 8;
-//
-//    // allocate space for W
-//    llvm::AllocaInst *outer_struct_alloc = jit->get_builder().CreateAlloca(llvm_return_type);
-//    outer_struct_alloc->setAlignment(8);
-//    llvm::Value *outer_struct_malloc = codegen_c_malloc64_and_cast(jit, wrapper_output_size,
-//                                                                   llvm_return_type);
-//    jit->get_builder().CreateStore(outer_struct_malloc, outer_struct_alloc)->setAlignment(8);
-//
-//    // allocate space for the MArray
-//    std::vector<llvm::Value *> marray_gep_idxs;
-//    marray_gep_idxs.push_back(get_i32(0));
-//    llvm::Value *marray_gep_temp = jit->get_builder().CreateInBoundsGEP(outer_struct_alloc, marray_gep_idxs);
-//    llvm::LoadInst *marray_gep_temp_load = jit->get_builder().CreateLoad(marray_gep_temp);
-//    marray_gep_idxs.push_back(get_i32(0));
-//    llvm::Value *marray_gep_ptr = jit->get_builder().CreateInBoundsGEP(marray_gep_temp_load, marray_gep_idxs);
-//    llvm::LoadInst *marray_gep_ptr_load = jit->get_builder().CreateLoad(marray_gep_ptr);
-//    llvm::Value *marray_malloc = codegen_c_malloc64_and_cast(jit, marray_output_size, marray_gep_ptr_load->getType());
-//    jit->get_builder().CreateStore(marray_malloc, marray_gep_ptr);
-//
-//    // allocate space for X**
-//    std::vector<llvm::Value *> x_gep_idxs;
-//    x_gep_idxs.push_back(get_i32(0));
-//    llvm::Value *x_gep_temp = jit->get_builder().CreateInBoundsGEP(outer_struct_alloc, x_gep_idxs);
-//    llvm::LoadInst *x_gep_temp_load = jit->get_builder().CreateLoad(x_gep_temp);
-//    x_gep_idxs.push_back(get_i32(0));
-//    llvm::Value *x_gep_ptr = jit->get_builder().CreateInBoundsGEP(x_gep_temp_load, x_gep_idxs);
-//    llvm::LoadInst *x_gep_ptr_load = jit->get_builder().CreateLoad(x_gep_ptr);
-//    llvm::Value *num_inner_objs = jit->get_builder().CreateLoad(max_loop_bound);
-//    if (mfunction->get_associated_block() == "ComparisonStage") { // TODO check the return type instead because that is safer
-//        num_inner_objs = jit->get_builder().CreateMul(num_inner_objs, num_inner_objs);
-//    }
-//
-//    // now back to getting our X**
-//    llvm::Value *x_gep = jit->get_builder().CreateInBoundsGEP(x_gep_ptr_load, x_gep_idxs);
-//    llvm::LoadInst *x_gep_load = jit->get_builder().CreateLoad(x_gep);
-//
-//    llvm::Value *x_malloc = codegen_c_malloc64_and_cast(jit,
-//                                                        jit->get_builder().CreateMul(jit->get_builder().CreateSExtOrBitCast(num_inner_objs,
-//                                                                                                                            llvm::Type::getInt64Ty(llvm::getGlobalContext())),
-//                                                                                     get_i64(inner_type_output_size)), x_gep_load->getType());
-//    jit->get_builder().CreateStore(x_malloc, x_gep);
-//
-//    // update malloc_size_alloc to have the current number of elements we malloc'd space for
-//    llvm::LoadInst *load_bound = jit->get_builder().CreateLoad(max_loop_bound);
-//    load_bound->setAlignment(8);
-//    jit->get_builder().CreateStore(load_bound, malloc_size)->setAlignment(8);
-//
-//    return outer_struct_alloc;
-//}
-
 
 llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound) {
     llvm::LoadInst *load_idx = jit->get_builder().CreateLoad(loop_idx_alloc);
@@ -244,7 +168,6 @@ llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
         arg_loaded->setAlignment(8);
         loaded_args.push_back(arg_loaded);
     }
-    jit->dump();
     llvm::CallInst *extern_call_result = jit->get_builder().CreateCall(extern_function, loaded_args);
     if (extern_call_result->getType()->isVoidTy()) {
         return nullptr;
@@ -254,7 +177,6 @@ llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
         return extern_call_alloc;
     }
 }
-
 
 llvm::LoadInst *get_marray_size_field(JIT *jit, llvm::AllocaInst *marray_alloc) {
     std::vector<llvm::Value *> size_field_gep_idxs;
@@ -314,7 +236,7 @@ void codegen_fprintf_int(JIT *jit, int the_int) {
 }
 
 void codegen_fprintf_float(JIT *jit, llvm::Value *the_int) {
-    llvm::Function *c_fprintf = jit->get_module()->getFunction("print_float");
+    llvm::Function *c_fprintf = jit->get_module()->getFunction("c_fprintf_float");
     assert(c_fprintf);
     std::vector<llvm::Value *> print_args;
     print_args.push_back(the_int);
@@ -323,7 +245,7 @@ void codegen_fprintf_float(JIT *jit, llvm::Value *the_int) {
 
 
 void codegen_fprintf_float(JIT *jit, float the_int) {
-    llvm::Function *c_fprintf = jit->get_module()->getFunction("print_float");
+    llvm::Function *c_fprintf = jit->get_module()->getFunction("c_fprintf_float");
     assert(c_fprintf);
     std::vector<llvm::Value *> print_args;
     print_args.push_back(llvm::ConstantInt::get(llvm::Type::getFloatTy(llvm::getGlobalContext()), the_int));
@@ -365,6 +287,14 @@ llvm::Value *codegen_c_malloc64(JIT *jit, llvm::Value *size) {
     malloc_args.push_back(size);
     llvm::Value *malloc_field = jit->get_builder().CreateCall(c_malloc, malloc_args);
     return malloc_field;
+}
+
+llvm::Value *codegen_llvm_ceil(JIT *jit, llvm::Value *ceil_me) {
+    llvm::Function *llvm_ceil = jit->get_module()->getFunction("llvm.ceil.f32");
+    assert(llvm_ceil);
+    std::vector<llvm::Value *> ceil_args;
+    ceil_args.push_back(ceil_me);
+    return jit->get_builder().CreateCall(llvm_ceil, ceil_args);
 }
 
 llvm::Value *codegen_c_malloc32_and_cast(JIT *jit, size_t size, llvm::Type *cast_to) {

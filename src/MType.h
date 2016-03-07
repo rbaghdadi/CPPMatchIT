@@ -125,7 +125,7 @@ public:
     void add_underlying_type(MType *mtype);
 
     /**
-     * Is this an MPrimType
+     * Is this an MScalarType
      */
     bool is_prim_type();
 
@@ -243,79 +243,85 @@ public:
 
     virtual size_t _sizeof() { return 0; }
 
+    virtual size_t get_size() = 0;
+
 };
 
 /*
- * MPrimType
+ * MScalarType
  */
 
-class MPrimType : public MType {
+class MScalarType : public MType {
 private:
 
-    static MPrimType *void_type;
-    static MPrimType *bool_type;
-    static MPrimType *char_type;
-    static MPrimType *short_type;
-    static MPrimType *int_type;
-    static MPrimType *long_type;
-    static MPrimType *float_type;
-    static MPrimType *double_type;
+    static MScalarType *void_type;
+    static MScalarType *bool_type;
+    static MScalarType *char_type;
+    static MScalarType *short_type;
+    static MScalarType *int_type;
+    static MScalarType *long_type;
+    static MScalarType *float_type;
+    static MScalarType *double_type;
 
 public:
 
-    MPrimType(mtype_code_t mtype_code, unsigned int bits) : MType(mtype_code, bits) {
+    MScalarType(mtype_code_t mtype_code, unsigned int bits) : MType(mtype_code, bits) {
         assert(is_prim_type());
     }
 
-    ~MPrimType() {}
+    ~MScalarType() {}
 
     llvm::Type *codegen_type();
 
     void dump();
 
-    size_t _sizeof() {
+//    size_t _sizeof() {
+//        return bits / 8;
+//    }
+
+    size_t get_size() {
         return bits / 8;
     }
 
     /**
      * Get preconstructed mtype_bool
      */
-    static MPrimType *get_bool_type();
+    static MScalarType *get_bool_type();
 
     /**
      * Get preconstructed mtype_char
      */
-    static MPrimType *get_char_type();
+    static MScalarType *get_char_type();
 
     /**
      * Get preconstructed mtype_short
      */
-    static MPrimType *get_short_type();
+    static MScalarType *get_short_type();
 
     /**
      * Get preconstructed mtype_int
      */
-    static MPrimType *get_int_type();
+    static MScalarType *get_int_type();
 
     /**
      * Get preconstructed mtype_long
      */
-    static MPrimType *get_long_type();
+    static MScalarType *get_long_type();
 
     /**
      * Get preconstructed mtype_float
      */
-    static MPrimType *get_float_type();
+    static MScalarType *get_float_type();
 
     /**
      * Get preconstructed mtype_double
      */
-    static MPrimType *get_double_type();
+    static MScalarType *get_double_type();
 
     /**
      * Get preconstructed mtype_void
      */
-    static MPrimType *get_void_type();
+    static MScalarType *get_void_type();
 
 };
 
@@ -338,80 +344,427 @@ public:
         return 8;
     }
 
+    size_t get_size() {
+        return 8;
+    }
+
+};
+
+class MArrayType : public MType {
+private:
+
+    int length;
+    bool variable_length;
+    MType *array_element_type;
+
+public:
+
+    MArrayType(int length, MType *array_element_type) : length(length), array_element_type(array_element_type) {
+        if (length == 0) {
+            variable_length = true;
+        } else {
+            variable_length = false;
+        }
+    }
+
+    int get_length() {
+        return length;
+    }
+
+    MType *get_array_element_type() {
+        return array_element_type;
+    }
+
+    size_t get_size() {
+        return (array_element_type->get_bits() / 8) * length;
+    }
+
+    void dump() {
+        std::cerr << "MArrayType" << std::endl;
+    }
+
+    llvm::Type *codegen_type() {
+        return nullptr;
+    }
+
+    bool is_variable_length() {
+        return variable_length;
+    }
+};
+
+class MMatrixType : public MType {
+private:
+
+    int row_dimension;
+    int col_dimension;
+    bool x_variable_length;
+    bool y_variable_length;
+    MType *matrix_element_type;
+
+public:
+
+    MMatrixType(int row_dimension, int col_dimension,
+                MType *array_element_type) : row_dimension(row_dimension), col_dimension(col_dimension),
+                                             matrix_element_type(array_element_type) {
+        if (row_dimension == 0) {
+            x_variable_length = true;
+        } else if (col_dimension == 0){
+            y_variable_length = true;
+        } else {
+            x_variable_length = false;
+            y_variable_length = false;
+        }
+    }
+
+    int get_length() {
+        return row_dimension * col_dimension;
+    }
+
+    int get_row_dimension() {
+        return row_dimension;
+    }
+
+    int get_col_dimension() {
+        return col_dimension;
+    }
+
+    MType *get_array_element_type() {
+        return matrix_element_type;
+    }
+
+    size_t get_size() {
+        return (matrix_element_type->get_bits() / 8) * (row_dimension * col_dimension);
+    }
+
+    void dump() {
+        std::cerr << "MMatrixType" << std::endl;
+    }
+
+    llvm::Type *codegen_type() {
+        return nullptr;
+    }
+
+    bool is_variable_length() {
+        return x_variable_length;
+    }
 };
 
 template <typename T>
-struct create_type;
+struct create_scalar_type;
 
-template <>
-struct create_type<bool> {
-    operator MPrimType*() {
-        return MPrimType::get_bool_type();
+template <typename T, int row_dimension>
+struct create_array_type;
+
+template <typename T, int row_dimension, int col_dimension>
+struct create_matrix_type;
+
+template <typename T, int row_dimension = 1, int col_dimension = 0>
+struct create_type {
+    operator MType*() {
+        if (row_dimension == 1 && col_dimension == 0) {
+            return create_scalar_type<T>();
+        } else if (col_dimension == 0){
+            return create_array_type<T, row_dimension>(); // if row_dimension == 0, we will have a variable row_dimension array
+        } else {
+            return create_matrix_type<T, row_dimension, col_dimension>();
+        }
     }
 };
 
-template <>
-struct create_type<char> {
-    operator MPrimType*() {
-        return MPrimType::get_char_type();
-    }
-};
+/*
+ * create_scalar_type
+ */
 
 template <>
-struct create_type<unsigned char> {
-    operator MPrimType*() {
-        return MPrimType::get_char_type();
-    }
-};
-
-template <>
-struct create_type<short> {
-    operator MPrimType*() {
-        return MPrimType::get_short_type();
-    }
-};
-
-template <>
-struct create_type<int> {
-    operator MPrimType*() {
-        return MPrimType::get_int_type();
+struct create_scalar_type<bool> {
+    operator MScalarType*() {
+        return MScalarType::get_bool_type();
     }
 };
 
 template <>
-struct create_type<unsigned int> {
-    operator MPrimType*() {
-        return MPrimType::get_int_type();
+struct create_scalar_type<char> {
+    operator MScalarType*() {
+        return MScalarType::get_char_type();
     }
 };
 
 template <>
-struct create_type<long> {
-    operator MPrimType*() {
-        return MPrimType::get_long_type();
+struct create_scalar_type<unsigned char> {
+    operator MScalarType*() {
+        return MScalarType::get_char_type();
     }
 };
 
 template <>
-struct create_type<float> {
-    operator MPrimType*() {
-        return MPrimType::get_float_type();
+struct create_scalar_type<short> {
+    operator MScalarType*() {
+        return MScalarType::get_short_type();
     }
 };
 
 template <>
-struct create_type<double> {
-    operator MPrimType*() {
-        return MPrimType::get_double_type();
+struct create_scalar_type<int> {
+    operator MScalarType*() {
+        return MScalarType::get_int_type();
     }
 };
 
-template <typename T>
-struct create_type<T *> {
-    operator MPointerType*() {
-        return new MPointerType(create_type<T>());
+template <>
+struct create_scalar_type<unsigned int> {
+    operator MScalarType*() {
+        return MScalarType::get_int_type();
     }
 };
+
+template <>
+struct create_scalar_type<long> {
+    operator MScalarType*() {
+        return MScalarType::get_long_type();
+    }
+};
+
+template <>
+struct create_scalar_type<float> {
+    operator MScalarType*() {
+        return MScalarType::get_float_type();
+    }
+};
+
+template <>
+struct create_scalar_type<double> {
+    operator MScalarType*() {
+        return MScalarType::get_double_type();
+    }
+};
+
+/*
+ * create_array_type
+ */
+
+template <int row_dimension>
+struct create_array_type<bool, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<bool>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<char, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<char>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<unsigned char, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<unsigned char>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<short, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<short>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<int, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<int>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<unsigned int, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<unsigned int>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<long, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<long>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<float, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<float>());
+    }
+};
+
+template <int row_dimension>
+struct create_array_type<double, row_dimension> {
+    operator MArrayType*() {
+        return new MArrayType(row_dimension, create_scalar_type<double>());
+    }
+};
+
+/*
+ * create_matrix_type
+ */
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<bool, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<bool>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<char, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<char>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<unsigned char, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned char>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<short, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<short>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<int, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<int>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<unsigned int, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned int>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<long, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<long>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<float, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<float>());
+    }
+};
+
+template <int row_dimension, int col_dimension>
+struct create_matrix_type<double, row_dimension, col_dimension> {
+    operator MMatrixType*() {
+        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<double>());
+    }
+};
+
+// The methods that would be called when making fields for the ElementSet
+//
+//template <typename T>
+//struct create_type<T, 0> {
+//    operator MScalarType*() {
+//        return create_scalar_type<T>();
+//    }
+//};
+
+//template <>
+//struct create_type<T> {
+//    operator MScalarType*() {
+//        return create_scalar_type<T>();
+//    }
+////};
+//
+//template <typename T, int row_dimension>
+//struct create_type<T, row_dimension> {
+//    operator MArrayType*() {
+//        return create_array_type<T, row_dimension>();
+//    }
+//};
+//
+////template <>
+//struct create_type<bool> {
+//    operator MScalarType*() {
+//        return MScalarType::get_bool_type();
+//    }
+//};
+//
+//
+//template <>
+//struct create_type<char> {
+//    operator MScalarType*() {
+//        return MScalarType::get_char_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<unsigned char> {
+//    operator MScalarType*() {
+//        return MScalarType::get_char_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<short> {
+//    operator MScalarType*() {
+//        return MScalarType::get_short_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<int> {
+//    operator MScalarType*() {
+//        return MScalarType::get_int_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<unsigned int> {
+//    operator MScalarType*() {
+//        return MScalarType::get_int_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<long> {
+//    operator MScalarType*() {
+//        return MScalarType::get_long_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<float> {
+//    operator MScalarType*() {
+//        return MScalarType::get_float_type();
+//    }
+//};
+//
+//template <>
+//struct create_type<double> {
+//    operator MScalarType*() {
+//        return MScalarType::get_double_type();
+//    }
+//};
+//
+//template <typename T>
+//struct create_type<T *> {
+//    operator MPointerType*() {
+//        return new MPointerType(create_type<T>());
+//    }
+//};
 
 /*
  * MStructType
@@ -439,6 +792,10 @@ public:
         }
     }
 
+    size_t get_size() {
+        return _sizeof();
+    }
+
 };
 
 /*
@@ -450,6 +807,7 @@ private:
 
     MType *user_type;
     static ElementType *float_element_type;
+    static ElementType *uc_element_type;
 
 public:
 
@@ -457,7 +815,7 @@ public:
         MType *i = create_type<long>();
         MType *user_ptr = new MPointerType(user_type);
         underlying_types.push_back(i); // tag value
-        underlying_types.push_back(i); // data length
+        underlying_types.push_back(i); // data row_dimension
         underlying_types.push_back(user_ptr); // data array
     }
 
@@ -521,6 +879,8 @@ public:
      */
     static ElementType *get_float_element_type();
 
+    static ElementType *get_uc_element_type();
+
 };
 
 /*
@@ -539,7 +899,7 @@ public:
         MType *i = create_type<long>();
         MType *user_ptr = new MPointerType(user_type);
         underlying_types.push_back(i); // tag value
-        underlying_types.push_back(i); // data length
+        underlying_types.push_back(i); // data row_dimension
         underlying_types.push_back(i); // segment offset
         underlying_types.push_back(user_ptr); // data array
     }
@@ -609,6 +969,13 @@ template <>
 struct create_type<FloatElement> {
     operator ElementType*() {
         return ElementType::get_float_element_type();
+    }
+};
+
+template <>
+struct create_type<UCElement> {
+    operator ElementType*() {
+        return ElementType::get_uc_element_type();
     }
 };
 
@@ -703,6 +1070,5 @@ struct mtype_of<FloatSegment> {
         return mtype_segment;
     }
 };
-
 
 #endif //MATCHIT_MTYPE_H

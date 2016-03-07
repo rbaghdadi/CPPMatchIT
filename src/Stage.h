@@ -122,6 +122,10 @@ public:
 
     JIT *get_jit();
 
+    virtual std::vector<llvm::AllocaInst *> get_extern_arg_loader_idxs();
+
+    virtual std::vector<llvm::AllocaInst *> get_extern_arg_loader_data();
+
 };
 
 #endif //MATCHIT_STAGE_H

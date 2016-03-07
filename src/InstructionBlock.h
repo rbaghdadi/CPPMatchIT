@@ -68,7 +68,7 @@ public:
 
     std::vector<llvm::AllocaInst *> get_args_alloc();
 
-    llvm::AllocaInst *get_data();
+    llvm::AllocaInst *get_data(int data_idx);
 
     llvm::AllocaInst *get_data_array_size();
 
@@ -87,11 +87,11 @@ class ExternArgLoaderIB : public InstructionBlock {
 private:
 
     /**
-     * The allocated space for the whole argument passed into the wrapper function.
+     * The allocated space for the whole argument passed into the stage wrapper function.
      * This comes from StageArgLoaderIB.
      * Required when running codegen.
      */
-    llvm::AllocaInst *stage_input_arg_alloc;
+    std::vector<llvm::AllocaInst *> stage_input_arg_alloc;
 
     /**
      * The preallocated output space.
@@ -106,10 +106,16 @@ private:
     bool has_output_param = true;
 
     /**
-     * The loop index.
+     * The loop indices for the arguments pulled from the stage wrapper function. In the ComparisonStage,
+     * there are two input streams passed into the wrapper, so there will be two corresponding loop_idxs.
      * Required when running codegen.
      */
-    llvm::AllocaInst *loop_idx_alloc;
+    std::vector<llvm::AllocaInst *> loop_idx_alloc;
+
+    /**
+     * The output struct index
+     */
+    llvm::AllocaInst *output_idx_alloc;
 
     /**
      * Is this the SegmentationStage?
@@ -136,11 +142,13 @@ public:
 
     void set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space);
 
-    void set_stage_input_arg_alloc(llvm::AllocaInst *stage_input_arg_alloc);
+    void set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> stage_input_arg_alloc);
 
     void set_no_output_param();
 
-    void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
+    void set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc);
+
+    void set_loop_idx_alloc(std::vector<llvm::AllocaInst *> loop_idx_alloc);
 
     void set_segmentation_stage();
 
@@ -381,7 +389,7 @@ class FixedPreallocatorIB : public PreallocatorIB {
 public:
 
     FixedPreallocatorIB() {
-        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate");
     }
 
     void codegen(JIT *jit, bool no_insert = false);
@@ -393,7 +401,7 @@ class MatchedPreallocatorIB : public PreallocatorIB {
 public:
 
     MatchedPreallocatorIB() {
-        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate", function);
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate");
     }
 
     void codegen(JIT *jit, bool no_insert = false);

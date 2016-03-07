@@ -7,6 +7,7 @@
 
 #include "./TransformStage.h"
 #include "./FilterStage.h"
+#include "./SegmentationStage.h"
 
 template <typename I, typename O>
 TransformStage<const I, O> create_transform_stage(JIT *jit, void(*transform)(const I*, O*),

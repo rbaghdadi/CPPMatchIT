@@ -28,16 +28,16 @@ std::vector<llvm::AllocaInst *> StageArgLoaderIB::get_args_alloc() {
     return args_alloc;
 }
 
-llvm::AllocaInst *StageArgLoaderIB::get_data() {
-    return args_alloc[0];
+llvm::AllocaInst *StageArgLoaderIB::get_data(int data_idx) {
+    return args_alloc[data_idx];
 }
 
 llvm::AllocaInst *StageArgLoaderIB::get_data_array_size() {
-    return args_alloc[1];
+    return args_alloc[args_alloc.size() - 2]; // 2nd to last element
 }
 
 llvm::AllocaInst *StageArgLoaderIB::get_num_data_structs() {
-    return args_alloc[2];
+    return args_alloc[args_alloc.size() - 1]; // last element
 }
 
 void StageArgLoaderIB::codegen(JIT *jit, bool no_insert) {
@@ -59,7 +59,7 @@ llvm::AllocaInst *ExternArgLoaderIB::get_preallocated_output_space() {
     return preallocated_output_space;
 }
 
-void ExternArgLoaderIB::set_stage_input_arg_alloc(llvm::AllocaInst *wrapper_input_arg_alloc) {
+void ExternArgLoaderIB::set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc) {
     this->stage_input_arg_alloc = wrapper_input_arg_alloc;
 }
 
@@ -67,7 +67,7 @@ void ExternArgLoaderIB::set_no_output_param() {
     has_output_param = false;
 }
 
-void ExternArgLoaderIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+void ExternArgLoaderIB::set_loop_idx_alloc(std::vector<llvm::AllocaInst *> loop_idx) {
     this->loop_idx_alloc = loop_idx;
 }
 
@@ -79,13 +79,17 @@ void ExternArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *prealloc
     this->preallocated_output_space = preallocated_output_space;
 }
 
+void ExternArgLoaderIB::set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc) {
+    this->output_idx_alloc = output_idx_alloc;
+}
+
 void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
-    assert(stage_input_arg_alloc);
-    assert(loop_idx_alloc);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, stage_input_arg_alloc, preallocated_output_space, loop_idx_alloc,
-                                                                 is_segmentation_stage, has_output_param);
+    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, stage_input_arg_alloc, preallocated_output_space,
+                                                                 loop_idx_alloc, is_segmentation_stage,
+                                                                 has_output_param,
+                                                                 output_idx_alloc);
     codegen_done = true;
 }
 

@@ -104,13 +104,13 @@ bool MType::is_mtype_stage() {
 }
 
 /*
- * MPrimType
+ * MScalarType
  */
 
 // TODO a lot of this codegen stuff can be refactored into a single function
 
 
-llvm::Type *MPrimType::codegen_type() {
+llvm::Type *MScalarType::codegen_type() {
     if (is_void_type()) {
         return llvm::Type::getVoidTy(llvm::getGlobalContext());
     } else if (is_int_type()) {
@@ -125,8 +125,8 @@ llvm::Type *MPrimType::codegen_type() {
         return nullptr;
     }
 }
-void MPrimType::dump() {
-    std::cerr << "MPrimType with type code: " << mtype_code << std::endl;
+void MScalarType::dump() {
+    std::cerr << "MScalarType with type code: " << mtype_code << std::endl;
 }
 
 /*
@@ -174,7 +174,7 @@ void MStructType::dump() {
 void ElementType::dump() {
     std::cerr << "ElementType has tag type ";
     underlying_types[0]->dump();
-    std::cerr << " and length type ";
+    std::cerr << " and x_dimension type ";
     underlying_types[1]->dump();
     std::cerr << " and data type ";
     underlying_types[2]->dump();
@@ -187,7 +187,7 @@ void ElementType::dump() {
 void SegmentType::dump() {
     std::cerr << "SegmentType has tag type ";
     underlying_types[0]->dump();
-    std::cerr << " and length type ";
+    std::cerr << " and x_dimension type ";
     underlying_types[1]->dump();
     std::cerr << " and offset type ";
     underlying_types[2]->dump();
@@ -199,50 +199,55 @@ void SegmentType::dump() {
  * Uniqued types
  */
 
-MPrimType *MPrimType::bool_type = new MPrimType(mtype_bool, 1);
-MPrimType *MPrimType::char_type = new MPrimType(mtype_char, 8);
-MPrimType *MPrimType::short_type = new MPrimType(mtype_short, 16);
-MPrimType *MPrimType::int_type = new MPrimType(mtype_int, 32);
-MPrimType *MPrimType::long_type = new MPrimType(mtype_long, 64);
-MPrimType *MPrimType::float_type = new MPrimType(mtype_float, 32);
-MPrimType *MPrimType::double_type = new MPrimType(mtype_double, 64);
-MPrimType *MPrimType::void_type = new MPrimType(mtype_void, 0);
-ElementType *ElementType::float_element_type = new ElementType(MPrimType::get_float_type());
-SegmentType *SegmentType::float_segment_type = new SegmentType(MPrimType::get_float_type());
+MScalarType *MScalarType::bool_type = new MScalarType(mtype_bool, 1);
+MScalarType *MScalarType::char_type = new MScalarType(mtype_char, sizeof(char) * 8);
+MScalarType *MScalarType::short_type = new MScalarType(mtype_short, sizeof(short) * 8);
+MScalarType *MScalarType::int_type = new MScalarType(mtype_int, sizeof(int) * 8);
+MScalarType *MScalarType::long_type = new MScalarType(mtype_long, sizeof(long) * 8);
+MScalarType *MScalarType::float_type = new MScalarType(mtype_float, sizeof(float) * 8);
+MScalarType *MScalarType::double_type = new MScalarType(mtype_double, sizeof(double) * 8);
+MScalarType *MScalarType::void_type = new MScalarType(mtype_void, 0);
+ElementType *ElementType::float_element_type = new ElementType(MScalarType::get_float_type());
+ElementType *ElementType::uc_element_type = new ElementType(MScalarType::get_char_type());
+SegmentType *SegmentType::float_segment_type = new SegmentType(MScalarType::get_float_type());
 
-MPrimType *MPrimType::get_bool_type() {
+MScalarType *MScalarType::get_bool_type() {
     return bool_type;
 }
 
-MPrimType *MPrimType::get_char_type() {
+MScalarType *MScalarType::get_char_type() {
     return char_type;
 }
 
-MPrimType *MPrimType::get_short_type() {
+MScalarType *MScalarType::get_short_type() {
     return short_type;
 }
 
-MPrimType *MPrimType::get_int_type() {
+MScalarType *MScalarType::get_int_type() {
     return int_type;
 }
 
-MPrimType *MPrimType::get_long_type() {
+MScalarType *MScalarType::get_long_type() {
     return long_type;
 }
 
-MPrimType *MPrimType::get_float_type() {
+MScalarType *MScalarType::get_float_type() {
     return float_type;
 }
 
-MPrimType *MPrimType::get_double_type() {
+MScalarType *MScalarType::get_double_type() {
     return double_type;
 }
 
-MPrimType *MPrimType::get_void_type() {
+MScalarType *MScalarType::get_void_type() {
     return void_type;
 }
 
 ElementType *ElementType::get_float_element_type() {
+    return float_element_type;
+}
+
+ElementType *ElementType::get_uc_element_type() {
     return float_element_type;
 }
 
@@ -390,7 +395,7 @@ llvm::AllocaInst *MType::preallocate_matched_block(JIT *jit, llvm::Value *num_st
         field_two_gep_idxs.push_back(CodegenUtils::get_i32(1));
         llvm::Value *field_two_gep = jit->get_builder().CreateInBoundsGEP(data_ptr_ptr_load, field_two_gep_idxs);
         llvm::LoadInst *length = jit->get_builder().CreateLoad(
-                field_two_gep); // we have the length of this struct's array now (i.e. num_prim_values for this single Element)
+                field_two_gep); // we have the x_dimension of this struct's array now (i.e. num_prim_values for this single Element)
         llvm::Value *inc_T_idx = jit->get_builder().CreateAdd(T_ptr_idx, length);
         jit->get_builder().CreateStore(inc_T_idx, T_idx);
         jit->get_builder().CreateBr(loop.get_increment_bb());

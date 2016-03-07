@@ -9,7 +9,8 @@
 #include "llvm/IR/Type.h"
 #include "./JIT.h"
 #include "./Stage.h"
-#include "Structures.h"
+#include "./Structures.h"
+#include "./Input.h"
 
 class Pipeline {
 
@@ -25,6 +26,11 @@ public:
 
     // a simple all at once execution for right now
     void simple_execute(JIT *jit, const void **data);
+
+    template <typename T>
+    void simple_execute(JIT *jit, Input<T> *input) {
+        simple_execute(jit, (const void**)(&(input->get_elements()[0])));
+    }
 
     void execute(JIT *jit, const void **data, long total_bytes_in_arrays, long total_elements);
 

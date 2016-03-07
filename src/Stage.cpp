@@ -55,18 +55,18 @@ void Stage::init_stage() {
     std::vector<MType *> extern_wrapper_param_types;
     extern_wrapper_param_types.push_back(input_type_ptr_ptr);
     // the number of data elements coming in
-    extern_wrapper_param_types.push_back(MPrimType::get_long_type());
+    extern_wrapper_param_types.push_back(MScalarType::get_long_type());
     // the total size of the arrays in the data elements coming in
-    extern_wrapper_param_types.push_back(MPrimType::get_long_type());
+    extern_wrapper_param_types.push_back(MScalarType::get_long_type());
 
     // return type of the stage, with the additional counters added on
     std::vector<MType *> extern_wrapper_return_types;
     // the actual data type passed back
     extern_wrapper_return_types.push_back(output_type_ptr_ptr);
     // the number of data elements going out
-    extern_wrapper_return_types.push_back(MPrimType::get_long_type());
+    extern_wrapper_return_types.push_back(MScalarType::get_long_type());
     // the total size of the arrays in the data going out
-    extern_wrapper_return_types.push_back(MPrimType::get_long_type());
+    extern_wrapper_return_types.push_back(MScalarType::get_long_type());
     MStructType *return_type_struct_ptr = new MStructType(mtype_struct, extern_wrapper_return_types);
     MPointerType *pointer_return_type = new MPointerType(return_type_struct_ptr);
     mtypes_to_delete.push_back(return_type_struct_ptr);
@@ -146,12 +146,13 @@ void Stage::codegen() {
 
         // Process the data through the extern function in the loop body
         // Get the current input to the extern function
-        extern_arg_loader->set_loop_idx_alloc(loop->get_loop_idx());
+        extern_arg_loader->set_loop_idx_alloc(get_extern_arg_loader_idxs());//loop->get_loop_idx());
         if (is_filter()) {
             extern_arg_loader->set_no_output_param();
         }
         extern_arg_loader->set_preallocated_output_space(preallocator->get_preallocated_space());
-        extern_arg_loader->set_stage_input_arg_alloc(stage_arg_loader->get_data());
+        extern_arg_loader->set_stage_input_arg_alloc(get_extern_arg_loader_data());//stage_arg_loader->get_data(0));
+        extern_arg_loader->set_output_idx_alloc(loop->get_return_idx());
         if (is_segmentation()) {
             extern_arg_loader->set_segmentation_stage();
         }
@@ -174,6 +175,20 @@ void Stage::codegen() {
     }
 }
 
+std::vector<llvm::AllocaInst *> Stage::get_extern_arg_loader_idxs() {
+    std::vector<llvm::AllocaInst *> idxs;
+    idxs.push_back(loop->get_loop_idx());
+    return idxs;
+}
+
+std::vector<llvm::AllocaInst *> Stage::get_extern_arg_loader_data() {
+    std::vector<llvm::AllocaInst *> data;
+    data.push_back(stage_arg_loader->get_data(0));
+    return data;
+}
+
+
+
 void Stage::handle_extern_output(llvm::AllocaInst *output_data_array_size) {
     loop->codegen_return_idx_increment();
 }
@@ -189,7 +204,7 @@ llvm::Value *Stage::compute_preallocation_data_array_size() {
 
 llvm::AllocaInst *Stage::finish_stage(llvm::AllocaInst *output_data_array_size) {
     // The final stage output is a struct wrapping the computed BaseElements, the number of output BaseElements,
-    // and the total length of all the arrays in the output BaseElements.
+    // and the total x_dimension of all the arrays in the output BaseElements.
     llvm::Type *llvm_return_type = mfunction->get_extern_wrapper_return_type()->codegen_type();
     llvm::AllocaInst *final_stage_output = jit->get_builder().CreateAlloca(llvm_return_type);
     // RetStruct *rs = (RetStruct*)malloc(sizeof(RetStruct)), RetStruct = { { i64, i64, float* }**, i64, i64 }, so sizeof = 24
@@ -232,12 +247,12 @@ void Stage::preallocate() {
     jit->get_builder().CreateBr(preallocator->get_basic_block());
     jit->get_builder().SetInsertPoint(preallocator->get_basic_block());
     preallocator->set_base_type(stage_return_type);
-    preallocator->set_num_output_structs_alloc(compute_num_output_structs());//loop->get_loop_bound());
+    preallocator->set_num_output_structs_alloc(compute_num_output_structs());
     if (is_fixed_size) {
         preallocator->set_fixed_size(fixed_size);
     } else { // matched
         // In the matched case, the output_data_array_size is the same as the value that was fed into the stage
-        preallocator->set_input_data(stage_arg_loader->get_data());
+        preallocator->set_input_data(stage_arg_loader->get_data(0));
         preallocator->set_preallocate_outer_only(is_filter());
     }
     preallocator->set_data_array_size(compute_preallocation_data_array_size());

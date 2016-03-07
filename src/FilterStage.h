@@ -20,15 +20,10 @@ private:
 public:
 
     FilterStage(bool (*filter)(const I*), std::string filter_name, JIT *jit, MType *param_type) :
-            Stage(jit, "FilterStage", filter_name, param_type, param_type, MPrimType::get_bool_type()),
+            Stage(jit, "FilterStage", filter_name, param_type, param_type, MScalarType::get_bool_type()),
             filter(filter) { }
 
     ~FilterStage() {}
-
-    void init_codegen() {
-        mfunction->codegen_extern_proto();
-        mfunction->codegen_extern_wrapper_proto();
-    }
 
     bool is_filter() {
         return true;
@@ -57,7 +52,7 @@ public:
         llvm::Value *ret_idx_inc = jit->get_builder().CreateAdd(ret_idx_load, CodegenUtils::get_i64(1));
         jit->get_builder().CreateStore(ret_idx_inc, loop->get_return_idx());
 
-        // get the array length field of the input and add that to output_data_array_size
+        // get the array x_dimension field of the input and add that to output_data_array_size
         llvm::Value *length = jit->get_builder().CreateLoad(CodegenUtils::gep(jit, input_load, 0, 1));
         llvm::Value *inc = jit->get_builder().CreateAdd(length, jit->get_builder().CreateLoad(output_data_array_size));
         jit->get_builder().CreateStore(inc, output_data_array_size);

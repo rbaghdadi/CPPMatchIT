@@ -36,13 +36,16 @@ public:
         return data;
     }
 
+    T get_data(int i) const {
+        return data[i];
+    }
+
     void set_tag(long tag) {
         this->tag = tag;
     }
 
     void set_data(T *data, long data_length) {
         if (!this->data) {
-            std::cerr << "About to malloc space for the data array in Element. Make sure this is on purpose!" << std::endl;
             this->data = (T*)malloc(sizeof(T) * data_length);
         }
         memcpy(this->data, data, data_length * sizeof(T));
@@ -52,6 +55,11 @@ public:
 };
 
 typedef Element<float> FloatElement;
+typedef Element<unsigned char> UCElement;
+
+/*
+ * Segment
+ */
 
 template <typename T>
 class Segment {
@@ -85,15 +93,8 @@ public:
         this->tag = tag;
     }
 
-    // used for adding padding
-    void add_padding(T *padding, int pad_size) {
-        this->data = (T*)realloc(this->data, sizeof(T) * (data_length + pad_size));
-        memcpy(&(this->data[data_length]), padding, pad_size * sizeof(T));
-    }
-
     void set_data(T *data, long data_length, long offset) {
         if (!this->data) {
-            std::cerr << "About to malloc space for the data array in Element2. Make sure this is on purpose!" << std::endl;
             this->data = (T*)malloc(sizeof(T) * data_length);
         }
         memcpy(this->data, data, data_length * sizeof(T));

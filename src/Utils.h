@@ -48,6 +48,11 @@ extern "C" void print_sep();
 extern "C" void c_fprintf(int i);
 
 /**
+ * Print a float using fprintf(stderr,...)
+ */
+extern "C" void c_fprintf_float(float f);
+
+/**
  * Call C malloc with an i32 llvm type
  */
 extern "C" void *malloc_32(size_t size);
