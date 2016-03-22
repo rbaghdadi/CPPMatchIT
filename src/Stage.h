@@ -13,6 +13,7 @@
 #include "./InstructionBlock.h"
 #include "./ForLoop.h"
 #include "./Utils.h"
+#include "./Field.h"
 
 class Stage {
 
@@ -20,20 +21,25 @@ protected:
 
     JIT *jit;
     MFunc *mfunction;
-    MType *stage_input_type;
-    MType *stage_return_type;
+
+    std::vector<BaseField *> input_relation_field_types;
+    std::vector<BaseField *> output_relation_field_types;
+    MType *user_function_return_type;
+
+//    std::vector<MType *> stage_arg_types;
+//    std::vector<BaseField *> stage_arg_fields;
     bool codegen_done = false;
-    bool is_fixed_size;
-    unsigned int fixed_size;
-    std::string function_name;
+//    bool is_fixed_size;
+//    unsigned int fixed_size;
     std::string stage_name;
-    MType *extern_return_type;
+    std::string user_function_name;
+//    MType *user_function_return_type;
     std::vector<MType *> mtypes_to_delete;
 
     // Building blocks for a given stage
     ForLoop *loop;
     StageArgLoaderIB *stage_arg_loader;
-    ExternArgLoaderIB *extern_arg_loader;
+    UserFunctionArgLoaderIB *user_function_arg_loader;
     ExternCallIB *call;
     PreallocatorIB *preallocator;
 
@@ -42,19 +48,32 @@ public:
     // input_type: this is the type I in the subclasses. It's the user type that is going to be fed into the extern function
     // output_type: this is the type O in the subclasses. It's the user type of the data that will be output from this stage
     // (not including the additional counters and such that I manually add on)
-    // extern_return_type: this is the output type of the extern call. It will usually be mvoid_type, but in the case of
+    // user_function_return_type: this is the output type of the extern call. It will usually be mvoid_type, but in the case of
     // something like filter, it will be mbool_type
-    Stage(JIT *jit, std::string stage_name, std::string function_name, MType *input_type, MType *output_type,
-          MType *extern_return_type, bool is_fixed_size = false, unsigned int fixed_size = 0) :
-            jit(jit), stage_input_type(input_type), stage_return_type(output_type), is_fixed_size(is_fixed_size),
-            fixed_size(fixed_size), function_name(function_name), stage_name(stage_name), extern_return_type(extern_return_type) {
-    }
+//    Stage(JIT *jit, std::string stage_name, std::string function_name, MType *input_type, MType *output_type,
+//          MType *user_function_return_type, bool is_fixed_size = false, unsigned int fixed_size = 0) :
+//            jit(jit), stage_input_type(input_type), stage_return_type(output_type), is_fixed_size(is_fixed_size),
+//            fixed_size(fixed_size), function_name(function_name), stage_name(stage_name), user_function_return_type(user_function_return_type) {
+//    }
+
+//    Stage(JIT *jit, std::string stage_name, std::string function_name, std::vector<MType *> stage_arg_types,
+//          MType *user_function_return_type, std::vector<BaseField *> stage_arg_fields) :
+//            jit(jit), stage_arg_types(stage_arg_types), stage_arg_fields(stage_arg_fields),
+//            user_function_name(function_name), stage_name(stage_name), user_function_return_type(user_function_return_type) {
+//    }
+
+    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Relation *input_relation,
+          Relation *output_relation, MType *user_function_return_type) :
+            jit(jit), input_relation_field_types(input_relation->get_fields()),
+            output_relation_field_types(output_relation->get_fields()),
+            user_function_return_type(user_function_return_type), stage_name(stage_name),
+            user_function_name(user_function_name) { }
 
     virtual ~Stage() {
         delete mfunction;
         delete loop;
         delete stage_arg_loader;
-        delete extern_arg_loader;
+        delete user_function_arg_loader;
         delete call;
         delete preallocator;
         for (std::vector<MType *>::iterator iter = mtypes_to_delete.begin(); iter != mtypes_to_delete.end(); iter++) {
@@ -97,7 +116,7 @@ public:
     /**
      * How to compute the amount of space that we need to preallocate
      */
-    virtual llvm::Value *compute_preallocation_data_array_size();
+    virtual llvm::Value *compute_preallocation_data_array_size(unsigned int fixed_size);
 
     /**
      * Preallocate output space based on the type.
@@ -118,13 +137,13 @@ public:
     /**
      * Do the final malloc for the output struct, save the outputs to it, return from the stage
      */
-    virtual llvm::AllocaInst *finish_stage(llvm::AllocaInst *output_data_array_size);
+    virtual llvm::AllocaInst *finish_stage(llvm::AllocaInst *output_data_array_size, unsigned int fixed_size);
 
     JIT *get_jit();
 
-    virtual std::vector<llvm::AllocaInst *> get_extern_arg_loader_idxs();
+    virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_idxs();
 
-    virtual std::vector<llvm::AllocaInst *> get_extern_arg_loader_data();
+    virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_data();
 
 };
 

@@ -5,6 +5,8 @@
 #include "./InstructionBlock.h"
 #include "./Utils.h"
 #include "./CodegenUtils.h"
+#include "./Field.h"
+#include "./Preallocator.h"
 
 /*
  * InstructionBlock
@@ -33,11 +35,12 @@ llvm::AllocaInst *StageArgLoaderIB::get_data(int data_idx) {
 }
 
 llvm::AllocaInst *StageArgLoaderIB::get_data_array_size() {
+    assert(false); // no one should be calling this currently
     return args_alloc[args_alloc.size() - 2]; // 2nd to last element
 }
 
 llvm::AllocaInst *StageArgLoaderIB::get_num_data_structs() {
-    return args_alloc[args_alloc.size() - 1]; // last element
+    return args_alloc[1]; // 2nd element is the number of input SetElements
 }
 
 void StageArgLoaderIB::codegen(JIT *jit, bool no_insert) {
@@ -48,127 +51,128 @@ void StageArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 }
 
 /*
- * ExternArgLoaderIB
+ * UserFunctionArgLoaderIB
  */
 
-std::vector<llvm::AllocaInst *> ExternArgLoaderIB::get_extern_input_arg_allocs() {
+std::vector<llvm::AllocaInst *> UserFunctionArgLoaderIB::get_user_function_input_allocs() {
     return extern_input_arg_alloc;
 }
 
-llvm::AllocaInst *ExternArgLoaderIB::get_preallocated_output_space() {
+llvm::AllocaInst *UserFunctionArgLoaderIB::get_preallocated_output_space() {
     return preallocated_output_space;
 }
 
-void ExternArgLoaderIB::set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc) {
+void UserFunctionArgLoaderIB::set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc) {
     this->stage_input_arg_alloc = wrapper_input_arg_alloc;
 }
 
-void ExternArgLoaderIB::set_no_output_param() {
+void UserFunctionArgLoaderIB::set_no_output_param() {
     has_output_param = false;
 }
 
-void ExternArgLoaderIB::set_loop_idx_alloc(std::vector<llvm::AllocaInst *> loop_idx) {
+void UserFunctionArgLoaderIB::set_loop_idx_alloc(std::vector<llvm::AllocaInst *> loop_idx) {
     this->loop_idx_alloc = loop_idx;
 }
 
-void ExternArgLoaderIB::set_segmentation_stage() {
+void UserFunctionArgLoaderIB::set_segmentation_stage() {
     is_segmentation_stage = true;
 }
 
-void ExternArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
+void UserFunctionArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
     this->preallocated_output_space = preallocated_output_space;
 }
 
-void ExternArgLoaderIB::set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc) {
+void UserFunctionArgLoaderIB::set_output_idx_alloc(llvm::AllocaInst *output_idx_alloc) {
     this->output_idx_alloc = output_idx_alloc;
 }
 
-void ExternArgLoaderIB::codegen(JIT *jit, bool no_insert) {
+void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_extern_input_arg(jit, stage_input_arg_alloc, preallocated_output_space,
-                                                                 loop_idx_alloc, is_segmentation_stage,
-                                                                 has_output_param,
-                                                                 output_idx_alloc);
+    extern_input_arg_alloc = CodegenUtils::load_user_function_input_arg(jit, stage_input_arg_alloc,
+                                                                        preallocated_output_space,
+                                                                        loop_idx_alloc, is_segmentation_stage,
+                                                                        has_output_param,
+                                                                        output_idx_alloc);
     codegen_done = true;
 }
 
-/*
- * LoopCountersIB
- */
-
-llvm::AllocaInst *ForLoopCountersIB::get_loop_idx_alloc() {
-    return loop_idx_alloc;
-}
-
-llvm::AllocaInst *ForLoopCountersIB::get_loop_bound_alloc() {
-    return loop_bound_alloc;
-}
-
-llvm::AllocaInst *ForLoopCountersIB::get_return_idx_alloc() {
-    return return_idx_alloc;
-}
-
-void ForLoopCountersIB::set_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
-    this->loop_bound_alloc = max_loop_bound;
-}
-
-void ForLoopCountersIB::codegen(JIT *jit, bool no_insert) {
-    assert(loop_bound_alloc);
-    assert(!codegen_done);
-    jit->get_builder().SetInsertPoint(bb);
-    loop_idx_alloc = CodegenUtils::init_i64(jit, 0, "loop_idx_alloc");
-    return_idx_alloc = CodegenUtils::init_i64(jit, 0, "output_idx_alloc");
-    codegen_done = true;
-}
-
-/*
- * ForLoopConditionIB
- */
-
-llvm::Value *ForLoopConditionIB::get_loop_comparison() {
-    return comparison;
-}
-
-void ForLoopConditionIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
-    this->loop_idx_alloc = loop_idx;
-}
-
-void ForLoopConditionIB::set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
-    this->max_loop_bound_alloc = max_loop_bound;
-}
-
-// this should be the last thing called after all the optimizations and such are performed
-void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
-    assert(loop_idx_alloc);
-    assert(max_loop_bound_alloc);
-//    assert(mfunction);
-    assert(!codegen_done);
-    if (bb->getParent() == nullptr) {
-//        bb->insertInto(mfunction->get_extern_wrapper());
-    }
-    jit->get_builder().SetInsertPoint(bb);
-    comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
-    codegen_done = true;
-}
-
-/*
- * ForLoopIncrementIB
- */
-
-void ForLoopIncrementIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
-    this->loop_idx_alloc = loop_idx;
-}
-
-void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
-    assert(loop_idx_alloc);
-    assert(!codegen_done);
-    if (!no_insert) {
-        jit->get_builder().SetInsertPoint(bb);
-    }
-    CodegenUtils::increment_i64(jit, loop_idx_alloc);
-    codegen_done = true;
-}
+///*
+// * LoopCountersIB
+// */
+//
+//llvm::AllocaInst *ForLoopCountersIB::get_loop_idx_alloc() {
+//    return loop_idx_alloc;
+//}
+//
+//llvm::AllocaInst *ForLoopCountersIB::get_loop_bound_alloc() {
+//    return loop_bound_alloc;
+//}
+//
+//llvm::AllocaInst *ForLoopCountersIB::get_return_idx_alloc() {
+//    return return_idx_alloc;
+//}
+//
+//void ForLoopCountersIB::set_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
+//    this->loop_bound_alloc = max_loop_bound;
+//}
+//
+//void ForLoopCountersIB::codegen(JIT *jit, bool no_insert) {
+//    assert(loop_bound_alloc);
+//    assert(!codegen_done);
+//    jit->get_builder().SetInsertPoint(bb);
+//    loop_idx_alloc = CodegenUtils::init_i64(jit, 0, "loop_idx_alloc");
+//    return_idx_alloc = CodegenUtils::init_i64(jit, 0, "output_idx_alloc");
+//    codegen_done = true;
+//}
+//
+///*
+// * ForLoopConditionIB
+// */
+//
+//llvm::Value *ForLoopConditionIB::get_loop_comparison() {
+//    return comparison;
+//}
+//
+//void ForLoopConditionIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+//    this->loop_idx_alloc = loop_idx;
+//}
+//
+//void ForLoopConditionIB::set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound) {
+//    this->max_loop_bound_alloc = max_loop_bound;
+//}
+//
+//// this should be the last thing called after all the optimizations and such are performed
+//void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
+//    assert(loop_idx_alloc);
+//    assert(max_loop_bound_alloc);
+////    assert(mfunction);
+//    assert(!codegen_done);
+//    if (bb->getParent() == nullptr) {
+////        bb->insertInto(mfunction->get_extern_wrapper());
+//    }
+//    jit->get_builder().SetInsertPoint(bb);
+//    comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
+//    codegen_done = true;
+//}
+//
+///*
+// * ForLoopIncrementIB
+// */
+//
+//void ForLoopIncrementIB::set_loop_idx_alloc(llvm::AllocaInst *loop_idx) {
+//    this->loop_idx_alloc = loop_idx;
+//}
+//
+//void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
+//    assert(loop_idx_alloc);
+//    assert(!codegen_done);
+//    if (!no_insert) {
+//        jit->get_builder().SetInsertPoint(bb);
+//    }
+//    CodegenUtils::increment_i64(jit, loop_idx_alloc);
+//    codegen_done = true;
+//}
 
 /*
  * ExternCallIB
@@ -213,7 +217,7 @@ void PreallocatorIB::set_data_array_size(llvm::Value *data_array_size) {
     this->data_array_size = data_array_size;
 }
 
-void PreallocatorIB::set_base_type(MType *base_type) {
+void PreallocatorIB::set_base_type(BaseField *base_type) {
     this->base_type = base_type;
 }
 
@@ -234,16 +238,15 @@ llvm::AllocaInst *PreallocatorIB::get_preallocated_space() {
  */
 
 void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
-    assert(!codegen_done);
+//    assert(!codegen_done);
     assert(loop_bound_alloc);
     assert(base_type);
     assert(data_array_size);
     assert(fixed_size != 0);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
 
-    preallocated_space = base_type->preallocate_fixed_block(jit, loop_bound_load, data_array_size,
-                                                            CodegenUtils::get_i64(fixed_size), function);
-    codegen_done = true;
+    preallocated_space = preallocate(base_type, jit, loop_bound_load, function);//base_type->preallocate(jit, loop_bound_load, function);
+//    codegen_done = true;
 }
 
 /*
@@ -251,13 +254,13 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
  */
 
 void MatchedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
-    assert(!codegen_done);
+//    assert(!codegen_done);
     assert(loop_bound_alloc);
     assert(base_type);
     assert(data_array_size);
     assert(input_data);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
-    preallocated_space = base_type->preallocate_matched_block(jit, loop_bound_load, data_array_size, function,
-                                                              input_data, preallocate_outer_only);
-    codegen_done = true;
+//    preallocated_space = base_type->preallocate_matched_block(jit, loop_bound_load, data_array_size, function,
+//                                                              input_data, preallocate_outer_only);
+//    codegen_done = true;
 }

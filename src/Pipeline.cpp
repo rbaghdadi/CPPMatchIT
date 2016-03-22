@@ -19,6 +19,67 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
 }
 
+void Pipeline::register_stage(Stage *stage, Relation *input_relation, Relation *output_relation) {
+    std::tuple<Stage *, Relation *, Relation *> parameterized_stage(stage, input_relation, output_relation);
+    paramaterized_stages.push_back(parameterized_stage);
+}
+
+void Pipeline::codegen2(JIT *jit) {
+    assert(!paramaterized_stages.empty());
+
+    std::tuple<Stage *, Relation *, Relation *> cur_parameterized_stage = paramaterized_stages[0];
+    // ignore type error in Clion
+    Stage *stage = std::get<0>(cur_parameterized_stage);
+    Relation *input_relation = std::get<1>(cur_parameterized_stage);
+    Relation *output_relation = std::get<2>(cur_parameterized_stage);
+
+    stage->codegen();
+    MFunc *mfunction = stage->get_mfunction();
+    llvm::Function *llvm_stage = mfunction->get_extern_wrapper();
+
+    // The pipeline is a function that wraps all the stages and passes data between them.
+    // It takes as inputs the inputs to the first stage
+    std::vector<llvm::Type *> pipeline_args;
+    pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[0]->codegen_type()); // input SetElements
+    pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[1]->codegen_type()); // number of input SetElements
+    pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[2]->codegen_type()); // output SetElements
+    pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[3]->codegen_type()); // number of output SetElements
+    std::vector<BaseField *> output_relation_fields = output_relation->get_fields();
+    for (std::vector<BaseField *>::iterator field = output_relation_fields.begin(); field != output_relation_fields.end(); field++) {
+        pipeline_args.push_back(llvm::PointerType::get((*field)->to_mtype()->codegen_type(), 0));
+    }
+
+    // Make the llvm pipeline function
+    // the pipeline doesn't return anything
+    llvm::FunctionType *pipeline_function_type = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                                         pipeline_args, false);
+    llvm::Function *pipeline = llvm::Function::Create(pipeline_function_type, llvm::Function::ExternalLinkage, "pipeline",
+                                                      jit->get_module().get());
+    llvm::BasicBlock *pipeline_bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", pipeline);
+    jit->get_builder().SetInsertPoint(pipeline_bb);
+
+    // prep inputs to the first stage
+    std::vector<llvm::Value *> llvm_stage_args;
+    int iter_ctr = 0;
+    for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
+        // allocate space and load the arguments
+        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(mfunction->get_extern_wrapper_param_types()[iter_ctr++]->codegen_type());
+        alloc->setAlignment(8);
+        jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
+        llvm::LoadInst *load = jit->get_builder().CreateLoad(alloc);
+        load->setAlignment(8);
+        llvm_stage_args.push_back(load);
+    }
+
+    // create the stage calls and chain them together
+    jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
+    llvm::Value *call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
+    jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
+
+    jit->get_builder().CreateRet(nullptr); // ret void
+    mfunction->verify_wrapper();
+}
+
 void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
 
     assert(!stages.empty());

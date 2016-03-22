@@ -58,48 +58,87 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function
     return alloc_args;
 }
 
-// load a single input argument from the wrapper inputs
-std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc,
-                                                      llvm::AllocaInst *preallocated_output_space,
-                                                      std::vector<llvm::AllocaInst *> loop_idxs,
-                                                      bool is_segmentation_stage, bool has_output_param,
-                                                      llvm::AllocaInst *output_idx) {
+// load a single input argument from the stage inputs
+std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
+                                                             std::vector<llvm::AllocaInst *> stage_input_arg_alloc,
+                                                             llvm::AllocaInst *preallocated_output_space,
+                                                             std::vector<llvm::AllocaInst *> loop_idx, // two if comparison stage
+                                                             bool is_segmentation_stage, bool has_output_param,
+                                                             llvm::AllocaInst *output_idx) {
     std::vector<llvm::AllocaInst *> arg_types;
-    // load the full input array
-    int ctr = 0;
-    for (std::vector<llvm::AllocaInst *>::iterator loop_idx = loop_idxs.begin(); loop_idx != loop_idxs.end(); loop_idx++) {
-        llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(wrapper_input_arg_alloc[ctr++]);
-        input_arg_load->setAlignment(8);
-        llvm::LoadInst *loop_idx_load = jit->get_builder().CreateLoad(*loop_idx);
-        loop_idx_load->setAlignment(8);
-        // extract the specific element from the full input array
-        std::vector<llvm::Value *> element_idxs;
-        element_idxs.push_back(loop_idx_load);
-        llvm::Value *element_gep = jit->get_builder().CreateInBoundsGEP(input_arg_load, element_idxs);
-        llvm::LoadInst *element_load = jit->get_builder().CreateLoad(element_gep);
-        element_load->setAlignment(8);
-        llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
-        extern_input_arg_alloc->setAlignment(8);
-        jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
-        arg_types.push_back(extern_input_arg_alloc);
-    }
-    // get the outputs (if applicable)
-    if (has_output_param) {
-        std::vector<llvm::Value *> output_element_idx;
-        output_element_idx.push_back(jit->get_builder().CreateLoad(output_idx));
-        llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output_space);
-        llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, output_element_idx);
-        llvm::AllocaInst *output_alloc;
-        if (!is_segmentation_stage) {
-            llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
-            output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
-            jit->get_builder().CreateStore(output_gep_load, output_alloc);
-        } else { // the argument should be a ** type, not *, so pass in the gep instead of the load
-            output_alloc = jit->get_builder().CreateAlloca(output_gep->getType());
-            jit->get_builder().CreateStore(output_gep, output_alloc);
-        }
-        arg_types.push_back(output_alloc);
-    }
+    // get all of the SetElements
+    llvm::LoadInst *input_set_elements = jit->get_builder().CreateLoad(stage_input_arg_alloc[0]); // TODO why don't I just pass in everything so I can index these as 0 and 2. Seems a little more natural
+    input_set_elements->setAlignment(8);
+    llvm::LoadInst *output_set_elements = jit->get_builder().CreateLoad(stage_input_arg_alloc[1]);
+    output_set_elements->setAlignment(8);
+
+    // extract the input/output SetElement corresponding to this loop iteration
+    llvm::LoadInst *loop_idx_load = jit->get_builder().CreateLoad(loop_idx[0]);
+    loop_idx_load->setAlignment(8);
+    std::vector<llvm::Value *> element_idxs;
+    element_idxs.push_back(loop_idx_load);
+
+    // input SetElement
+    llvm::Value *input_set_element_gep = jit->get_builder().CreateInBoundsGEP(input_set_elements, element_idxs);
+    llvm::LoadInst *input_set_element_load = jit->get_builder().CreateLoad(input_set_element_gep);
+    input_set_element_load->setAlignment(8);
+    llvm::AllocaInst *input_set_element_alloc = jit->get_builder().CreateAlloca(input_set_element_load->getType());
+    input_set_element_alloc->setAlignment(8);
+    jit->get_builder().CreateStore(input_set_element_load, input_set_element_alloc)->setAlignment(8);
+    arg_types.push_back(input_set_element_alloc);
+
+    // output SetElement
+    llvm::Value *output_set_element_gep = jit->get_builder().CreateInBoundsGEP(output_set_elements, element_idxs);
+    llvm::LoadInst *output_set_element_load = jit->get_builder().CreateLoad(output_set_element_gep);
+    output_set_element_load->setAlignment(8);
+    llvm::AllocaInst *output_set_element_alloc = jit->get_builder().CreateAlloca(output_set_element_load->getType());
+    output_set_element_alloc->setAlignment(8);
+    jit->get_builder().CreateStore(output_set_element_load, output_set_element_alloc)->setAlignment(8);
+    arg_types.push_back(output_set_element_alloc);
+
+    // store it
+//    llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(input_set_element_load->getType());
+//    extern_input_arg_alloc->setAlignment(8);
+//    jit->get_builder().CreateStore(input_set_element_load, extern_input_arg_alloc)->setAlignment(8);
+//    arg_types.push_back(extern_input_arg_alloc);
+
+
+
+//    // load the full input array
+//    int ctr = 0;
+//    for (std::vector<llvm::AllocaInst *>::iterator loop_idx = loop_idxs.begin(); loop_idx != loop_idxs.end(); loop_idx++) {
+//        llvm::LoadInst *input_arg_load = jit->get_builder().CreateLoad(stage_input_arg_alloc[ctr++]);
+//        input_arg_load->setAlignment(8);
+//        llvm::LoadInst *loop_idx_load = jit->get_builder().CreateLoad(*loop_idx);
+//        loop_idx_load->setAlignment(8);
+//        // extract the specific element from the full input array
+//        std::vector<llvm::Value *> element_idxs;
+//        element_idxs.push_back(loop_idx_load);
+//        llvm::Value *input_set_element_gep = jit->get_builder().CreateInBoundsGEP(input_arg_load, element_idxs);
+//        llvm::LoadInst *element_load = jit->get_builder().CreateLoad(input_set_element_gep);
+//        element_load->setAlignment(8);
+//        llvm::AllocaInst *extern_input_arg_alloc = jit->get_builder().CreateAlloca(element_load->getType());
+//        extern_input_arg_alloc->setAlignment(8);
+//        jit->get_builder().CreateStore(element_load, extern_input_arg_alloc)->setAlignment(8);
+//        arg_types.push_back(extern_input_arg_alloc);
+//    }
+//    // get the outputs (if applicable)
+//    if (has_output_param) {
+//        std::vector<llvm::Value *> output_element_idx;
+//        output_element_idx.push_back(jit->get_builder().CreateLoad(output_idx));
+//        llvm::LoadInst *output_load = jit->get_builder().CreateLoad(preallocated_output_space);
+//        llvm::Value *output_gep = jit->get_builder().CreateInBoundsGEP(output_load, output_element_idx);
+//        llvm::AllocaInst *output_alloc;
+//        if (!is_segmentation_stage) {
+//            llvm::LoadInst *output_gep_load = jit->get_builder().CreateLoad(output_gep);
+//            output_alloc = jit->get_builder().CreateAlloca(output_gep_load->getType());
+//            jit->get_builder().CreateStore(output_gep_load, output_alloc);
+//        } else { // the argument should be a ** type, not *, so pass in the gep instead of the load
+//            output_alloc = jit->get_builder().CreateAlloca(output_gep->getType());
+//            jit->get_builder().CreateStore(output_gep, output_alloc);
+//        }
+//        arg_types.push_back(output_alloc);
+//    }
 
     return arg_types;
 }
@@ -114,11 +153,27 @@ llvm::AllocaInst *init_i64(JIT *jit, int start_val, std::string name) {
     return alloc;
 }
 
+llvm::AllocaInst *init_i32(JIT *jit, int start_val, std::string name) {
+    llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(llvm::Type::getInt32Ty(llvm::getGlobalContext()),
+                                                              nullptr, name);
+    alloc->setAlignment(8);
+    jit->get_builder().CreateStore(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()),
+                                                          start_val), alloc)->setAlignment(8);
+    return alloc;
+}
+
 void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size) {
     llvm::LoadInst *load = jit->get_builder().CreateLoad(i64_val);
     load->setAlignment(8);
     llvm::Value *add = jit->get_builder().CreateAdd(load, llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), step_size));
     jit->get_builder().CreateStore(add, i64_val)->setAlignment(8);
+}
+
+void increment_i32(JIT *jit, llvm::AllocaInst *i32_val, int step_size) {
+    llvm::LoadInst *load = jit->get_builder().CreateLoad(i32_val);
+    load->setAlignment(8);
+    llvm::Value *add = jit->get_builder().CreateAdd(load, llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), step_size));
+    jit->get_builder().CreateStore(add, i32_val)->setAlignment(8);
 }
 
 llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound) {
@@ -243,7 +298,6 @@ void codegen_fprintf_float(JIT *jit, llvm::Value *the_int) {
     jit->get_builder().CreateCall(c_fprintf, print_args);
 }
 
-
 void codegen_fprintf_float(JIT *jit, float the_int) {
     llvm::Function *c_fprintf = jit->get_module()->getFunction("c_fprintf_float");
     assert(c_fprintf);
@@ -251,7 +305,6 @@ void codegen_fprintf_float(JIT *jit, float the_int) {
     print_args.push_back(llvm::ConstantInt::get(llvm::Type::getFloatTy(llvm::getGlobalContext()), the_int));
     jit->get_builder().CreateCall(c_fprintf, print_args);
 }
-
 
 llvm::Value *codegen_c_malloc32(JIT *jit, size_t size) {
     llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_32");

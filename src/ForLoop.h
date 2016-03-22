@@ -2,17 +2,162 @@
 // Created by Jessica Ray on 2/1/16.
 //
 
-#ifndef CPPMATCHIT_FORLOOP_H
-#define CPPMATCHIT_FORLOOP_H
+#ifndef MATCHIT_FORLOOP_H
+#define MATCHIT_FORLOOP_H
 
-#include "./InstructionBlock.h"
+#include "./JIT.h"
+#include "./MFunc.h"
+
+class LoopComponent {
+protected:
+
+    /**
+     * The BasicBlock that instructions will be inserted into
+     */
+    llvm::BasicBlock *bb;
+    llvm::Function *function;
+
+    /**
+     * The MFunc associated with this InstructionBlock.
+     * Required when running codegen.
+     */
+    bool codegen_done = false;
+
+public:
+
+    virtual ~LoopComponent() { }
+
+    llvm::BasicBlock *get_basic_block();
+
+    void insert(llvm::Function *function);
+
+    virtual void codegen(JIT *jit, bool no_insert = false) = 0;
+
+};
+
+/**
+ * Create the various loop control/storage indices that will be used during execution of a stage.
+ */
+class ForLoopCountersIB : public LoopComponent {
+
+private:
+
+    /**
+     * The maximum bound on the for loop for calling the extern function.
+     * This is the final input arg in the wrapper function's arg list.
+     * It's here just to store it with the other counters--we don't need to restore it.
+     */
+    llvm::AllocaInst *loop_bound_alloc;
+
+    /**
+     * The loop index.
+     * Generated when running codegen.
+     */
+    llvm::AllocaInst *loop_idx_alloc;
+
+    /**
+     * The current index input the output array for storing the results of
+     * calling the extern function.
+     * Generated when running codegen.
+     */
+    llvm::AllocaInst *return_idx_alloc;
+
+public:
+
+    ~ForLoopCountersIB() { }
+
+    ForLoopCountersIB() {
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_counters");
+    }
+
+    llvm::AllocaInst *get_loop_idx_alloc();
+
+    llvm::AllocaInst *get_loop_bound_alloc();
+
+    llvm::AllocaInst *get_return_idx_alloc();
+
+    void set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc);
+
+    void codegen(JIT *jit, bool no_insert = false);
+};
+
+/**
+ * Create the for loop component that checks whether the loop is done.
+ */
+class ForLoopConditionIB : public LoopComponent {
+
+private:
+
+    /**
+     * Current loop index.
+     * Required when running codegen.
+     */
+    llvm::AllocaInst *loop_idx_alloc;
+
+    /**
+     * The maximum bound on the for loop for calling the extern function.
+     * Required when running codegen.
+     */
+    llvm::AllocaInst *max_loop_bound_alloc;
+
+    /**
+     * The result of the condition check.
+     * Generated when running codegen.
+     */
+    llvm::Value *comparison;
+
+public:
+
+    ForLoopConditionIB() {
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.loop_condition");
+    }
+
+    ~ForLoopConditionIB() { }
+
+    llvm::Value *get_loop_comparison();
+
+    void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
+
+    void set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound_alloc);
+
+    // this should be the last thing called after all the optimizations and such are performed
+    void codegen(JIT *jit, bool no_insert = false);
+
+};
+
+/**
+ * Create the for loop component that increments the loop idx
+ */
+class ForLoopIncrementIB : public LoopComponent {
+
+private:
+
+    /**
+     * Current loop index.
+     * Required when running codegen.
+     */
+    llvm::AllocaInst *loop_idx_alloc;
+
+public:
+
+    ForLoopIncrementIB() {
+        bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.increment");
+    }
+
+    ~ForLoopIncrementIB() { }
+
+    void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
+
+    void codegen(JIT *jit, bool no_insert = false);
+
+};
 
 class ForLoop {
 
 private:
 
     JIT *jit;
-    ForLoopCountersIB *counters;
+    ForLoopCountersIB *counters; // has loop bound
     ForLoopIncrementIB *loop_idx_increment;
     ForLoopIncrementIB *return_idx_increment;
     ForLoopConditionIB *condition;
@@ -79,4 +224,4 @@ public:
 
 };
 
-#endif //CPPMATCHIT_FORLOOP_H
+#endif // MATCHIT_FORLOOP_H

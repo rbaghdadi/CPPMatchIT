@@ -84,6 +84,9 @@ public:
      */
     void run(const std::string func_to_run, const void **data);
 
+    void run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
+             int out_num, const void *base_field1, const void *base_field2);
+
     void run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements);
 
 

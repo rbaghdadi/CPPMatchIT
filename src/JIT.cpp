@@ -111,11 +111,18 @@ void JIT::add_module(std::string jit_name) {
 ////    module->setDataLayout((*target_machine).createDataLayout());
 //}
 
-// TODO need to customize this return type, or maybe make a global wrapper that takes no inputs and returns void
-void JIT::run(const std::string func_to_run, const void ** data) {
+void JIT::run(const std::string func_to_run, const void **data) {
     auto jit_sym = find_mangled_name(mangle(func_to_run));
     void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
     jit_func(data);
+}
+
+void JIT::run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
+              int out_num, const void *base_field1, const void *base_field2) {
+    auto jit_sym = find_mangled_name(mangle(func_to_run));
+    void (*jit_func)(const void **, int, const void **, int, const void *, const void *) =
+            (void (*)(const void **, int, const void **, int, const void *, const void *))(intptr_t)jit_sym.getAddress();
+    jit_func(in_setelements, in_num, out_setelements, out_num, base_field1, base_field2);
 }
 
 void JIT::run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements) {

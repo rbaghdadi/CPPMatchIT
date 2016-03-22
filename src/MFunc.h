@@ -43,7 +43,7 @@ private:
     /**
      * Return type of the extern function.
      */
-    MType *extern_return_type;
+    MType *user_function_return_type;
 
     /**
      * Return type of the individual elements returned by our wrapper function.
@@ -51,17 +51,17 @@ private:
      * the number of elements in the output array.
      * The stage itself returns a pointer to this type because we return an array of these.
      */
-    MType *extern_wrapper_return_type;
+    MType *stage_return_type;
 
     /**
      * Types of the parameters to the extern function.
      */
-    std::vector<MType *> extern_param_types;
+    std::vector<MType *> user_function_param_types;
 
     /**
      * Types of the parameters to the extern function.
      */
-    std::vector<MType *> extern_wrapper_param_types;
+    std::vector<MType *> stage_param_types;
 
     /**
      * Our JIT engine
@@ -70,23 +70,23 @@ private:
 
 public:
 
-    MFunc(std::string name, std::string associated_block, MType *extern_return_type, MType *extern_wrapper_return_type,
-          std::vector<MType *> extern_param_types, std::vector<MType *> extern_wrapper_param_types, JIT *jit) :
+    MFunc(std::string name, std::string associated_block, MType *user_function_return_type, MType *stage_return_type,
+          std::vector<MType *> user_function_param_types, std::vector<MType *> stage_param_types, JIT *jit) :
             extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block),
-            extern_return_type(extern_return_type), extern_wrapper_return_type(extern_wrapper_return_type),
-            extern_param_types(extern_param_types), extern_wrapper_param_types(extern_wrapper_param_types), jit(jit) { }
+            user_function_return_type(user_function_return_type), stage_return_type(stage_return_type),
+            user_function_param_types(user_function_param_types), stage_param_types(stage_param_types), jit(jit) { }
 
     ~MFunc() {}
 
     /**
     * Build the LLVM prototype for extern_func.
     */
-    void codegen_extern_proto();
+    void codegen_user_function_proto();
 
     /**
      * Build the LLVM prototype for extern_wrapper.
      */
-    void codegen_extern_wrapper_proto();
+    void codegen_stage_proto();
 
     /**
      * Check that extern_wrapper is "ok" in LLVM's sense.

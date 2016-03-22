@@ -212,36 +212,36 @@ public:
     /**
      * How to allocate a block of fixed size for this MType
      */
-    virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                      llvm::Value *fixed_data_length, llvm::Function *function);
-
-    /**
-     * How to allocate a block of fixed size for this MType
-     */
-    virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
-                                                      int fixed_data_length,
-                                                      llvm::Function *function);
-
-    /**
-     * How to allocate a block of matched size for this MType
-     */
-    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                        bool allocate_outer_only = false);
-    /**
-     * How to allocate a block of matched size for this MType
-     */
-    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
-                                                        llvm::Function *function, llvm::AllocaInst *input_structs,
-                                                        bool allocate_outer_only = false);
+//    virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+//                                                      llvm::Value *fixed_data_length, llvm::Function *function);
+//
+//    /**
+//     * How to allocate a block of fixed size for this MType
+//     */
+//    virtual llvm::AllocaInst *preallocate_fixed_block(JIT *jit, long num_structs, long num_prim_values,
+//                                                      int fixed_data_length,
+//                                                      llvm::Function *function);
+//
+//    /**
+//     * How to allocate a block of matched size for this MType
+//     */
+//    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, llvm::Value *num_structs, llvm::Value *num_prim_values,
+//                                                        llvm::Function *function, llvm::AllocaInst *input_structs,
+//                                                        bool allocate_outer_only = false);
+//    /**
+//     * How to allocate a block of matched size for this MType
+//     */
+//    virtual llvm::AllocaInst *preallocate_matched_block(JIT *jit, long num_structs, long num_prim_values,
+//                                                        llvm::Function *function, llvm::AllocaInst *input_structs,
+//                                                        bool allocate_outer_only = false);
 
     virtual MType* get_user_type() { std::cerr << "wtf" << std::endl; return nullptr; }
 
-    virtual size_t _sizeof_ptr() { return 0; }
+//    virtual size_t _sizeof_ptr() = 0;
+//
+//    virtual size_t _sizeof_T_type() = 0;
 
-    virtual size_t _sizeof_T_type() { return 0;}
-
-    virtual size_t _sizeof() { return 0; }
+//    virtual size_t _sizeof() { return 0; }
 
     virtual size_t get_size() = 0;
 
@@ -281,6 +281,14 @@ public:
 
     size_t get_size() {
         return bits / 8;
+    }
+
+    size_t _sizeof_T_type() {
+        return bits / 8;
+    }
+
+    size_t _sizeof_ptr() {
+        return 8;
     }
 
     /**
@@ -348,6 +356,55 @@ public:
         return 8;
     }
 
+//    size_t _sizeof_T_type() {
+//        return underlying_types[0]->_sizeof_T_type();
+//    }
+//
+//    size_t _sizeof_ptr() {
+//        return 8;
+//    }
+
+};
+
+/*
+ * MStructType
+ */
+
+class MStructType : public MType {
+public:
+
+    MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) {}
+
+    MStructType(mtype_code_t mtype_code, std::vector<MType *> underlying_types) : MType(mtype_code, 0) {
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            this->underlying_types.push_back(*iter);
+        }
+    }
+
+    void dump();
+
+    llvm::Type *codegen_type();
+
+    size_t _sizeof() {
+        size_t total = 0;
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            total += (*iter)->get_size();//sizeof(*iter);
+        }
+        return total;
+    }
+
+    size_t get_size() {
+        return _sizeof();
+    }
+
+//    size_t _sizeof_T_type() {
+//        return underlying_types[0]->_sizeof_T_type();
+//    }
+//
+//    size_t _sizeof_ptr() {
+//        return 8;
+//    }
+
 };
 
 class MArrayType : public MType {
@@ -365,6 +422,7 @@ public:
         } else {
             variable_length = false;
         }
+        underlying_types.push_back(array_element_type);
     }
 
     int get_length() {
@@ -384,7 +442,11 @@ public:
     }
 
     llvm::Type *codegen_type() {
-        return nullptr;
+        std::vector<MType *> types;
+        types.push_back(new MPointerType(array_element_type)); // data
+        types.push_back(MScalarType::get_int_type()); // size
+        MStructType s(mtype_struct, types);
+        return s.codegen_type();
     }
 
     bool is_variable_length() {
@@ -441,6 +503,7 @@ public:
     }
 
     llvm::Type *codegen_type() {
+        assert(false); // TODO not done yet
         return nullptr;
     }
 
@@ -452,21 +515,28 @@ public:
 template <typename T>
 struct create_scalar_type;
 
-template <typename T, int row_dimension>
+template <typename T>//, int row_dimension>
 struct create_array_type;
 
-template <typename T, int row_dimension, int col_dimension>
+template <typename T>//, int row_dimension, int col_dimension>
 struct create_matrix_type;
 
-template <typename T, int row_dimension = 1, int col_dimension = 0>
+template <typename T>//, int row_dimension = 1, int col_dimension = 0>
 struct create_type {
+    int row_dimension;
+    int col_dimension;
+
+    create_type() : row_dimension(0), col_dimension(0) { }
+    create_type(int row_dimension) : row_dimension(row_dimension), col_dimension(0) { }
+    create_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MType*() {
         if (row_dimension == 1 && col_dimension == 0) {
             return create_scalar_type<T>();
         } else if (col_dimension == 0){
-            return create_array_type<T, row_dimension>(); // if row_dimension == 0, we will have a variable row_dimension array
+            return create_array_type<T>(row_dimension); // if row_dimension == 0, we will have a variable row_dimension array
         } else {
-            return create_matrix_type<T, row_dimension, col_dimension>();
+            return create_matrix_type<T>(row_dimension, col_dimension);
         }
     }
 };
@@ -478,7 +548,7 @@ struct create_type {
 template <>
 struct create_scalar_type<bool> {
     operator MScalarType*() {
-        return MScalarType::get_bool_type();
+        return MScalarType::get_bool_type(); // this is a custom implicit conversion
     }
 };
 
@@ -538,70 +608,94 @@ struct create_scalar_type<double> {
     }
 };
 
-/*
- * create_array_type
- */
 
-template <int row_dimension>
-struct create_array_type<bool, row_dimension> {
+template <>
+struct create_array_type<bool> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<bool>());
+        return new MArrayType(array_size, create_scalar_type<bool>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<char, row_dimension> {
+template <>
+struct create_array_type<char> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<char>());
+        return new MArrayType(array_size, create_scalar_type<char>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<unsigned char, row_dimension> {
+template <>
+struct create_array_type<unsigned char> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<unsigned char>());
+        return new MArrayType(array_size, create_scalar_type<unsigned char>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<short, row_dimension> {
+template <>
+struct create_array_type<short> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<short>());
+        return new MArrayType(array_size, create_scalar_type<short>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<int, row_dimension> {
+template <>
+struct create_array_type<int> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<int>());
+        return new MArrayType(array_size, create_scalar_type<int>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<unsigned int, row_dimension> {
+template <>
+struct create_array_type<unsigned int> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<unsigned int>());
+        return new MArrayType(array_size, create_scalar_type<unsigned int>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<long, row_dimension> {
+template <>
+struct create_array_type<long> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<long>());
+        return new MArrayType(array_size, create_scalar_type<long>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<float, row_dimension> {
+template <>
+struct create_array_type<float> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<float>());
+        return new MArrayType(array_size, create_scalar_type<float>());
     }
 };
 
-template <int row_dimension>
-struct create_array_type<double, row_dimension> {
+template <>
+struct create_array_type<double> {
+    int array_size;
+    create_array_type(int array_size) : array_size(array_size) { }
+
     operator MArrayType*() {
-        return new MArrayType(row_dimension, create_scalar_type<double>());
+        return new MArrayType(array_size, create_scalar_type<double>());
     }
 };
 
@@ -609,68 +703,238 @@ struct create_array_type<double, row_dimension> {
  * create_matrix_type
  */
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<bool, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<bool> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<bool>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<char, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<char> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<char>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<unsigned char, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<unsigned char> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned char>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<short, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<short> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<short>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<int, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<int> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<int>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<unsigned int, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<unsigned int> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned int>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<long, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<long> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<long>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<float, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<float> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<float>());
     }
 };
 
-template <int row_dimension, int col_dimension>
-struct create_matrix_type<double, row_dimension, col_dimension> {
+template <>
+struct create_matrix_type<double> {
+    int row_dimension;
+    int col_dimension;
+    create_matrix_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
+
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<double>());
     }
 };
+
+/*
+ * create_array_type
+ */
+//
+//template <int row_dimension>
+//struct create_array_type<bool, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<bool>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<char, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<char>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<unsigned char, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<unsigned char>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<short, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<short>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<int, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<int>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<unsigned int, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<unsigned int>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<long, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<long>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<float, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<float>());
+//    }
+//};
+//
+//template <int row_dimension>
+//struct create_array_type<double, row_dimension> {
+//    operator MArrayType*() {
+//        return new MArrayType(row_dimension, create_scalar_type<double>());
+//    }
+//};
+//
+///*
+// * create_matrix_type
+// */
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<bool, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<bool>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<char, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<char>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<unsigned char, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned char>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<short, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<short>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<int, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<int>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<unsigned int, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<unsigned int>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<long, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<long>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<float, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<float>());
+//    }
+//};
+//
+//template <int row_dimension, int col_dimension>
+//struct create_matrix_type<double, row_dimension, col_dimension> {
+//    operator MMatrixType*() {
+//        return new MMatrixType(row_dimension, col_dimension, create_scalar_type<double>());
+//    }
+//};
 
 // The methods that would be called when making fields for the ElementSet
 //
@@ -766,37 +1030,7 @@ struct create_matrix_type<double, row_dimension, col_dimension> {
 //    }
 //};
 
-/*
- * MStructType
- */
 
-class MStructType : public MType {
-public:
-
-    MStructType(mtype_code_t mtype_code) : MType(mtype_code, 0) {}
-
-    MStructType(mtype_code_t mtype_code, std::vector<MType *> underlying_types) : MType(mtype_code, 0) {
-        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-            this->underlying_types.push_back(*iter);
-        }
-    }
-
-    void dump();
-
-    llvm::Type *codegen_type();
-
-    size_t _sizeof() {
-        size_t total = 0;
-        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-            total += sizeof(*iter);
-        }
-    }
-
-    size_t get_size() {
-        return _sizeof();
-    }
-
-};
 
 /*
  * ElementType
@@ -871,7 +1105,7 @@ public:
     }
 
     size_t _sizeof_T_type() {
-        sizeof_mtype(user_type);
+        return sizeof_mtype(user_type);
     }
 
     /**
@@ -955,7 +1189,7 @@ public:
     }
 
     size_t _sizeof_T_type() {
-        sizeof_mtype(user_type);
+        return sizeof_mtype(user_type);
     }
 
     /**

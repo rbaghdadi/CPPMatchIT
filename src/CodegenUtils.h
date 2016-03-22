@@ -18,18 +18,23 @@ namespace CodegenUtils {
 
 std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function *function);
 
-std::vector<llvm::AllocaInst *> load_extern_input_arg(JIT *jit, std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc,
-                                                      llvm::AllocaInst *preallocated_output_space,
-                                                      std::vector<llvm::AllocaInst *> loop_idx,
-                                                      bool is_segmentation_stage, bool has_output_param,
-                                                      llvm::AllocaInst *output_idx);
+std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
+                                                             std::vector<llvm::AllocaInst *> stage_input_arg_alloc,
+                                                             llvm::AllocaInst *preallocated_output_space,
+                                                             std::vector<llvm::AllocaInst *> loop_idx,
+                                                             bool is_segmentation_stage, bool has_output_param,
+                                                             llvm::AllocaInst *output_idx);
 
 llvm::AllocaInst * create_extern_call(JIT *jit, llvm::Function *extern_function,
                                       std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
 llvm::AllocaInst *init_i64(JIT *jit, int start_val = 0, std::string name = "");
 
+llvm::AllocaInst *init_i32(JIT *jit, int start_val = 0, std::string name = "");
+
 void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size = 1);
+
+void increment_i32(JIT *jit, llvm::AllocaInst *i32_val, int step_size = 1);
 
 llvm::Value * create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound);
 

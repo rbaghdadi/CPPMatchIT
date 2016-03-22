@@ -9,7 +9,7 @@
 #include "llvm/IR/Type.h"
 #include "./JIT.h"
 #include "./Stage.h"
-#include "./Structures.h"
+#include "./Field.h"
 #include "./Input.h"
 
 class Pipeline {
@@ -17,12 +17,15 @@ class Pipeline {
 private:
 
     std::vector<Stage *> stages;
+    std::vector<std::tuple<Stage *, Relation *, Relation *>> paramaterized_stages;
 
 public:
 
     ~Pipeline() {}
 
     void register_stage(Stage *stage);
+
+    void register_stage(Stage *stage, Relation *input_relation, Relation *output_relation);
 
     // a simple all at once execution for right now
     void simple_execute(JIT *jit, const void **data);
@@ -32,10 +35,16 @@ public:
         simple_execute(jit, (const void**)(&(input->get_elements()[0])));
     }
 
+    void simple_execute(JIT *jit, std::vector<SetElement *> input, std::vector<SetElement *> output, BaseField *f1, BaseField *f2) {
+        jit->run("pipeline", (const void**)(&(input[0])), input.size(), (const void**)(&(output[0])), output.size(), (const void*)f1, (const void*)f2);
+    }
+
     void execute(JIT *jit, const void **data, long total_bytes_in_arrays, long total_elements);
 
     // the main entry point to running the pipeline
     void codegen(JIT *jit, size_t num_prim_values, size_t num_structs);
+
+    void codegen2(JIT *jit);
 
 };
 
