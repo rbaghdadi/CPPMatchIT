@@ -5,23 +5,79 @@
 
 class PipelineInput { };
 
-class BaseField {
+class DebugField {
 protected:
     int idx;
     void *data = nullptr;
+    int f;
+    int x;
+    int x2;
+    int x3;
+    int x4;
+    int x5;
+
+public:
+
+    DebugField(int wtf) : idx(999), f(wtf) { }
+
+//    virtual ~DebugField () {}
+
+    void inc() {
+        idx++;
+    }
+
+    virtual int blah() = 0;
+};
+
+template <typename T>
+class TemplatedDebug : public DebugField {
+public:
+    TemplatedDebug() : DebugField(818) { }
+
+    int blah() {
+        return 2;
+    }
+};
+
+struct create_debug_type {
+private:
+
+public:
+
+    operator MStructType*() { // implicit conversion
+        std::vector<MType *> mtypes;
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(new MPointerType(MScalarType::get_char_type())); // TODO or should this be field_type->underlying_type?
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        return new MStructType(mtype_struct, mtypes);
+    }
+
+
+};
+
+class BaseField {
+protected:
+    int idx;
     int cur_length;
     int max_malloc;
     int dim1;
     int dim2;
-    MType *mtype;
+//    mtype_code_t type_code;
     int element_ctr;
+    int dummy_field;
+    MType *data_mtype; // type of the data stored in this BaseField
+    void *data = nullptr;
 
 public:
 
-    BaseField(int dim1, int dim2, MType *mtype) : cur_length(0), max_malloc(0), dim1(dim1), dim2(dim2), mtype(mtype),
-                                                  element_ctr(0) { }
+    BaseField(int dim1, int dim2, MType *data_mtype) : idx(0), cur_length(0), max_malloc(0), dim1(dim1), dim2(dim2),
+                                    element_ctr(0), dummy_field(26), data_mtype(data_mtype) { }
 
-    virtual ~BaseField() { }
 
     void set_idx(int idx) {
         this->idx = idx;
@@ -39,12 +95,20 @@ public:
 
     template <typename T, int dim1, int dim2>
     void set_array(int idx, T *values) {
+        if (data == nullptr) {
+            std::cerr << "ahhhh" << std::endl;
+            std::cerr << idx << std::endl;
+        }
         memcpy(&((T*)data)[idx], values, dim1);
     }
 
     template <typename T, int dim1, int dim2>
     void set_scalar(int idx, T value) {
         ((T*)data)[idx] = value;
+    }
+
+    int get_idx() {
+        return idx;
     }
 
     int get_dim1() {
@@ -55,12 +119,42 @@ public:
         return dim2;
     }
 
-    MType *get_mtype() {
-        return mtype;
+    int get_dummy_field() {
+        return dummy_field;
     }
+
+    MType *get_data_mtype() {
+        return data_mtype;
+    }
+//    MType *get_data_mtype() {
+////        return data_mtype;
+//        std::cerr << "type code: " << type_code << std::endl;
+//        switch (type_code) {
+//            case mtype_bool:
+//                return MScalarType::get_bool_type();
+//            case mtype_char:
+//                return MScalarType::get_char_type();
+//            case mtype_short:
+//                return MScalarType::get_short_type();
+//            case mtype_int:
+//                return MScalarType::get_int_type();
+//            case mtype_long:
+//                return MScalarType::get_long_type();
+//            case mtype_float:
+//                return MScalarType::get_float_type();
+//            case mtype_double:
+//                return MScalarType::get_double_type();
+//            default:
+//                nullptr;
+//        }
+//    }
 
     int get_and_increment_ctr() {
         return element_ctr++;
+    }
+
+    int get_cur_length() {
+        return cur_length;
     }
 
     // size for a single entry in a field (i.e. for a single SetElement)
@@ -122,7 +216,7 @@ public:
         if ((idx + dim) >= max_malloc) {
             if (!data) { // hasn't been mallocd yet
                 data = malloc(sizeof(T) * (idx + dim));
-                max_malloc = idx;//+=idx;
+                max_malloc = idx;
             } else {
                 data = realloc(data, sizeof(T) * (idx + dim));
                 max_malloc = (idx + dim);
@@ -130,73 +224,32 @@ public:
         }
     }
 
-    virtual MType *to_mtype() = 0;
+//    virtual MType *to_data_mtype() = 0;
 
-//    llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
-//        llvm::AllocaInst *allocated_space = jit->get_builder().CreateAlloca(alloca_type, nullptr, name);
-//        llvm::Value *space = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_to_malloc, alloca_type);
-//        jit->get_builder().CreateStore(space, allocated_space);
-//        return allocated_space;
-//    }
-//
-//    void preallocate_loop(JIT *jit, ForLoop *loop, llvm::Value *num_structs, llvm::Function *extern_wrapper_function,
-//                          llvm::BasicBlock *loop_body, llvm::BasicBlock *dummy) {
-//        jit->get_builder().CreateBr(loop->get_counter_bb());
-//
-//        // counters
-//        jit->get_builder().SetInsertPoint(loop->get_counter_bb());
-//        // TODO move to loop counters
-//        llvm::AllocaInst *loop_bound = jit->get_builder().CreateAlloca(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-//        jit->get_builder().CreateStore(num_structs, loop_bound);
-//        loop->codegen_counters(loop_bound);
-//        jit->get_builder().CreateBr(loop->get_condition_bb());
-//
-//        // comparison
-//        loop->codegen_condition();
-//        jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(), loop_body, dummy);
-//
-//        // loop increment
-//        loop->codegen_loop_idx_increment();
-//        jit->get_builder().CreateBr(loop->get_condition_bb());
-//    }
-//
-//    void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_struct_ptr_ptr_space,
-//                                          llvm::AllocaInst *preallocated_struct_ptr_space,
-//                                          llvm::AllocaInst *preallocated_T_ptr_space, llvm::AllocaInst *loop_idx,
-//                                          llvm::Value *T_ptr_idx, MType *mtype) {
-//        llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
-//        // e_ptr_ptr[i] = &e_ptr[i];
-//        // gep e_ptr[i]
-//        std::vector<llvm::Value *> preallocated_struct_ptr_gep_idx;
-//        preallocated_struct_ptr_gep_idx.push_back(cur_loop_idx);
-//        llvm::LoadInst *preallocated_struct_ptr_space_load = jit->get_builder().CreateLoad(preallocated_struct_ptr_space);
-//        llvm::Value *preallocate_struct_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_struct_ptr_space_load,
-//                                                                                       preallocated_struct_ptr_gep_idx);
-//        // gep e_ptr_ptr[i]
-//        std::vector<llvm::Value *> preallocated_struct_ptr_ptr_gep_idx;
-//        preallocated_struct_ptr_ptr_gep_idx.push_back(cur_loop_idx);
-//        llvm::LoadInst *preallocated_struct_ptr_ptr_space_load =
-//                jit->get_builder().CreateLoad(preallocated_struct_ptr_ptr_space);
-//        llvm::Value *preallocate_struct_ptr_ptr_gep =
-//                jit->get_builder().CreateInBoundsGEP(preallocated_struct_ptr_ptr_space_load, preallocated_struct_ptr_ptr_gep_idx);
-//        jit->get_builder().CreateStore(preallocate_struct_ptr_gep, preallocate_struct_ptr_ptr_gep);
-//
-//        //  e_ptr[i].data = &t[T_ptr_idx];
-//        std::vector<llvm::Value *> struct_ptr_data_gep_idxs;
-//        struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
-//        // TODO this won't work for types like comparison b/c that has 2 arrays (I think?) Or can I just keep it at 1 array?
-//        struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
-//        llvm::Value *struct_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_struct_ptr_gep,
-//                                                                                struct_ptr_data_gep_idxs);
-//        // get t[T_ptr_idx]
-//        llvm::LoadInst *preallocated_T_ptr_space_load = jit->get_builder().CreateLoad(preallocated_T_ptr_space);
-//        std::vector<llvm::Value *> T_ptr_gep_idx;
-//        T_ptr_gep_idx.push_back(T_ptr_idx);
-//        llvm::Value *T_ptr_gep = jit->get_builder().CreateInBoundsGEP(preallocated_T_ptr_space_load, T_ptr_gep_idx);
-//        jit->get_builder().CreateStore(T_ptr_gep, struct_ptr_data_gep);
-//    }
+};
 
-//    virtual void preallocate(JIT *jit, llvm::Value *num_set_elements, llvm::Function *function) = 0;
+struct create_field_type {
+private:
+    MType *field_type;
+
+public:
+    create_field_type(MType *field_type) : field_type(field_type) { }
+
+    operator MStructType*() { // implicit conversion
+        std::vector<MType *> mtypes;
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+//
+//        mtypes.push_back(new MPointerType(field_type));
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(new MPointerType(create_mtype_type())); // TODO this shouldn't actually be used
+        mtypes.push_back(new MPointerType(MScalarType::get_char_type()));
+        return new MStructType(mtype_struct, mtypes);
+    }
 
 };
 
@@ -204,65 +257,18 @@ template <typename T, int _dim1 = 0, int _dim2 = 0>
 class Field : public BaseField {
 public:
 
-    Field() : BaseField(_dim1, _dim2, create_type<T>(_dim1, _dim2)) { }
+    Field() : BaseField(_dim1, _dim2, (create_type<T>(_dim1, _dim2))) { }
 
-    virtual ~Field() { }
 
     // TODO get rid of this--can just use the MType in BaseField now
-    MType *to_mtype() {
-        return create_type<T>(_dim1, _dim2);
-    }
-
-//    void preallocate(JIT *jit, llvm::Value *num_set_elements, llvm::Function *function) {
-//        llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
-//                allocator(jit, llvm::PointerType::get(llvm::PointerType::get(to_mtype()->codegen_type(), 0), 0),
-//                          jit->get_builder().CreateMul(num_set_elements,
-//                                                       CodegenUtils::get_i64(sizeof(T**))), "struct_ptr_ptr_pool");
-//        // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-//        llvm::AllocaInst *preallocated_struct_ptr_space =
-//                allocator(jit, llvm::PointerType::get(to_mtype()->codegen_type(), 0),
-//                          jit->get_builder().CreateMul(num_set_elements, CodegenUtils::get_i64(sizeof(T*))), "struct_ptr_pool");
-//        // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-//        llvm::Value *num;
-//        if (dim1 == 0 && dim2 == 0) {
-//            num = num_set_elements;
-//        } else if (dim2 == 0) {
-//            num = jit->get_builder().CreateMul(CodegenUtils::get_i64(dim1), num_set_elements);
-//        }  else {
-//            num = jit->get_builder().CreateMul(num_set_elements, jit->get_builder().CreateMul(CodegenUtils::get_i64(dim1), CodegenUtils::get_i64(dim2)));
-//        }
-//        MType *t_type = create_type<T>();
-//        llvm::AllocaInst *preallocated_T_ptr_space =
-//                allocator(jit, llvm::PointerType::get(t_type->codegen_type(), 0),
-//                          jit->get_builder().CreateMul(num, CodegenUtils::get_i64(sizeof(T))), "prim_ptr_pool");
-//
-//        // now take the memory pools and split it up evenly across num_elements
-//        ForLoop loop(jit);
-//        loop.init_codegen(function);
-//        llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
-//        llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-//        preallocate_loop(jit, &loop, num_set_elements, function, loop_body, dummy);
-//        llvm::AllocaInst *loop_idx = loop.get_loop_idx();
-//
-//        // loop body
-//        // divide up the preallocated space appropriately
-//        jit->get_builder().SetInsertPoint(loop_body);
-//        int fixed;
-//        if (dim1 == 0 && dim2 == 0) {
-//            fixed = 1;
-//        } else if (dim2 == 0) {
-//            fixed = dim1;
-//        }  else {
-//            fixed = dim1 * dim2;
-//        }
-//        llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop_idx), CodegenUtils::get_i64(fixed));
-//        divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
-//                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx, to_mtype());
-//        jit->get_builder().CreateBr(loop.get_increment_bb());
-//
-//        jit->get_builder().SetInsertPoint(dummy);
+//    MType *to_data_mtype() {
+//        return create_type<T>(_dim1, _dim2);
 //    }
-
+//
+//    MType *get_data_mtype() {
+//        return mtype;
+//    }
+//
 };
 
 template <typename T>
@@ -272,26 +278,29 @@ public:
 
     Field() : BaseField(0, 0, create_type<T>()) { }
 
-    virtual ~Field() { }
 
-    MType *to_mtype() {
-        return create_type<T>();
-    }
+//    MType *to_data_mtype() {
+//        return create_type<T>();
+//    }
+//
+//    MType *get_data_mtype() {
+//        return mtype;
+//    }
 
 //    void preallocate(JIT *jit, llvm::Value *num_set_elements, llvm::Function *function) {
 //        llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
-//                allocator(jit, llvm::PointerType::get(llvm::PointerType::get(to_mtype()->codegen_type(), 0), 0),
+//                do_malloc(jit, llvm::PointerType::get(llvm::PointerType::get(to_data_mtype()->codegen_type(), 0), 0),
 //                          jit->get_builder().CreateMul(num_set_elements,
 //                                                       CodegenUtils::get_i64(sizeof(T**))), "struct_ptr_ptr_pool");
 //        // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
 //        llvm::AllocaInst *preallocated_struct_ptr_space =
-//                allocator(jit, llvm::PointerType::get(to_mtype()->codegen_type(), 0),
+//                do_malloc(jit, llvm::PointerType::get(to_data_mtype()->codegen_type(), 0),
 //                          jit->get_builder().CreateMul(num_set_elements, CodegenUtils::get_i64(sizeof(T*))), "struct_ptr_pool");
 //        // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
 //        llvm::Value *num = num_set_elements;
 //        MType *t_type = create_type<T>();
 //        llvm::AllocaInst *preallocated_T_ptr_space =
-//                allocator(jit, llvm::PointerType::get(t_type->codegen_type(), 0),
+//                do_malloc(jit, llvm::PointerType::get(t_type->codegen_type(), 0),
 //                          jit->get_builder().CreateMul(num, CodegenUtils::get_i64(sizeof(T))), "prim_ptr_pool");
 //
 //        // now take the memory pools and split it up evenly across num_elements
@@ -308,7 +317,7 @@ public:
 //        int fixed = 1;
 //        llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop_idx), CodegenUtils::get_i64(fixed));
 //        divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
-//                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx, to_mtype());
+//                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx, to_data_mtype());
 //        jit->get_builder().CreateBr(loop.get_increment_bb());
 //
 //        jit->get_builder().SetInsertPoint(dummy);
@@ -364,10 +373,13 @@ public:
         field->template set_scalar<T,dim1,dim2>(dim1 * id + dim2 + dim1 * offset1 + offset2, val);
     }
 
-
     int get_element_id() const {
         return id;
     }
+
+    /*
+     * These things down here are for initializing data/space in fields outside of LLVM
+     */
 
     // These aren't for user to call
     template <typename T>
@@ -386,7 +398,7 @@ public:
     template <typename T>
     void init_blank(Field<T, 0> *field) {
         id = field->get_and_increment_ctr();
-        field->template init_scalar<T,0>(id); // calls the BaseField func
+        field->template init_scalar<T>(id); // calls the BaseField func
     }
 
     template <typename T, int dim>
@@ -395,6 +407,15 @@ public:
         field->template init_array<T,dim>(id * dim);
     }
 
+    template <typename T>
+    void init_no_malloc(Field<T, 0> *field) {
+        id = field->get_and_increment_ctr();
+    }
+
+    template <typename T, int dim>
+    void init_no_malloc(Field<T, dim> *field) {
+        id = field->get_and_increment_ctr();
+    }
 
 };
 
@@ -412,7 +433,7 @@ public:
     std::vector<MType *> get_mtypes() {
         std::vector<MType *> mtypes;
         for(std::vector<BaseField *>::iterator iter = fields.begin(); iter != fields.end(); iter++) {
-            mtypes.push_back((*iter)->to_mtype());
+            mtypes.push_back((*iter)->get_data_mtype());
         }
         return mtypes;
     }

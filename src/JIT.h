@@ -18,6 +18,13 @@ typedef llvm::orc::ObjectLinkingLayer<> ObjLayer;
 typedef llvm::orc::IRCompileLayer<ObjLayer> CompileLayer;
 typedef CompileLayer::ModuleSetHandleT ModuleHandle;
 
+
+#define runMacro(jit,in_setelements,out_setelements,...) { \
+     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+     jit_func((&(in_setelements[0])), in_setelements.size(), (&(out_setelements[0])), out_setelements.size(), __VA_ARGS__); \
+    }
+
 class JIT {
 
 private:
@@ -83,6 +90,8 @@ public:
      * JIT the code and run data through the pipeline.
      */
     void run(const std::string func_to_run, const void **data);
+
+    void run(const std::string func_to_run, ...);
 
     void run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
              int out_num, const void *base_field1, const void *base_field2);

@@ -43,9 +43,9 @@ protected:
 
     mtype_code_t mtype_code;
 
-    std::vector<MType *> underlying_types;
-
     unsigned int bits;
+
+    std::vector<MType *> underlying_types;
 
     MType(mtype_code_t mtype_code) : mtype_code(mtype_code) {
         switch (mtype_code) {
@@ -338,7 +338,7 @@ public:
 
     MPointerType() {}
 
-    MPointerType(MType *pointer_type) : MType(mtype_ptr, 64) {
+     MPointerType(MType *pointer_type) : MType(mtype_ptr, 64) {
         underlying_types.push_back(pointer_type);
     }
 
@@ -404,6 +404,17 @@ public:
 //    size_t _sizeof_ptr() {
 //        return 8;
 //    }
+
+};
+
+struct create_mtype_type {
+
+    operator MStructType*() {
+        std::vector<MType *> mtypes;
+        mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(MScalarType::get_int_type());
+        return new MStructType(mtype_struct, mtypes);
+    }
 
 };
 
@@ -530,7 +541,7 @@ struct create_type {
     create_type(int row_dimension) : row_dimension(row_dimension), col_dimension(0) { }
     create_type(int row_dimension, int col_dimension) : row_dimension(row_dimension), col_dimension(col_dimension) { }
 
-    operator MType*() {
+    operator MType*() { // implicit conversion
         if (row_dimension == 1 && col_dimension == 0) {
             return create_scalar_type<T>();
         } else if (col_dimension == 0){

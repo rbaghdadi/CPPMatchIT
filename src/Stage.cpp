@@ -5,6 +5,8 @@
 #include "./Stage.h"
 #include "./Field.h"
 
+using namespace CodegenUtils;
+
 MFunc *Stage::get_mfunction() {
     return mfunction;
 }
@@ -59,7 +61,7 @@ void Stage::init_stage() {
     // we need these fields so that space in them can be preallocated
     for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin();
          iter != output_relation_field_types.end(); iter++) {
-        MType *field_ptr_type = new MPointerType((*iter)->to_mtype());
+        MType *field_ptr_type = new MPointerType(create_field_type((*iter)->get_data_mtype()));
         mtypes_to_delete.push_back(field_ptr_type);
         stage_param_types.push_back(field_ptr_type);
     }
@@ -125,20 +127,44 @@ void Stage::codegen() {
         // stage, then the sum of the lengths of all M float[] arrays is stored in here. This value is needed for preallocation
         // of later stages. It can usually be calculated just from the input values, but in the case of a FilterStage,
         // it has to be computed on the fly since we don't know which FloatElements (or w/e type) will be kept ahead of time.
-        // TODO move this to the loop counter thing
-        llvm::AllocaInst *output_data_array_size = jit->get_builder().CreateAlloca(llvm::Type::getInt32Ty(llvm::getGlobalContext()), nullptr, "output_size");
-        jit->get_builder().CreateStore(CodegenUtils::get_i32(0), output_data_array_size);
-        llvm::LoadInst *loop_bound = jit->get_builder().CreateLoad(loop_bound_alloc);
+        llvm::AllocaInst *output_data_array_size = codegen_llvm_alloca(jit, llvm_int32, 4, "output_size");
+        codegen_llvm_store(jit, get_i32(0), output_data_array_size, 4);
+        llvm::LoadInst *loop_bound = codegen_llvm_load(jit, loop_bound_alloc, 4);
 
-        // preallocate the space
-        preallocate();
+        // preallocate space for all the output fields in the relation
+        std::vector<llvm::AllocaInst *> preallocated_space = preallocate();
+        // TODO this is super dangerous!
+        std::vector<llvm::Value *> field_data_idxs;
+        field_data_idxs.push_back(get_i64(0));
+        field_data_idxs.push_back(get_i32(8)); // the last member of BaseField is the data array
+
+        std::vector<llvm::Value *> tmp;
+        tmp.push_back(get_i64(0));
+        tmp.push_back(get_i32(0));
+
+        for (int i = 0; i < preallocated_space.size(); i++) {
+            // the fields are the last stage args, so pull out those and overwrite their data and size fields
+            std::cerr << "index: " << (stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()) << std::endl;
+            llvm::AllocaInst *field_alloca = stage_arg_loader->get_args_alloc()[stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()];
+            llvm::LoadInst *dest = codegen_llvm_load(jit, field_alloca, 8);
+            llvm::AllocaInst *this_prealloc = preallocated_space[i]; // has preallocated data from malloc
+            llvm::LoadInst *src = codegen_llvm_load(jit, this_prealloc, 8);
+            // within the field, the last member type is the data array
+            llvm::Value *gep = codegen_llvm_gep(jit, dest, field_data_idxs);
+            codegen_llvm_store(jit, src, gep, 8);
+
+            llvm::Value *tmpgep = codegen_llvm_load(jit, codegen_llvm_gep(jit, dest, tmp), 8);
+            codegen_fprintf_int(jit, 777);
+            codegen_fprintf_int(jit, tmpgep);
+        }
         jit->get_builder().CreateBr(loop->get_condition_bb());
+
+        // Create the main loop
 
         // Create the loop index check
         loop->codegen_condition();
         jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(),
-                                        user_function_arg_loader->get_basic_block(),
-                                        stage_end);
+                                        user_function_arg_loader->get_basic_block(), stage_end);
 
         // Create the loop index increment
         loop->codegen_loop_idx_increment();
@@ -170,7 +196,7 @@ void Stage::codegen() {
         llvm::AllocaInst *final_stage_output = finish_stage(output_data_array_size, 0);
 
         // exit
-        jit->get_builder().CreateRet(jit->get_builder().CreateLoad(final_stage_output));
+        jit->get_builder().CreateRet(codegen_llvm_load(jit, final_stage_output, 8));
         codegen_done = true;
     }
 }
@@ -188,53 +214,31 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
     return data;
 }
 
-
-
 void Stage::handle_extern_output(llvm::AllocaInst *output_data_array_size) {
     loop->codegen_return_idx_increment();
 }
 
 llvm::Value *Stage::compute_preallocation_data_array_size(unsigned int fixed_size) {
-//    if (is_fixed_size) {
-    return jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop->get_loop_bound()),
-                                        CodegenUtils::get_i32(fixed_size));
-//    } else {
-//        return jit->get_builder().CreateLoad(stage_arg_loader->get_data_array_size());
-//    }
+    return codegen_llvm_mul(jit, codegen_llvm_load(jit, loop->get_loop_bound(), 4), get_i32(fixed_size));
 }
 
 llvm::AllocaInst *Stage::finish_stage(llvm::AllocaInst *output_data_array_size, unsigned int fixed_size) {
     // The final stage output is a struct wrapping the computed BaseElements, the number of output BaseElements,
     // and the total x_dimension of all the arrays in the output BaseElements.
     llvm::Type *llvm_return_type = mfunction->get_extern_wrapper_return_type()->codegen_type();
-    llvm::AllocaInst *final_stage_output = jit->get_builder().CreateAlloca(llvm_return_type);
+    llvm::AllocaInst *final_stage_output = codegen_llvm_alloca(jit, llvm_return_type, 8);
     // RetStruct *rs = (RetStruct*)malloc(sizeof(RetStruct)), RetStruct = { { i64, i64, float* }**, i64, i64 }, so sizeof = 24
-    llvm::Value *stage_output_malloc = CodegenUtils::codegen_c_malloc32_and_cast(jit, 24, llvm_return_type);
+    llvm::Value *stage_output_malloc = codegen_c_malloc32_and_cast(jit, 24, llvm_return_type);
     jit->get_builder().CreateStore(stage_output_malloc, final_stage_output);
-    llvm::LoadInst *final_stage_output_load = jit->get_builder().CreateLoad(final_stage_output);
-    llvm::LoadInst *filled_preallocated_space = jit->get_builder().CreateLoad(preallocator->get_preallocated_space());
+    llvm::LoadInst *final_stage_output_load = codegen_llvm_load(jit, final_stage_output, 8);
+    llvm::LoadInst *filled_preallocated_space = codegen_llvm_load(jit, preallocator->get_preallocated_space(), 8);
 
     // The space we preallocated earlier is now filled with the results of the extern function, so we have to save it in
     // this final_stage_output struct.
-    llvm::Value *output_set_elements = CodegenUtils::gep(jit, final_stage_output_load, 0, 0);
-    jit->get_builder().CreateStore(jit->get_builder().CreateLoad(stage_arg_loader->get_args_alloc()[2]), output_set_elements); // pass along the output set elements
-//    jit->get_builder().CreateStore(filled_preallocated_space, output_set_elements);
-//    llvm::Value *data_array_size = CodegenUtils::gep(jit, final_stage_output_load, 0, 1);
-    llvm::Value *num_output_setelements = CodegenUtils::gep(jit, final_stage_output_load, 0, 1);
-
-//    if (!is_filter()) {
-//        if (is_fixed_size) {
-//        llvm::Value *data_array_size_comp = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(compute_num_output_structs()), //jit->get_builder().CreateLoad(loop->get_loop_bound()),
-//                                                                         CodegenUtils::get_i32(fixed_size));
-//        jit->get_builder().CreateStore(data_array_size_comp, output_data_array_size);
-//        } else {
-//            llvm::LoadInst *input_data_array_size = jit->get_builder().CreateLoad(stage_arg_loader->get_data_array_size());
-//            jit->get_builder().CreateStore(input_data_array_size, output_data_array_size);
-//        }
-//    }
-//    finalize_data_array_size(output_data_array_size);
-//    jit->get_builder().CreateStore(jit->get_builder().CreateLoad(output_data_array_size), data_array_size);
-    jit->get_builder().CreateStore(jit->get_builder().CreateLoad(loop->get_return_idx()), num_output_setelements); // store the number of output SetElements
+    llvm::Value *output_set_elements = gep_i64_i32(jit, final_stage_output_load, 0, 0);
+    codegen_llvm_store(jit, codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2], 8), output_set_elements, 8); // pass along the output set elements
+    llvm::Value *num_output_setelements = gep_i64_i32(jit, final_stage_output_load, 0, 1);
+    codegen_llvm_store(jit, codegen_llvm_load(jit, loop->get_return_idx(), 8), num_output_setelements, 8); // store the number of output SetElements
     return final_stage_output;
 }
 
@@ -242,21 +246,25 @@ llvm::AllocaInst *Stage::compute_num_output_structs() {
     return loop->get_loop_bound();
 }
 
-void Stage::preallocate() {
+std::vector<llvm::AllocaInst *> Stage::preallocate() {
     // The preallocated space for the outputs of this stage.
     // Note: For a FilterStage, since we don't know how many inputs will actually be kept in the output, we
     // preallocate enough space to store all of the inputs.
+    std::vector<llvm::AllocaInst *> preallocated_space;
     preallocator->insert(mfunction->get_extern_wrapper());
     jit->get_builder().CreateBr(preallocator->get_basic_block());
     jit->get_builder().SetInsertPoint(preallocator->get_basic_block());
-    for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin(); // preallocate will show up numerous times now because we have multiple output setelements
+    // these fields map to the params of the stage (the fields are the last params)
+    for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin(); // preallocate will show up numerous times now because we have multiple output fields
          iter != output_relation_field_types.end(); iter++) {
         preallocator->set_base_type(*iter);
         preallocator->set_num_output_structs_alloc(compute_num_output_structs());
         preallocator->set_fixed_size((*iter)->get_fixed_size());
         preallocator->set_data_array_size(compute_preallocation_data_array_size((*iter)->get_fixed_size()));
         preallocator->codegen(jit, true);
+        preallocated_space.push_back(preallocator->get_preallocated_space());
     }
+    return preallocated_space;
 }
 
 void Stage::finalize_data_array_size(llvm::AllocaInst *output_data_array_size) { }

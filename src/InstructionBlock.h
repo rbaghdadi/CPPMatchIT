@@ -12,7 +12,7 @@
 
 /*
  * Wrappers for LLVM BasicBlock types that will make up the foundation
- * of the extern wrapper functions when doing codegen.
+ * of the extern wrapper functions when doing codegen_old.
  */
 
 /**
@@ -29,7 +29,7 @@ protected:
 
     /**
      * The MFunc associated with this InstructionBlock.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     bool codegen_done = false;
 
@@ -56,7 +56,7 @@ private:
 
     /**
      * The local allocated space for all the inputs to the stage functions.
-     * Generated when codegen is called.
+     * Generated when codegen_old is called.
      */
     std::vector<llvm::AllocaInst *> args_alloc;
 
@@ -91,26 +91,26 @@ private:
     /**
      * The allocated space for the whole argument passed into the stage wrapper function.
      * This comes from StageArgLoaderIB.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     std::vector<llvm::AllocaInst *> stage_input_arg_alloc;
 
     /**
      * The preallocated output space.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::AllocaInst *preallocated_output_space;
 
     /**
      * Does this extern take an output. Will be false for filter.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     bool has_output_param = true;
 
     /**
      * The loop indices for the arguments pulled from the stage wrapper function. In the ComparisonStage,
      * there are two input streams passed into the wrapper, so there will be two corresponding loop_idxs.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     std::vector<llvm::AllocaInst *> loop_idx_alloc;
 
@@ -126,7 +126,7 @@ private:
 
     /**
      * The allocated space for the input elements for the extern function.
-     * Generated when codegen is called.
+     * Generated when codegen_old is called.
      */
     std::vector<llvm::AllocaInst *> extern_input_arg_alloc;
 
@@ -174,14 +174,14 @@ public:
 //
 //    /**
 //     * The loop index.
-//     * Generated when running codegen.
+//     * Generated when running codegen_old.
 //     */
 //    llvm::AllocaInst *loop_idx_alloc;
 //
 //    /**
 //     * The current index input the output array for storing the results of
 //     * calling the extern function.
-//     * Generated when running codegen.
+//     * Generated when running codegen_old.
 //     */
 //    llvm::AllocaInst *return_idx_alloc;
 //
@@ -201,7 +201,7 @@ public:
 //
 //    void set_loop_bound_alloc(llvm::AllocaInst *loop_bound_alloc);
 //
-//    void codegen(JIT *jit, bool no_insert = false);
+//    void codegen_old(JIT *jit, bool no_insert = false);
 //};
 //
 ///**
@@ -213,19 +213,19 @@ public:
 //
 //    /**
 //     * Current loop index.
-//     * Required when running codegen.
+//     * Required when running codegen_old.
 //     */
 //    llvm::AllocaInst *loop_idx_alloc;
 //
 //    /**
 //     * The maximum bound on the for loop for calling the extern function.
-//     * Required when running codegen.
+//     * Required when running codegen_old.
 //     */
 //    llvm::AllocaInst *max_loop_bound_alloc;
 //
 //    /**
 //     * The result of the condition check.
-//     * Generated when running codegen.
+//     * Generated when running codegen_old.
 //     */
 //    llvm::Value *comparison;
 //
@@ -244,7 +244,7 @@ public:
 //    void set_max_loop_bound_alloc(llvm::AllocaInst *max_loop_bound_alloc);
 //
 //    // this should be the last thing called after all the optimizations and such are performed
-//    void codegen(JIT *jit, bool no_insert = false);
+//    void codegen_old(JIT *jit, bool no_insert = false);
 //
 //};
 //
@@ -257,7 +257,7 @@ public:
 //
 //    /**
 //     * Current loop index.
-//     * Required when running codegen.
+//     * Required when running codegen_old.
 //     */
 //    llvm::AllocaInst *loop_idx_alloc;
 //
@@ -271,7 +271,7 @@ public:
 //
 //    void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
 //
-//    void codegen(JIT *jit, bool no_insert = false);
+//    void codegen_old(JIT *jit, bool no_insert = false);
 //
 //};
 
@@ -284,19 +284,19 @@ private:
 
     /**
      * Arguments for this extern call (generated in UserFunctionArgLoaderIB).
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     std::vector<llvm::AllocaInst *> extern_arg_allocs;
 
     /**
      * The extern function to call.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::Function *extern_function;
 
     /**
      * The result of running the extern function.
-     * Generated when running codegen.
+     * Generated when running codegen_old.
      */
     llvm::AllocaInst *extern_call_result_alloc;
 
@@ -326,31 +326,31 @@ protected:
     /**
      * The number of output structs being returned. Will be one-to-one for most stages
      * except for SegmentationStage since that expands the data.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::AllocaInst *loop_bound_alloc;
 
     /**
      * The fixed size of all data arrays output from this block.
-     * Required when running fixed preallocator codegen.
+     * Required when running fixed preallocator codegen_old.
      */
     int fixed_size = 0;
 
     /**
      * The type to preallocate space for.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
-    BaseField *base_type;
+    BaseField *base_field;
 
     /**
      * The number of data elements that space needs to be allocated for.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::Value *data_array_size;
 
     /**
      * The input data to the stage.
-     * Required when running matched preallocator codegen.
+     * Required when running matched preallocator codegen_old.
      */
     llvm::AllocaInst *input_data;
 
@@ -362,7 +362,7 @@ protected:
 
     /**
      * The preallocated space.
-     * Generated during codegen.
+     * Generated during codegen_old.
      */
     llvm::AllocaInst *preallocated_space;
 

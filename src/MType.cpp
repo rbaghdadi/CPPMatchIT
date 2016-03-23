@@ -107,7 +107,7 @@ bool MType::is_mtype_stage() {
  * MScalarType
  */
 
-// TODO a lot of this codegen stuff can be refactored into a single function
+// TODO a lot of this codegen_old stuff can be refactored into a single function
 
 
 llvm::Type *MScalarType::codegen_type() {
@@ -260,7 +260,7 @@ SegmentType *SegmentType::get_float_segment_type() {
  */
 
 //// wrapper for creating llvm::AllocaInst and then filling it with malloc'd space
-//llvm::AllocaInst *allocator(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
+//llvm::AllocaInst *do_malloc(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "") {
 //    llvm::AllocaInst *allocated_space = jit->get_builder().CreateAlloca(alloca_type, nullptr, name);
 //    llvm::Value *space = CodegenUtils::codegen_c_malloc64_and_cast(jit, size_to_malloc, alloca_type);
 //    jit->get_builder().CreateStore(space, allocated_space);
@@ -277,7 +277,7 @@ SegmentType *SegmentType::get_float_segment_type() {
 //void divide_preallocated_struct_space(JIT *jit, llvm::AllocaInst *preallocated_struct_ptr_ptr_space,
 //                                      llvm::AllocaInst *preallocated_struct_ptr_space,
 //                                      llvm::AllocaInst *preallocated_T_ptr_space, llvm::AllocaInst *loop_idx,
-//                                      llvm::Value *T_ptr_idx, MType *mtype) {
+//                                      llvm::Value *T_ptr_idx, MType *data_mtype) {
 //    llvm::LoadInst *cur_loop_idx = jit->get_builder().CreateLoad(loop_idx);
 //    // e_ptr_ptr[i] = &e_ptr[i];
 //    // gep e_ptr[i]
@@ -299,7 +299,7 @@ SegmentType *SegmentType::get_float_segment_type() {
 //    std::vector<llvm::Value *> struct_ptr_data_gep_idxs;
 //    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(0));
 //    // TODO this won't work for types like comparison b/c that has 2 arrays (I think?) Or can I just keep it at 1 array?
-//    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
+//    struct_ptr_data_gep_idxs.push_back(CodegenUtils::get_i32(data_mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
 //    llvm::Value *struct_ptr_data_gep = jit->get_builder().CreateInBoundsGEP(preallocate_struct_ptr_gep,
 //                                                                            struct_ptr_data_gep_idxs);
 //    // get t[T_ptr_idx]
@@ -344,18 +344,18 @@ SegmentType *SegmentType::get_float_segment_type() {
 //                                                         llvm::Function *function, llvm::AllocaInst *input_structs,
 //                                                         bool allocate_outer_only) { // input_structs are the inputs fed into the stage (the {i64, i64, T*}** part)
 //    // this is like doing Element<T> **ee = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
-//    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
+//    llvm::AllocaInst *preallocated_struct_ptr_ptr_space = do_malloc(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
 //                                                                    jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
 //    if (!allocate_outer_only) { // allocate space for a bunch of new objects. Otherwise, we only allocated space for pointers to new objects (for the FilterStage)
 //        // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-//        llvm::AllocaInst *preallocated_struct_ptr_space = allocator(jit,
+//        llvm::AllocaInst *preallocated_struct_ptr_space = do_malloc(jit,
 //                                                                    llvm::PointerType::get(this->codegen_type(), 0),
 //                                                                    jit->get_builder().CreateMul(num_structs,
 //                                                                                                 CodegenUtils::get_i64(
 //                                                                                                         this->_sizeof())),
 //                                                                    "struct_ptr_pool");
 //        // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-//        llvm::AllocaInst *preallocated_T_ptr_space = allocator(jit, llvm::PointerType::get(
+//        llvm::AllocaInst *preallocated_T_ptr_space = do_malloc(jit, llvm::PointerType::get(
 //                                                                       this->get_user_type()->codegen_type(), 0),
 //                                                               jit->get_builder().CreateMul(num_prim_values,
 //                                                                                            CodegenUtils::get_i64(
@@ -416,15 +416,15 @@ SegmentType *SegmentType::get_float_segment_type() {
 //    // first create an llvm location for all of this
 //    // this is like doing Element<T> **e = (Element<T>**)malloc(sizeof(Element<T>*) * num_elements);
 //    llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
-//            allocator(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
+//            do_malloc(jit, llvm::PointerType::get(llvm::PointerType::get(this->codegen_type(), 0), 0),
 //                      jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof_ptr())), "struct_ptr_ptr_pool");
 //    // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
 //    llvm::AllocaInst *preallocated_struct_ptr_space =
-//            allocator(jit, llvm::PointerType::get(this->codegen_type(), 0),
+//            do_malloc(jit, llvm::PointerType::get(this->codegen_type(), 0),
 //                      jit->get_builder().CreateMul(num_structs, CodegenUtils::get_i64(this->_sizeof())), "struct_ptr_pool");
 //    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
 //    llvm::AllocaInst *preallocated_T_ptr_space =
-//            allocator(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
+//            do_malloc(jit, llvm::PointerType::get(this->get_user_type()->codegen_type(), 0),
 //                      jit->get_builder().CreateMul(num_prim_values, CodegenUtils::get_i64(this->_sizeof_T_type())), "prim_ptr_pool");
 //
 //    // now take the memory pools and split it up evenly across num_elements

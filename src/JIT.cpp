@@ -101,11 +101,11 @@ void JIT::add_module(std::string jit_name) {
 //            });
 //
 //    // allocate memory for the symbol (make a handle)
-//    auto allocator = compile_layer.addModuleSet(JIT::singleton(std::move(mod)),
+//    auto do_malloc = compile_layer.addModuleSet(JIT::singleton(std::move(mod)),
 //                                                llvm::make_unique<llvm::SectionMemoryManager>(),
 //                                                std::move(resolver));
 //
-//    module_handles.push_back(allocator);
+//    module_handles.push_back(do_malloc);
 //    // make a new module
 ////    module = llvm::make_unique<llvm::Module>(jit_name, llvm::getGlobalContext());
 ////    module->setDataLayout((*target_machine).createDataLayout());
@@ -115,6 +115,15 @@ void JIT::run(const std::string func_to_run, const void **data) {
     auto jit_sym = find_mangled_name(mangle(func_to_run));
     void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
     jit_func(data);
+}
+
+#define jit_args(...) __VA_ARGS__
+
+
+void JIT::run(const std::string func_to_run, ...) {
+    auto jit_sym = find_mangled_name(mangle(func_to_run));
+    void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress();
+
 }
 
 void JIT::run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,

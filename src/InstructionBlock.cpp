@@ -117,7 +117,7 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 //    this->loop_bound_alloc = max_loop_bound;
 //}
 //
-//void ForLoopCountersIB::codegen(JIT *jit, bool no_insert) {
+//void ForLoopCountersIB::codegen_old(JIT *jit, bool no_insert) {
 //    assert(loop_bound_alloc);
 //    assert(!codegen_done);
 //    jit->get_builder().SetInsertPoint(bb);
@@ -143,7 +143,7 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 //}
 //
 //// this should be the last thing called after all the optimizations and such are performed
-//void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
+//void ForLoopConditionIB::codegen_old(JIT *jit, bool no_insert) {
 //    assert(loop_idx_alloc);
 //    assert(max_loop_bound_alloc);
 ////    assert(mfunction);
@@ -164,7 +164,7 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 //    this->loop_idx_alloc = loop_idx;
 //}
 //
-//void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
+//void ForLoopIncrementIB::codegen_old(JIT *jit, bool no_insert) {
 //    assert(loop_idx_alloc);
 //    assert(!codegen_done);
 //    if (!no_insert) {
@@ -218,7 +218,7 @@ void PreallocatorIB::set_data_array_size(llvm::Value *data_array_size) {
 }
 
 void PreallocatorIB::set_base_type(BaseField *base_type) {
-    this->base_type = base_type;
+    this->base_field = base_type;
 }
 
 void PreallocatorIB::set_input_data(llvm::AllocaInst *input_data) {
@@ -240,12 +240,15 @@ llvm::AllocaInst *PreallocatorIB::get_preallocated_space() {
 void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
 //    assert(!codegen_done);
     assert(loop_bound_alloc);
-    assert(base_type);
+    assert(base_field);
     assert(data_array_size);
     assert(fixed_size != 0);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
-
-    preallocated_space = preallocate(base_type, jit, loop_bound_load, function);//base_type->preallocate(jit, loop_bound_load, function);
+    llvm::Value *size_per_element =
+            CodegenUtils::codegen_llvm_mul(jit, CodegenUtils::get_i32(base_field->get_fixed_size()),
+                                           CodegenUtils::get_i32(base_field->get_data_mtype()->get_size()));
+    llvm::Value *total_space_to_preallocate = CodegenUtils::codegen_llvm_mul(jit, size_per_element, loop_bound_load);
+    preallocated_space = preallocate_field(jit, base_field, total_space_to_preallocate);
 //    codegen_done = true;
 }
 
@@ -256,7 +259,7 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
 void MatchedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
 //    assert(!codegen_done);
     assert(loop_bound_alloc);
-    assert(base_type);
+    assert(base_field);
     assert(data_array_size);
     assert(input_data);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);

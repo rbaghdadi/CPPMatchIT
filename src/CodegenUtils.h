@@ -2,7 +2,7 @@
 // Created by Jessica Ray on 1/22/16.
 //
 
-// A collection of common codegen stuff for LLVM IR
+// A collection of common codegen_old stuff for LLVM IR
 
 #ifndef MATCHIT_CODEGENUTILS_H
 #define MATCHIT_CODEGENUTILS_H
@@ -90,9 +90,35 @@ llvm::ConstantInt *get_i64(long x);
 
 llvm::Value *as_i32(JIT *jit, llvm::Value *i);
 
-llvm::Value *gep(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
+llvm::Value *gep_i64_i32(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
 
-llvm::LoadInst *gep_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
+//llvm::LoadInst *gep_i64_i32_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx);
+
+llvm::Value *codegen_llvm_gep(JIT *jit, llvm::Value *gep_this, std::vector<llvm::Value *> gep_idxs);
+
+llvm::AllocaInst *codegen_llvm_alloca(JIT *jit, llvm::Type *type, unsigned int alignment, std::string name = "");
+
+llvm::StoreInst *codegen_llvm_store(JIT *jit, llvm::Value *src, llvm::Value *dest, unsigned int alignment);
+
+llvm::LoadInst *codegen_llvm_load(JIT *jit, llvm::Value *src, unsigned int alignment);
+
+llvm::Type *codegen_llvm_ptr(JIT *jit, llvm::Type *element_type);
+
+llvm::Value *codegen_llvm_mul(JIT *jit, llvm::Value *left, llvm::Value *right);
+
+static llvm::Type *llvm_void = llvm::Type::getVoidTy(llvm::getGlobalContext());
+
+static llvm::Type *llvm_float = llvm::Type::getFloatTy(llvm::getGlobalContext());
+
+static llvm::Type *llvm_int1 = llvm::Type::getInt1Ty(llvm::getGlobalContext());
+
+static llvm::Type *llvm_int8ptr = llvm::Type::getInt8PtrTy(llvm::getGlobalContext());
+
+static llvm::Type *llvm_int32 = llvm::Type::getInt32Ty(llvm::getGlobalContext());
+
+static llvm::Type *llvm_int64 = llvm::Type::getInt64Ty(llvm::getGlobalContext());
+
+llvm::Value *codegen_llvm_add(JIT *jit, llvm::Value *left, llvm::Value *right);
 
 }
 

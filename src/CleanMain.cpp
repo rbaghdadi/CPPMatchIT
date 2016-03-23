@@ -15,13 +15,14 @@
 /*
  * File comparison
  */
-
-Field<char,200> filepath_field;
+TemplatedDebug<float> f;
+Field<char,200> filepath_field1;
+Field<char,200> filepath_field2;
 Field<unsigned char,100> md5_field;
 Field<float> float_field;
 
 extern "C" void compute_md5(const SetElement * const in, SetElement * const out) {
-    char *filepath = in->get(&filepath_field);
+    char *filepath = in->get(&filepath_field1);
     std::cerr << "computing md5 for: " << filepath << std::endl;
     // read in file
     FILE *file = fopen(filepath, "rb");
@@ -35,13 +36,18 @@ extern "C" void compute_md5(const SetElement * const in, SetElement * const out)
     MD5_CTX context;
     MD5_Init(&context);
     MD5_Update(&context, data, length);
-    out->set(&filepath_field, filepath);
+    out->set(&filepath_field2, filepath);
     MD5_Final(out->get(&md5_field), &context);
     char md5_str[MD5_DIGEST_LENGTH * 2 + 1];
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
         sprintf(&md5_str[i * 2], "%02x", out->get(&md5_field, i));
     }
-    fprintf(stderr, " -> md5 digest: %s for file %s\n", md5_str, out->get(&filepath_field));
+    fprintf(stderr, " -> md5 digest: %s for file %s\n", md5_str, out->get(&filepath_field2));
+}
+
+bool filter_file(const SetElement * const in) {
+    char *filepath = in->get(&filepath_field1);
+    return strstr(filepath, "txt") == nullptr; // remove if suffix contains txt
 }
 
 bool compare(const SetElement * const in1, const SetElement * const in2) {
@@ -199,9 +205,9 @@ int main() {
 
     Relation in;
     Relation out;
-    in.add(&filepath_field);
+    in.add(&filepath_field1);
     in.add(&float_field);
-    out.add(&filepath_field);
+    out.add(&filepath_field2);
     out.add(&md5_field);
 
     // Inputs
@@ -212,23 +218,23 @@ int main() {
     // initialize some data and attach the SetElements
     std::string fname1 = "/Users/JRay/Desktop/scratch/test2.cpp";
     std::string fname2 = "/Users/JRay/Desktop/scratch/conversionTest.cpp";
-    e1->init(&filepath_field, fname1.c_str());
+    e1->init(&filepath_field1, fname1.c_str());
     e1->init(&float_field, 17.0f);
-    e2->init(&filepath_field, fname2.c_str());
+    e2->init(&filepath_field1, fname2.c_str());
     e2->init(&float_field, 29.0f);
-    e3->init(&filepath_field, fname2.c_str());
+    e3->init(&filepath_field1, fname2.c_str());
     e3->init(&float_field, 37.0f);
 
     // attach output SetElements
     SetElement *e4 = new SetElement();
     SetElement *e5 = new SetElement();
     SetElement *e6 = new SetElement();
-    e4->init_blank(&filepath_field);
-    e4->init_blank(&md5_field);
-    e5->init_blank(&filepath_field);
-    e5->init_blank(&md5_field);
-    e6->init_blank(&filepath_field);
-    e6->init_blank(&md5_field);
+    e4->init_no_malloc(&filepath_field2);
+    e4->init_no_malloc(&md5_field);
+    e5->init_no_malloc(&filepath_field2);
+    e5->init_no_malloc(&md5_field);
+    e6->init_no_malloc(&filepath_field2);
+    e6->init_no_malloc(&md5_field);
 
 //    compute_md5(e1, e4);
 //    compute_md5(e2, e5);
@@ -248,9 +254,12 @@ int main() {
 //    assert(compare(e6, e6));
 
     TransformStage xform = create_transform_stage(&jit, compute_md5, "compute_md5", &in, &out);
+    FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &out);
+
     Pipeline pipeline;
     pipeline.register_stage(&xform, &in, &out);
-    pipeline.codegen2(&jit);
+//    pipeline.register_stage(&filt, &out);
+    pipeline.codegen(&jit);
     jit.dump();
     jit.add_module();
 
@@ -264,7 +273,19 @@ int main() {
     out_setelements.push_back(e5);
     out_setelements.push_back(e6);
 
-    pipeline.simple_execute(&jit, in_setelements, out_setelements, &filepath_field, &md5_field);
+    std::vector<BaseField *> one;
+    one.push_back(&filepath_field2);
+    std::vector<BaseField *> two;
+//    Field<unsigned char,100> md5_field2;
+    two.push_back(&md5_field);
+
+
+    std::vector<DebugField *> debugfields;
+    debugfields.push_back(&f);
+
+    std::cerr << "filepath_field2.get_dummy_field(): " << md5_field.get_dummy_field() << std::endl;
+//    runMacro(jit, in_setelements, out_setelements, &filepath_field2, &md5_field);
+    runMacro(jit, in_setelements, out_setelements, &(one[0]), &(two[0]), &(debugfields[0]));
 
     return 0;
 }

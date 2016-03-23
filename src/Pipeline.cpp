@@ -11,6 +11,8 @@
 #include "./Pipeline.h"
 #include "./CodegenUtils.h"
 
+using namespace CodegenUtils;
+
 void Pipeline::register_stage(Stage *stage) {
     stages.push_back(stage);
 }
@@ -24,7 +26,12 @@ void Pipeline::register_stage(Stage *stage, Relation *input_relation, Relation *
     paramaterized_stages.push_back(parameterized_stage);
 }
 
-void Pipeline::codegen2(JIT *jit) {
+void Pipeline::register_stage(Stage *stage, Relation *input_relation) {
+    std::tuple<Stage *, Relation *, Relation *> parameterized_stage(stage, input_relation, nullptr);
+    paramaterized_stages.push_back(parameterized_stage);
+}
+
+void Pipeline::codegen(JIT *jit) {
     assert(!paramaterized_stages.empty());
 
     std::tuple<Stage *, Relation *, Relation *> cur_parameterized_stage = paramaterized_stages[0];
@@ -44,17 +51,24 @@ void Pipeline::codegen2(JIT *jit) {
     pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[1]->codegen_type()); // number of input SetElements
     pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[2]->codegen_type()); // output SetElements
     pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[3]->codegen_type()); // number of output SetElements
-    std::vector<BaseField *> output_relation_fields = output_relation->get_fields();
-    for (std::vector<BaseField *>::iterator field = output_relation_fields.begin(); field != output_relation_fields.end(); field++) {
-        pipeline_args.push_back(llvm::PointerType::get((*field)->to_mtype()->codegen_type(), 0));
+    if (!stage->is_filter()) {
+        std::vector<BaseField *> output_relation_fields = output_relation->get_fields();
+        for (std::vector<BaseField *>::iterator field = output_relation_fields.begin();
+             field != output_relation_fields.end(); field++) {
+            MType *field_type = new MPointerType(create_field_type((*field)->get_data_mtype()));
+            pipeline_args.push_back(codegen_llvm_ptr(jit, field_type->codegen_type()));//to_data_mtype()->codegen_type()));
+        }
     }
+    // DEBUG
+    MType *field_type = new MPointerType(create_debug_type());
+    pipeline_args.push_back(codegen_llvm_ptr(jit, field_type->codegen_type()));
+    // END DEBUG
 
     // Make the llvm pipeline function
     // the pipeline doesn't return anything
-    llvm::FunctionType *pipeline_function_type = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
-                                                                         pipeline_args, false);
-    llvm::Function *pipeline = llvm::Function::Create(pipeline_function_type, llvm::Function::ExternalLinkage, "pipeline",
-                                                      jit->get_module().get());
+    llvm::FunctionType *pipeline_function_type = llvm::FunctionType::get(llvm_void, pipeline_args, false);
+    llvm::Function *pipeline = llvm::Function::Create(pipeline_function_type, llvm::Function::ExternalLinkage,
+                                                      "pipeline", jit->get_module().get());
     llvm::BasicBlock *pipeline_bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", pipeline);
     jit->get_builder().SetInsertPoint(pipeline_bb);
 
@@ -63,14 +77,72 @@ void Pipeline::codegen2(JIT *jit) {
     int iter_ctr = 0;
     for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
         // allocate space and load the arguments
-        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(mfunction->get_extern_wrapper_param_types()[iter_ctr++]->codegen_type());
-        alloc->setAlignment(8);
-        jit->get_builder().CreateStore(iter, alloc)->setAlignment(8);
-        llvm::LoadInst *load = jit->get_builder().CreateLoad(alloc);
-        load->setAlignment(8);
-        llvm_stage_args.push_back(load);
-    }
+        if (iter_ctr < 4) { // these are the set elements arguments
+            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
+                                                          mfunction->get_extern_wrapper_param_types()[iter_ctr]->codegen_type(),
+                                                          8);
+            codegen_llvm_store(jit, iter, alloc, 8);
+            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
+            llvm_stage_args.push_back(load);
+        } else if (iter_ctr < 6) { // these are the field args
+            // the ** type
+            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
+                                                          codegen_llvm_ptr(jit, mfunction->get_extern_wrapper_param_types()[iter_ctr]->codegen_type()),
+                                                          8);
+            codegen_llvm_store(jit, iter, alloc, 8);
+            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
+            // get the * from the ** because these are only single field vectors
+            std::vector<llvm::Value *> gep_idx;
+            gep_idx.push_back(get_i32(0));
+            llvm::LoadInst *final_load = codegen_llvm_load(jit, codegen_llvm_gep(jit, load, gep_idx), 8);
+            llvm_stage_args.push_back(final_load);
 
+            if (iter_ctr == 5)
+            {
+                gep_idx.push_back(get_i32(6));
+                llvm::LoadInst *final_load2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, final_load, gep_idx), 8);
+                codegen_fprintf_int(jit, 444);
+                codegen_fprintf_int(jit, final_load2);
+            }
+
+
+        } else if (iter_ctr == 6) { // DEBUG
+            // the ** type
+            MType *blah = create_debug_type();
+            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
+                                                          codegen_llvm_ptr(jit, codegen_llvm_ptr(jit, blah->codegen_type())),
+                                                          8);
+            codegen_llvm_store(jit, iter, alloc, 8);
+            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
+            // get the * from the ** because these are only single field vectors
+            std::vector<llvm::Value *> gep_idx;
+            gep_idx.push_back(get_i64(0));
+            llvm::LoadInst *final_load = codegen_llvm_load(jit, codegen_llvm_gep(jit, load, gep_idx), 8);
+            gep_idx.push_back(get_i32(2));
+            llvm::LoadInst *final_load2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, final_load, gep_idx), 8);
+            codegen_fprintf_int(jit, 555);
+            codegen_fprintf_int(jit, final_load2);
+        } // END DEBUG
+
+        // okay, it is reading in the input SetElements okay
+        // okay, it is reading in the output SetElements okay
+//        if (iter_ctr == 2) {
+//            std::vector<llvm::Value *> tmp;
+//            tmp.push_back(get_i64(2));
+//            llvm::Value *src = codegen_llvm_load(jit, alloc, 8);
+//            llvm::Value *tmpgep = codegen_llvm_load(jit, codegen_llvm_gep(jit, src, tmp), 8);
+//            std::vector<llvm::Value *> tmp2;
+//            tmp2.push_back(get_i32(0));
+//            tmp2.push_back(get_i32(0));
+//
+////            llvm::Value *src2 = codegen_llvm_load(jit, tmpgep, 8);
+////            jit->dump();
+//            llvm::Value *tmpgep2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, tmpgep, tmp2), 8);
+//            codegen_fprintf_int(jit, 98765);
+//            codegen_fprintf_int(jit, tmpgep2);
+//        }
+        iter_ctr++;
+    }
     // create the stage calls and chain them together
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     llvm::Value *call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
@@ -80,7 +152,7 @@ void Pipeline::codegen2(JIT *jit) {
     mfunction->verify_wrapper();
 }
 
-void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
+void Pipeline::codegen_old(JIT *jit, size_t num_prim_values, size_t num_structs) {
 
     assert(!stages.empty());
 
@@ -146,14 +218,14 @@ void Pipeline::codegen(JIT *jit, size_t num_prim_values, size_t num_structs) {
         (*iter)->codegen();
         jit->get_builder().SetInsertPoint(wrapper_block);
         // split out the fields of the returned struct
-        llvm::LoadInst *field_one = CodegenUtils::gep_and_load(jit, call, 0, 0);
-        llvm::LoadInst *field_two = CodegenUtils::gep_and_load(jit, call, 0, 1);
-        llvm::LoadInst *field_three = CodegenUtils::gep_and_load(jit, call, 0, 2);
-        std::vector<llvm::Value *> args;
-        args.push_back(field_one);
-        args.push_back(field_two);
-        args.push_back(field_three);
-        call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
+//        llvm::LoadInst *field_one = gep_i64_i32_and_load(jit, call, 0, 0);
+//        llvm::LoadInst *field_two = gep_i64_i32_and_load(jit, call, 0, 1);
+//        llvm::LoadInst *field_three = gep_i64_i32_and_load(jit, call, 0, 2);
+//        std::vector<llvm::Value *> args;
+//        args.push_back(field_one);
+//        args.push_back(field_two);
+//        args.push_back(field_three);
+//        call = jit->get_builder().CreateCall((*iter)->get_mfunction()->get_extern_wrapper(), args);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
         prev_block = (*iter);
     }

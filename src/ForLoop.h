@@ -19,7 +19,7 @@ protected:
 
     /**
      * The MFunc associated with this InstructionBlock.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     bool codegen_done = false;
 
@@ -51,14 +51,14 @@ private:
 
     /**
      * The loop index.
-     * Generated when running codegen.
+     * Generated when running codegen_old.
      */
     llvm::AllocaInst *loop_idx_alloc;
 
     /**
      * The current index input the output array for storing the results of
      * calling the extern function.
-     * Generated when running codegen.
+     * Generated when running codegen_old.
      */
     llvm::AllocaInst *return_idx_alloc;
 
@@ -90,19 +90,19 @@ private:
 
     /**
      * Current loop index.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::AllocaInst *loop_idx_alloc;
 
     /**
      * The maximum bound on the for loop for calling the extern function.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::AllocaInst *max_loop_bound_alloc;
 
     /**
      * The result of the condition check.
-     * Generated when running codegen.
+     * Generated when running codegen_old.
      */
     llvm::Value *comparison;
 
@@ -134,7 +134,7 @@ private:
 
     /**
      * Current loop index.
-     * Required when running codegen.
+     * Required when running codegen_old.
      */
     llvm::AllocaInst *loop_idx_alloc;
 
