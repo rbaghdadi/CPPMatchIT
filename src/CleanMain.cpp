@@ -276,16 +276,10 @@ int main() {
     std::vector<BaseField *> one;
     one.push_back(&filepath_field2);
     std::vector<BaseField *> two;
-//    Field<unsigned char,100> md5_field2;
     two.push_back(&md5_field);
 
-
-    std::vector<DebugField *> debugfields;
-    debugfields.push_back(&f);
-
-    std::cerr << "filepath_field2.get_dummy_field(): " << md5_field.get_dummy_field() << std::endl;
-//    runMacro(jit, in_setelements, out_setelements, &filepath_field2, &md5_field);
-    runMacro(jit, in_setelements, out_setelements, &(one[0]), &(two[0]), &(debugfields[0]));
+//    runMacro(jit, in_setelements, out_setelements, &(one[0]), &(two[0]));
+    runMacro(jit, in_setelements, out_setelements, &filepath_field2, &md5_field);
 
     return 0;
 }

@@ -56,14 +56,9 @@ void Pipeline::codegen(JIT *jit) {
         for (std::vector<BaseField *>::iterator field = output_relation_fields.begin();
              field != output_relation_fields.end(); field++) {
             MType *field_type = new MPointerType(create_field_type((*field)->get_data_mtype()));
-            pipeline_args.push_back(codegen_llvm_ptr(jit, field_type->codegen_type()));//to_data_mtype()->codegen_type()));
+            pipeline_args.push_back(field_type->codegen_type());
         }
     }
-    // DEBUG
-    MType *field_type = new MPointerType(create_debug_type());
-    pipeline_args.push_back(codegen_llvm_ptr(jit, field_type->codegen_type()));
-    // END DEBUG
-
     // Make the llvm pipeline function
     // the pipeline doesn't return anything
     llvm::FunctionType *pipeline_function_type = llvm::FunctionType::get(llvm_void, pipeline_args, false);
@@ -77,70 +72,10 @@ void Pipeline::codegen(JIT *jit) {
     int iter_ctr = 0;
     for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
         // allocate space and load the arguments
-        if (iter_ctr < 4) { // these are the set elements arguments
-            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
-                                                          mfunction->get_extern_wrapper_param_types()[iter_ctr]->codegen_type(),
-                                                          8);
-            codegen_llvm_store(jit, iter, alloc, 8);
-            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-            llvm_stage_args.push_back(load);
-        } else if (iter_ctr < 6) { // these are the field args
-            // the ** type
-            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
-                                                          codegen_llvm_ptr(jit, mfunction->get_extern_wrapper_param_types()[iter_ctr]->codegen_type()),
-                                                          8);
-            codegen_llvm_store(jit, iter, alloc, 8);
-            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-            // get the * from the ** because these are only single field vectors
-            std::vector<llvm::Value *> gep_idx;
-            gep_idx.push_back(get_i32(0));
-            llvm::LoadInst *final_load = codegen_llvm_load(jit, codegen_llvm_gep(jit, load, gep_idx), 8);
-            llvm_stage_args.push_back(final_load);
-
-            if (iter_ctr == 5)
-            {
-                gep_idx.push_back(get_i32(6));
-                llvm::LoadInst *final_load2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, final_load, gep_idx), 8);
-                codegen_fprintf_int(jit, 444);
-                codegen_fprintf_int(jit, final_load2);
-            }
-
-
-        } else if (iter_ctr == 6) { // DEBUG
-            // the ** type
-            MType *blah = create_debug_type();
-            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit,
-                                                          codegen_llvm_ptr(jit, codegen_llvm_ptr(jit, blah->codegen_type())),
-                                                          8);
-            codegen_llvm_store(jit, iter, alloc, 8);
-            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-            // get the * from the ** because these are only single field vectors
-            std::vector<llvm::Value *> gep_idx;
-            gep_idx.push_back(get_i64(0));
-            llvm::LoadInst *final_load = codegen_llvm_load(jit, codegen_llvm_gep(jit, load, gep_idx), 8);
-            gep_idx.push_back(get_i32(2));
-            llvm::LoadInst *final_load2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, final_load, gep_idx), 8);
-            codegen_fprintf_int(jit, 555);
-            codegen_fprintf_int(jit, final_load2);
-        } // END DEBUG
-
-        // okay, it is reading in the input SetElements okay
-        // okay, it is reading in the output SetElements okay
-//        if (iter_ctr == 2) {
-//            std::vector<llvm::Value *> tmp;
-//            tmp.push_back(get_i64(2));
-//            llvm::Value *src = codegen_llvm_load(jit, alloc, 8);
-//            llvm::Value *tmpgep = codegen_llvm_load(jit, codegen_llvm_gep(jit, src, tmp), 8);
-//            std::vector<llvm::Value *> tmp2;
-//            tmp2.push_back(get_i32(0));
-//            tmp2.push_back(get_i32(0));
-//
-////            llvm::Value *src2 = codegen_llvm_load(jit, tmpgep, 8);
-////            jit->dump();
-//            llvm::Value *tmpgep2 = codegen_llvm_load(jit, codegen_llvm_gep(jit, tmpgep, tmp2), 8);
-//            codegen_fprintf_int(jit, 98765);
-//            codegen_fprintf_int(jit, tmpgep2);
-//        }
+        llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, mfunction->get_extern_wrapper_param_types()[iter_ctr]->codegen_type(), 8);
+        codegen_llvm_store(jit, iter, alloc, 8);
+        llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
+        llvm_stage_args.push_back(load);
         iter_ctr++;
     }
     // create the stage calls and chain them together

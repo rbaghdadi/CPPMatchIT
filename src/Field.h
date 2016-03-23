@@ -67,7 +67,6 @@ protected:
     int max_malloc;
     int dim1;
     int dim2;
-//    mtype_code_t type_code;
     int element_ctr;
     int dummy_field;
     MType *data_mtype; // type of the data stored in this BaseField
@@ -95,10 +94,6 @@ public:
 
     template <typename T, int dim1, int dim2>
     void set_array(int idx, T *values) {
-        if (data == nullptr) {
-            std::cerr << "ahhhh" << std::endl;
-            std::cerr << idx << std::endl;
-        }
         memcpy(&((T*)data)[idx], values, dim1);
     }
 
@@ -126,28 +121,6 @@ public:
     MType *get_data_mtype() {
         return data_mtype;
     }
-//    MType *get_data_mtype() {
-////        return data_mtype;
-//        std::cerr << "type code: " << type_code << std::endl;
-//        switch (type_code) {
-//            case mtype_bool:
-//                return MScalarType::get_bool_type();
-//            case mtype_char:
-//                return MScalarType::get_char_type();
-//            case mtype_short:
-//                return MScalarType::get_short_type();
-//            case mtype_int:
-//                return MScalarType::get_int_type();
-//            case mtype_long:
-//                return MScalarType::get_long_type();
-//            case mtype_float:
-//                return MScalarType::get_float_type();
-//            case mtype_double:
-//                return MScalarType::get_double_type();
-//            default:
-//                nullptr;
-//        }
-//    }
 
     int get_and_increment_ctr() {
         return element_ctr++;
@@ -168,7 +141,7 @@ public:
         }
     }
 
-    // these aren't for the user to call
+    // these aren't for the user to call. Only used when initializing outside of llvm
 
     template <typename T, int dim>
     void add_scalar(int idx, T value) {
@@ -224,8 +197,6 @@ public:
         }
     }
 
-//    virtual MType *to_data_mtype() = 0;
-
 };
 
 struct create_field_type {
@@ -242,8 +213,6 @@ public:
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
-//
-//        mtypes.push_back(new MPointerType(field_type));
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(new MPointerType(create_mtype_type())); // TODO this shouldn't actually be used
@@ -253,22 +222,12 @@ public:
 
 };
 
+// These are purely convenient wrappers for BaseField
 template <typename T, int _dim1 = 0, int _dim2 = 0>
 class Field : public BaseField {
 public:
 
     Field() : BaseField(_dim1, _dim2, (create_type<T>(_dim1, _dim2))) { }
-
-
-    // TODO get rid of this--can just use the MType in BaseField now
-//    MType *to_data_mtype() {
-//        return create_type<T>(_dim1, _dim2);
-//    }
-//
-//    MType *get_data_mtype() {
-//        return mtype;
-//    }
-//
 };
 
 template <typename T>
@@ -277,51 +236,6 @@ class Field<T,0> : public BaseField {
 public:
 
     Field() : BaseField(0, 0, create_type<T>()) { }
-
-
-//    MType *to_data_mtype() {
-//        return create_type<T>();
-//    }
-//
-//    MType *get_data_mtype() {
-//        return mtype;
-//    }
-
-//    void preallocate(JIT *jit, llvm::Value *num_set_elements, llvm::Function *function) {
-//        llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
-//                do_malloc(jit, llvm::PointerType::get(llvm::PointerType::get(to_data_mtype()->codegen_type(), 0), 0),
-//                          jit->get_builder().CreateMul(num_set_elements,
-//                                                       CodegenUtils::get_i64(sizeof(T**))), "struct_ptr_ptr_pool");
-//        // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
-//        llvm::AllocaInst *preallocated_struct_ptr_space =
-//                do_malloc(jit, llvm::PointerType::get(to_data_mtype()->codegen_type(), 0),
-//                          jit->get_builder().CreateMul(num_set_elements, CodegenUtils::get_i64(sizeof(T*))), "struct_ptr_pool");
-//        // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
-//        llvm::Value *num = num_set_elements;
-//        MType *t_type = create_type<T>();
-//        llvm::AllocaInst *preallocated_T_ptr_space =
-//                do_malloc(jit, llvm::PointerType::get(t_type->codegen_type(), 0),
-//                          jit->get_builder().CreateMul(num, CodegenUtils::get_i64(sizeof(T))), "prim_ptr_pool");
-//
-//        // now take the memory pools and split it up evenly across num_elements
-//        ForLoop loop(jit);
-//        loop.init_codegen(function);
-//        llvm::BasicBlock *loop_body = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_loop_body", function);
-//        llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "preallocate_dummy", function);
-//        preallocate_loop(jit, &loop, num_set_elements, function, loop_body, dummy);
-//        llvm::AllocaInst *loop_idx = loop.get_loop_idx();
-//
-//        // loop body
-//        // divide up the preallocated space appropriately
-//        jit->get_builder().SetInsertPoint(loop_body);
-//        int fixed = 1;
-//        llvm::Value *T_ptr_idx = jit->get_builder().CreateMul(jit->get_builder().CreateLoad(loop_idx), CodegenUtils::get_i64(fixed));
-//        divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
-//                                         preallocated_T_ptr_space, loop_idx, T_ptr_idx, to_data_mtype());
-//        jit->get_builder().CreateBr(loop.get_increment_bb());
-//
-//        jit->get_builder().SetInsertPoint(dummy);
-//    }
 
 };
 

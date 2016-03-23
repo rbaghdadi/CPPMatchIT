@@ -127,6 +127,7 @@ void Stage::codegen() {
         // stage, then the sum of the lengths of all M float[] arrays is stored in here. This value is needed for preallocation
         // of later stages. It can usually be calculated just from the input values, but in the case of a FilterStage,
         // it has to be computed on the fly since we don't know which FloatElements (or w/e type) will be kept ahead of time.
+        // TODO do we need this anymore?
         llvm::AllocaInst *output_data_array_size = codegen_llvm_alloca(jit, llvm_int32, 4, "output_size");
         codegen_llvm_store(jit, get_i32(0), output_data_array_size, 4);
         llvm::LoadInst *loop_bound = codegen_llvm_load(jit, loop_bound_alloc, 4);
@@ -138,10 +139,6 @@ void Stage::codegen() {
         field_data_idxs.push_back(get_i64(0));
         field_data_idxs.push_back(get_i32(8)); // the last member of BaseField is the data array
 
-        std::vector<llvm::Value *> tmp;
-        tmp.push_back(get_i64(0));
-        tmp.push_back(get_i32(0));
-
         for (int i = 0; i < preallocated_space.size(); i++) {
             // the fields are the last stage args, so pull out those and overwrite their data and size fields
             std::cerr << "index: " << (stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()) << std::endl;
@@ -152,10 +149,6 @@ void Stage::codegen() {
             // within the field, the last member type is the data array
             llvm::Value *gep = codegen_llvm_gep(jit, dest, field_data_idxs);
             codegen_llvm_store(jit, src, gep, 8);
-
-            llvm::Value *tmpgep = codegen_llvm_load(jit, codegen_llvm_gep(jit, dest, tmp), 8);
-            codegen_fprintf_int(jit, 777);
-            codegen_fprintf_int(jit, tmpgep);
         }
         jit->get_builder().CreateBr(loop->get_condition_bb());
 
