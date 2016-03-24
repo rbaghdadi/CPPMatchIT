@@ -19,6 +19,7 @@ TemplatedDebug<float> f;
 Field<char,200> filepath_field1;
 Field<char,200> filepath_field2;
 Field<unsigned char,100> md5_field;
+Field<unsigned char,100> md5_field2;
 Field<float> float_field;
 
 extern "C" void compute_md5(const SetElement * const in, SetElement * const out) {
@@ -43,6 +44,15 @@ extern "C" void compute_md5(const SetElement * const in, SetElement * const out)
         sprintf(&md5_str[i * 2], "%02x", out->get(&md5_field, i));
     }
     fprintf(stderr, " -> md5 digest: %s for file %s\n", md5_str, out->get(&filepath_field2));
+}
+
+extern "C" void donothing(const SetElement * const in, SetElement * const out) {
+    std::cerr << "doing nothing for: " << in->get(&filepath_field2) << std::endl;
+    char md5_str[MD5_DIGEST_LENGTH * 2 + 1];
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        sprintf(&md5_str[i * 2], "%02x", in->get(&md5_field, i));
+    }
+    fprintf(stderr, " -> md5 digest: %s for file %s\n", md5_str, in->get(&filepath_field2));
 }
 
 bool filter_file(const SetElement * const in) {
@@ -209,11 +219,15 @@ int main() {
     in.add(&float_field);
     out.add(&filepath_field2);
     out.add(&md5_field);
+    Relation in2;
+    Relation out2;
+    in2.add(&md5_field);
+    out2.add(&md5_field2);
 
     // Inputs
-    SetElement *e1 = new SetElement();
-    SetElement *e2 = new SetElement();
-    SetElement *e3 = new SetElement();
+    SetElement *e1 = new SetElement(0);
+    SetElement *e2 = new SetElement(1);
+    SetElement *e3 = new SetElement(2);
 
     // initialize some data and attach the SetElements
     std::string fname1 = "/Users/JRay/Desktop/scratch/test2.cpp";
@@ -226,15 +240,12 @@ int main() {
     e3->init(&float_field, 37.0f);
 
     // attach output SetElements
-    SetElement *e4 = new SetElement();
-    SetElement *e5 = new SetElement();
-    SetElement *e6 = new SetElement();
-    e4->init_no_malloc(&filepath_field2);
-    e4->init_no_malloc(&md5_field);
-    e5->init_no_malloc(&filepath_field2);
-    e5->init_no_malloc(&md5_field);
-    e6->init_no_malloc(&filepath_field2);
-    e6->init_no_malloc(&md5_field);
+//    e4->init_no_malloc(&filepath_field2);
+//    e4->init_no_malloc(&md5_field);
+//    e5->init_no_malloc(&filepath_field2);
+//    e5->init_no_malloc(&md5_field);
+//    e6->init_no_malloc(&filepath_field2);
+//    e6->init_no_malloc(&md5_field);
 
 //    compute_md5(e1, e4);
 //    compute_md5(e2, e5);
@@ -254,10 +265,12 @@ int main() {
 //    assert(compare(e6, e6));
 
     TransformStage xform = create_transform_stage(&jit, compute_md5, "compute_md5", &in, &out);
+    TransformStage useless = create_transform_stage(&jit, donothing, "donothing", &in2, &out2);
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &out);
 
     Pipeline pipeline;
     pipeline.register_stage(&xform, &in, &out);
+    pipeline.register_stage(&useless, &in2, &out2);
 //    pipeline.register_stage(&filt, &out);
     pipeline.codegen(&jit);
     jit.dump();
@@ -268,18 +281,9 @@ int main() {
     in_setelements.push_back(e1);
     in_setelements.push_back(e2);
     in_setelements.push_back(e3);
-    std::vector<SetElement *> out_setelements;
-    out_setelements.push_back(e4);
-    out_setelements.push_back(e5);
-    out_setelements.push_back(e6);
 
-    std::vector<BaseField *> one;
-    one.push_back(&filepath_field2);
-    std::vector<BaseField *> two;
-    two.push_back(&md5_field);
-
-//    runMacro(jit, in_setelements, out_setelements, &(one[0]), &(two[0]));
-    runMacro(jit, in_setelements, out_setelements, &filepath_field2, &md5_field);
+    // add the output fields here
+    runMacro(jit, in_setelements, &filepath_field2, &md5_field, &md5_field2);
 
     return 0;
 }

@@ -19,10 +19,28 @@ typedef llvm::orc::IRCompileLayer<ObjLayer> CompileLayer;
 typedef CompileLayer::ModuleSetHandleT ModuleHandle;
 
 
-#define runMacro(jit,in_setelements,out_setelements,...) { \
+//#define runMacro(jit,in_setelements,out_setelements,...) { \
+//     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+//     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+//     jit_func((&(in_setelements[0])), in_setelements.size(), (&(out_setelements[0])), out_setelements.size(), __VA_ARGS__); \
+//    }
+
+#define runMacro(jit,in_setelements,...) { \
      auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
      void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
-     jit_func((&(in_setelements[0])), in_setelements.size(), (&(out_setelements[0])), out_setelements.size(), __VA_ARGS__); \
+     jit_func((&(in_setelements[0])), in_setelements.size(), __VA_ARGS__); \
+    }
+
+#define runMacro2(jit,in_setelements,field_sep) { \
+     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+     jit_func((&(in_setelements[0])), in_setelements.size(), field_sep, __VA_ARGS__); \
+    }
+
+#define runWrapper(jit,in_setelements,field_wrapper) { \
+     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+     jit_func((&(in_setelements[0])), in_setelements.size(), field_wrapper); \
     }
 
 class JIT {

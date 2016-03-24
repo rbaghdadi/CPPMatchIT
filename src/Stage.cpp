@@ -61,7 +61,7 @@ void Stage::init_stage() {
     // we need these fields so that space in them can be preallocated
     for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin();
          iter != output_relation_field_types.end(); iter++) {
-        MType *field_ptr_type = new MPointerType(create_field_type((*iter)->get_data_mtype()));
+        MType *field_ptr_type = new MPointerType(create_field_type());
         mtypes_to_delete.push_back(field_ptr_type);
         stage_param_types.push_back(field_ptr_type);
     }
@@ -141,7 +141,6 @@ void Stage::codegen() {
 
         for (int i = 0; i < preallocated_space.size(); i++) {
             // the fields are the last stage args, so pull out those and overwrite their data and size fields
-            std::cerr << "index: " << (stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()) << std::endl;
             llvm::AllocaInst *field_alloca = stage_arg_loader->get_args_alloc()[stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()];
             llvm::LoadInst *dest = codegen_llvm_load(jit, field_alloca, 8);
             llvm::AllocaInst *this_prealloc = preallocated_space[i]; // has preallocated data from malloc

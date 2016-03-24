@@ -60,6 +60,7 @@ public:
 
 };
 
+// DON'T ADD VIRTUAL METHODS TO THIS OTHERWISE IT WILL BREAK!!!!
 class BaseField {
 protected:
     int idx;
@@ -201,10 +202,11 @@ public:
 
 struct create_field_type {
 private:
-    MType *field_type;
+//    MType *field_type;
 
 public:
-    create_field_type(MType *field_type) : field_type(field_type) { }
+    create_field_type() { }
+//    create_field_type(MType *field_type) : field_type(field_type) { }
 
     operator MStructType*() { // implicit conversion
         std::vector<MType *> mtypes;
@@ -241,11 +243,10 @@ public:
 
 class SetElement : public PipelineInput {
     int id;
-//    static int ctr;
 
 public:
 
-    SetElement() {  }
+    SetElement(int id) : id(id) {  }
 
     template <typename T>
     T get(Field<T, 0, 0> *field) const {
@@ -298,38 +299,38 @@ public:
     // These aren't for user to call
     template <typename T>
     void init(Field<T, 0> *field, T value) {
-        id = field->get_and_increment_ctr();
+//        id = field->get_and_increment_ctr();
         field->template add_scalar<T,0>(id, value); // calls the BaseField func
     }
 
     template <typename T, int dim>
     void init(Field<T, dim> *field, const T *values) {
-        id = field->get_and_increment_ctr();
+//        id = field->get_and_increment_ctr();
         field->template add_array<T,dim>(id * dim, values);
     }
 
     // These aren't for user to call
     template <typename T>
     void init_blank(Field<T, 0> *field) {
-        id = field->get_and_increment_ctr();
+//        id = field->get_and_increment_ctr();
         field->template init_scalar<T>(id); // calls the BaseField func
     }
 
     template <typename T, int dim>
     void init_blank(Field<T, dim> *field) {
-        id = field->get_and_increment_ctr();
+//        id = field->get_and_increment_ctr();
         field->template init_array<T,dim>(id * dim);
     }
 
-    template <typename T>
-    void init_no_malloc(Field<T, 0> *field) {
-        id = field->get_and_increment_ctr();
-    }
-
-    template <typename T, int dim>
-    void init_no_malloc(Field<T, dim> *field) {
-        id = field->get_and_increment_ctr();
-    }
+//    template <typename T>
+//    void init_no_malloc(Field<T, 0> *field) {
+//        id = field->get_and_increment_ctr();
+//    }
+//
+//    template <typename T, int dim>
+//    void init_no_malloc(Field<T, dim> *field) {
+//        id = field->get_and_increment_ctr();
+//    }
 
 };
 
@@ -362,6 +363,45 @@ template <>
 struct create_type<SetElement> {
     operator MStructType*() {
         std::vector<MType *> mtype;
+        mtype.push_back(MScalarType::get_int_type());
+        return new MStructType(mtype_struct, mtype);
+    }
+};
+
+class FieldWrapper {
+private:
+
+    BaseField **fields;
+    int *fields_per;
+    int num_fields_per;
+    int size;
+    int ctr;
+
+public:
+
+    FieldWrapper() {
+        fields = (BaseField**)malloc(sizeof(BaseField) * 10);
+        size = 10;
+        ctr = 0;
+    }
+
+    void addField(BaseField *field) {
+        if (ctr == size) {
+            assert(false); // TODO realloc and update the size
+        }
+        fields[ctr++] = field;
+    }
+
+};
+
+template <>
+struct create_type<FieldWrapper> {
+    operator MStructType*() {
+        std::vector<MType *> mtype;
+        mtype.push_back(new MPointerType(new MPointerType(create_field_type())));
+        mtype.push_back(new MPointerType(MScalarType::get_int_type()));
+        mtype.push_back(MScalarType::get_int_type());
+        mtype.push_back(MScalarType::get_int_type());
         mtype.push_back(MScalarType::get_int_type());
         return new MStructType(mtype_struct, mtype);
     }

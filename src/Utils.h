@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include "./JIT.h"
+#include "./Field.h"
 
 /*
  * Various utilities for use in MatchIT IR or llvm IR.
@@ -73,6 +74,7 @@ extern "C" void *realloc_32(void *structure, size_t size);
  */
 extern "C" void *realloc_64(void *structure, size_t size);
 
+extern "C" SetElement **create_setelements(int num_to_create);
 
 /**
  * Register the functions into llvm that are underlying the above wrappers.

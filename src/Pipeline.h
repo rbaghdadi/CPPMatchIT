@@ -43,9 +43,6 @@ public:
 
     void execute(JIT *jit, const void **data, long total_bytes_in_arrays, long total_elements);
 
-    // the main entry point to running the pipeline
-    void codegen_old(JIT *jit, size_t num_prim_values, size_t num_structs);
-
     void codegen(JIT *jit);
 
 };
