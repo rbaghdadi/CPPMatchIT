@@ -3,40 +3,39 @@
 //
 
 #include "./CodegenUtils.h"
-#include "./Structures.h"
-#include "./MFunc.h"
-#include "./InstructionBlock.h"
 #include "./ForLoop.h"
-#include "./MType.h"
 
-namespace CodegenUtils {
+namespace Codegen {
 
-llvm::ConstantInt *get_i1(int zero_or_one) {
-    return llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm::getGlobalContext()), zero_or_one);
+llvm::ConstantFP *as_float(float x) {
+    return llvm::ConstantFP::get(llvm::getGlobalContext(), llvm::APFloat(x));
 }
 
-llvm::ConstantInt *get_i32(int x) {
-    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), x);
+llvm::ConstantInt *as_i1(bool x) {
+    return llvm::ConstantInt::get(llvm_int1, x);
 }
 
-llvm::ConstantInt *get_i64(long x) {
-    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), x);
+llvm::ConstantInt *as_i8(char x) {
+    return llvm::ConstantInt::get(llvm_int8, x);
 }
 
-llvm::Value *as_i32(JIT *jit, llvm::Value *i) {
-    return jit->get_builder().CreateTruncOrBitCast(i, llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+llvm::ConstantInt *as_i16(short x) {
+    return llvm::ConstantInt::get(llvm_int16, x);
 }
 
-// these are very specific geps
-//llvm::LoadInst *gep_i64_i32_and_load(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx) {
-//    llvm::LoadInst *load = codegen_llvm_load(jit, gep_i64_i32(jit, gep_this, ptr_idx, struct_idx), 8);
-//    return load;
-//}
+llvm::ConstantInt *as_i32(int x) {
+    return llvm::ConstantInt::get(llvm_int32, x);
+}
+
+llvm::ConstantInt *as_i64(long x) {
+    return llvm::ConstantInt::get(llvm_int64, x);
+}
+
 
 llvm::Value *gep_i64_i32(JIT *jit, llvm::Value *gep_this, long ptr_idx, int struct_idx) {
     std::vector<llvm::Value *> idxs;
-    idxs.push_back(get_i64(ptr_idx));
-    idxs.push_back(get_i32(struct_idx));
+    idxs.push_back(as_i64(ptr_idx));
+    idxs.push_back(as_i32(struct_idx));
     llvm::Value *gep = jit->get_builder().CreateInBoundsGEP(gep_this, idxs);
     return gep;
 }
@@ -66,13 +65,16 @@ std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function
 std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
                                                              std::vector<llvm::AllocaInst *> stage_input_arg_alloc,
                                                              llvm::AllocaInst *preallocated_output_space,
-                                                             std::vector<llvm::AllocaInst *> loop_idx, // two if comparison stage
-                                                             bool is_segmentation_stage, bool has_output_param,
-                                                             llvm::AllocaInst *output_idx) {
+                                                             std::vector<llvm::AllocaInst *> loop_idx,
+                                                             bool is_segmentation_stage, bool is_filter_stage,
+                                                             bool has_output_param, llvm::AllocaInst *output_idx) {
     std::vector<llvm::AllocaInst *> arg_types;
     // get all of the SetElements
     llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[0], 8); // TODO why don't I just pass in everything so I can index these as 0 and 2. Seems a little more natural
-    llvm::LoadInst *output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
+    llvm::LoadInst *output_set_elements;
+    if (!is_filter_stage) {
+        output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
+    }
 
     // extract the input/output SetElement corresponding to this loop iteration
     llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[0], 4);
@@ -87,32 +89,15 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
     arg_types.push_back(input_set_element_alloc);
 
     // output SetElement
-    llvm::Value *output_set_element_gep = codegen_llvm_gep(jit, output_set_elements, element_idxs);
-    llvm::LoadInst *output_set_element_load = codegen_llvm_load(jit, output_set_element_gep, 8);
-    llvm::AllocaInst *output_set_element_alloc = codegen_llvm_alloca(jit, output_set_element_load->getType(), 8);
-    codegen_llvm_store(jit, output_set_element_load, output_set_element_alloc,8);
-    arg_types.push_back(output_set_element_alloc);
+    if (!is_filter_stage) { // a filter only gets inputs. outputs are implicitly handled
+        llvm::Value *output_set_element_gep = codegen_llvm_gep(jit, output_set_elements, element_idxs);
+        llvm::LoadInst *output_set_element_load = codegen_llvm_load(jit, output_set_element_gep, 8);
+        llvm::AllocaInst *output_set_element_alloc = codegen_llvm_alloca(jit, output_set_element_load->getType(), 8);
+        codegen_llvm_store(jit, output_set_element_load, output_set_element_alloc, 8);
+        arg_types.push_back(output_set_element_alloc);
+    }
 
     return arg_types;
-}
-
-// initialize an i64
-llvm::AllocaInst *init_i64(JIT *jit, int start_val, std::string name) {
-    llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, llvm_int64, 8, name);
-    codegen_llvm_store(jit, llvm::ConstantInt::get(llvm_int64, start_val), alloc, 8);
-    return alloc;
-}
-
-llvm::AllocaInst *init_i32(JIT *jit, int start_val, std::string name) {
-    llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, llvm_int32, 8, name);
-    codegen_llvm_store(jit, llvm::ConstantInt::get(llvm_int32, start_val), alloc, 8);
-    return alloc;
-}
-
-void increment_i64(JIT *jit, llvm::AllocaInst *i64_val, int step_size) {
-    llvm::LoadInst *load = codegen_llvm_load(jit, i64_val, 8);
-    llvm::Value *add = codegen_llvm_add(jit, load, llvm::ConstantInt::get(llvm_int64, step_size));
-    codegen_llvm_store(jit, add, i64_val, 8);
 }
 
 void increment_i32(JIT *jit, llvm::AllocaInst *i32_val, int step_size) {
@@ -149,8 +134,8 @@ llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
 // TODO remove
 llvm::LoadInst *get_marray_size_field(JIT *jit, llvm::AllocaInst *marray_alloc) {
     std::vector<llvm::Value *> size_field_gep_idxs;
-    size_field_gep_idxs.push_back(get_i32(0)); // step through the pointer to MArray
-    size_field_gep_idxs.push_back(get_i32(1)); // the size field
+    size_field_gep_idxs.push_back(as_i32(0)); // step through the pointer to MArray
+    size_field_gep_idxs.push_back(as_i32(1)); // the size field
     llvm::Value *size_field_gep = jit->get_builder().CreateInBoundsGEP(marray_alloc, size_field_gep_idxs);
     llvm::LoadInst *size_field_load = jit->get_builder().CreateLoad(size_field_gep);
     size_field_load->setAlignment(8);
@@ -173,7 +158,8 @@ void codegen_fprintf_int(JIT *jit, llvm::Value *the_int) {
     llvm::Function *c_fprintf = jit->get_module()->getFunction("c_fprintf");
     assert(c_fprintf);
     std::vector<llvm::Value *> print_args;
-    print_args.push_back(as_i32(jit, the_int));
+    llvm::Value *casted = jit->get_builder().CreateTruncOrBitCast(the_int, llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    print_args.push_back(casted);
     jit->get_builder().CreateCall(c_fprintf, print_args);
 }
 
@@ -275,7 +261,7 @@ llvm::Value *codegen_c_realloc64(JIT *jit, llvm::LoadInst *loaded_structure, llv
 llvm::Value *codegen_realloc(JIT *jit, llvm::Function *c_realloc, llvm::LoadInst *loaded_structure, llvm::Value *size) {
     assert(c_realloc);
     std::vector<llvm::Value *> realloc_args;
-    realloc_args.push_back(jit->get_builder().CreateBitCast(loaded_structure, llvm_int8ptr));
+    realloc_args.push_back(jit->get_builder().CreateBitCast(loaded_structure, llvm_int8Ptr));
     realloc_args.push_back(size);
     llvm::Value *realloc_field = jit->get_builder().CreateCall(c_realloc, realloc_args);
     return realloc_field;

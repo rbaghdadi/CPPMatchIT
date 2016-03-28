@@ -3,7 +3,6 @@
 //
 
 #include "./ForLoop.h"
-#include "./CodegenUtils.h"
 
 llvm::BasicBlock *LoopComponent::get_basic_block() {
     return bb;
@@ -39,8 +38,10 @@ void ForLoopCountersIB::codegen(JIT *jit, bool no_insert) {
     assert(loop_bound_alloc);
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    loop_idx_alloc = CodegenUtils::init_i32(jit, 0, "loop_idx_alloc");
-    return_idx_alloc = CodegenUtils::init_i32(jit, 0, "output_idx_alloc");
+    loop_idx_alloc = codegen_llvm_alloca(jit, llvm_int32, 8);
+    codegen_llvm_store(jit, llvm::ConstantInt::get(llvm_int32, 0), loop_idx_alloc, 8);
+    return_idx_alloc = codegen_llvm_alloca(jit, llvm_int32, 8);
+    codegen_llvm_store(jit, llvm::ConstantInt::get(llvm_int32, 0), return_idx_alloc, 8);
     codegen_done = true;
 }
 
@@ -70,7 +71,7 @@ void ForLoopConditionIB::codegen(JIT *jit, bool no_insert) {
 //        bb->insertInto(mfunction->get_extern_wrapper());
     }
     jit->get_builder().SetInsertPoint(bb);
-    comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
+    comparison = Codegen::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
     codegen_done = true;
 }
 
@@ -88,7 +89,8 @@ void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
-    CodegenUtils::increment_i32(jit, loop_idx_alloc);
+    llvm::Value *increment = codegen_llvm_add(jit, codegen_llvm_load(jit, loop_idx_alloc, 4), as_i32(1));
+    codegen_llvm_store(jit, increment, loop_idx_alloc, 4);
     codegen_done = true;
 }
 

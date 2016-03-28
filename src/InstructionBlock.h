@@ -60,6 +60,8 @@ private:
      */
     std::vector<llvm::AllocaInst *> args_alloc;
 
+    llvm::AllocaInst *secondary_alloc; // used by Filter to store its outputs
+
 public:
 
     StageArgLoaderIB() {
@@ -75,6 +77,8 @@ public:
     llvm::AllocaInst *get_data_array_size();
 
     llvm::AllocaInst *get_num_data_structs();
+
+    void add_arg_alloc(llvm::AllocaInst *alloc);
 
     void codegen(JIT *jit, bool no_insert = false);
 
@@ -120,9 +124,14 @@ private:
     llvm::AllocaInst *output_idx_alloc;
 
     /**
-     * Is this the SegmentationStage?
+     * Is this a SegmentationStage?
      */
     bool is_segmentation_stage = false;
+
+    /**
+     * Is this a FilterStage?
+     */
+    bool is_filter_stage = false;
 
     /**
      * The allocated space for the input elements for the extern function.
@@ -153,6 +162,8 @@ public:
     void set_loop_idx_alloc(std::vector<llvm::AllocaInst *> loop_idx_alloc);
 
     void set_segmentation_stage();
+
+    void set_filter_stage();
 
     void codegen(JIT *jit, bool no_insert = false);
 

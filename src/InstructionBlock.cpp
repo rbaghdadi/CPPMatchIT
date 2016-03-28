@@ -43,10 +43,14 @@ llvm::AllocaInst *StageArgLoaderIB::get_num_data_structs() {
     return args_alloc[1]; // 2nd element is the number of input SetElements
 }
 
+void StageArgLoaderIB::add_arg_alloc(llvm::AllocaInst *alloc) {
+    args_alloc.push_back(alloc);
+}
+
 void StageArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    args_alloc = CodegenUtils::load_wrapper_input_args(jit, function);
+    args_alloc = Codegen::load_wrapper_input_args(jit, function);
     codegen_done = true;
 }
 
@@ -78,6 +82,10 @@ void UserFunctionArgLoaderIB::set_segmentation_stage() {
     is_segmentation_stage = true;
 }
 
+void UserFunctionArgLoaderIB::set_filter_stage() {
+    is_filter_stage = true;
+}
+
 void UserFunctionArgLoaderIB::set_preallocated_output_space(llvm::AllocaInst *preallocated_output_space) {
     this->preallocated_output_space = preallocated_output_space;
 }
@@ -89,11 +97,10 @@ void UserFunctionArgLoaderIB::set_output_idx_alloc(llvm::AllocaInst *output_idx_
 void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = CodegenUtils::load_user_function_input_arg(jit, stage_input_arg_alloc,
-                                                                        preallocated_output_space,
-                                                                        loop_idx_alloc, is_segmentation_stage,
-                                                                        has_output_param,
-                                                                        output_idx_alloc);
+    extern_input_arg_alloc = Codegen::load_user_function_input_arg(jit, stage_input_arg_alloc,
+                                                                   preallocated_output_space, loop_idx_alloc,
+                                                                   is_segmentation_stage,
+                                                                   is_filter_stage, has_output_param, output_idx_alloc);
     codegen_done = true;
 }
 
@@ -121,8 +128,8 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 //    assert(loop_bound_alloc);
 //    assert(!codegen_done);
 //    jit->get_builder().SetInsertPoint(bb);
-//    loop_idx_alloc = CodegenUtils::init_i64(jit, 0, "loop_idx_alloc");
-//    return_idx_alloc = CodegenUtils::init_i64(jit, 0, "output_idx_alloc");
+//    loop_idx_alloc = Codegen::init_i64(jit, 0, "loop_idx_alloc");
+//    return_idx_alloc = Codegen::init_i64(jit, 0, "output_idx_alloc");
 //    codegen_done = true;
 //}
 //
@@ -152,7 +159,7 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 ////        bb->insertInto(mfunction->get_extern_wrapper());
 //    }
 //    jit->get_builder().SetInsertPoint(bb);
-//    comparison = CodegenUtils::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
+//    comparison = Codegen::create_loop_condition_check(jit, loop_idx_alloc, max_loop_bound_alloc);
 //    codegen_done = true;
 //}
 //
@@ -170,7 +177,7 @@ void UserFunctionArgLoaderIB::codegen(JIT *jit, bool no_insert) {
 //    if (!no_insert) {
 //        jit->get_builder().SetInsertPoint(bb);
 //    }
-//    CodegenUtils::increment_i64(jit, loop_idx_alloc);
+//    Codegen::increment_i64(jit, loop_idx_alloc);
 //    codegen_done = true;
 //}
 
@@ -197,7 +204,7 @@ void ExternCallIB::codegen(JIT *jit, bool no_insert) {
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
-    extern_call_result_alloc = CodegenUtils::create_extern_call(jit, extern_function, extern_arg_allocs);
+    extern_call_result_alloc = Codegen::create_extern_call(jit, extern_function, extern_arg_allocs);
     codegen_done = true;
 }
 
@@ -229,6 +236,7 @@ void PreallocatorIB::set_preallocate_outer_only(bool preallocate_outer_only) {
     this->preallocate_outer_only = preallocate_outer_only;
 }
 
+// no, this keeps getting overwritten
 llvm::AllocaInst *PreallocatorIB::get_preallocated_space() {
     return preallocated_space;
 }
@@ -245,9 +253,9 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
     assert(fixed_size != 0);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
     llvm::Value *size_per_element =
-            CodegenUtils::codegen_llvm_mul(jit, CodegenUtils::get_i32(base_field->get_fixed_size()),
-                                           CodegenUtils::get_i32(base_field->get_data_mtype()->get_size()));
-    llvm::Value *total_space_to_preallocate = CodegenUtils::codegen_llvm_mul(jit, size_per_element, loop_bound_load);
+            Codegen::codegen_llvm_mul(jit, Codegen::as_i32(base_field->get_fixed_size()),
+                                      Codegen::as_i32(base_field->get_data_mtype()->get_size()));
+    llvm::Value *total_space_to_preallocate = Codegen::codegen_llvm_mul(jit, size_per_element, loop_bound_load);
     preallocated_space = preallocate_field(jit, base_field, total_space_to_preallocate);
 //    codegen_done = true;
 }

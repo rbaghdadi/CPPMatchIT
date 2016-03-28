@@ -11,18 +11,10 @@
 
 TransformStage create_transform_stage(JIT *jit, void (*transform)(const SetElement * const, SetElement * const),
                                       std::string transform_name, Relation *input_relation,
-                                      Relation *output_relation) {
-    TransformStage stage(transform, transform_name, jit, input_relation, output_relation);
-    stage.init_stage();
-    return stage;
-}
+                                      Relation *output_relation);
 
 FilterStage create_filter_stage(JIT *jit, bool (*filter)(const SetElement * const), std::string filter_name,
-                                Relation *input_relation) {
-    FilterStage stage(filter, filter_name, jit, input_relation);
-    stage.init_stage();
-    return stage;
-}
+                                Relation *input_relation);
 
 //template <typename I, typename O>
 //TransformStage<const I, O> create_transform_stage(JIT *jit, void(*transform)(const I*, O*),

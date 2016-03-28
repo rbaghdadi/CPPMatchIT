@@ -26,7 +26,6 @@ void MFunc::codegen_stage_proto() {
     // set up function parameters
     std::vector<llvm::Type *> param_types;
     for (std::vector<MType *>::iterator iter = stage_param_types.begin(); iter != stage_param_types.end(); iter++) {
-        std::cerr << "size: " << stage_param_types.size() << std::endl;
         param_types.push_back((*iter)->codegen_type());
     }
     // add the return type

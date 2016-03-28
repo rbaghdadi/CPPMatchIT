@@ -15,7 +15,6 @@
 /*
  * File comparison
  */
-TemplatedDebug<float> f;
 Field<char,200> filepath_field1;
 Field<char,200> filepath_field2;
 Field<unsigned char,100> md5_field;
@@ -55,9 +54,13 @@ extern "C" void donothing(const SetElement * const in, SetElement * const out) {
     fprintf(stderr, " -> md5 digest: %s for file %s\n", md5_str, in->get(&filepath_field2));
 }
 
-bool filter_file(const SetElement * const in) {
+// if returns true, keep the element
+extern "C" bool filter_file(const SetElement * const in) {
     char *filepath = in->get(&filepath_field1);
-    return strstr(filepath, "txt") == nullptr; // remove if suffix contains txt
+    std::cerr << "Checking suffix of " << filepath;
+    bool keep = strstr(filepath, "cpp") == nullptr; // if == nullptr, keep it because it does NOT end in cpp
+    std::cerr << " keep it? " << (keep ? "yes" : "no") << std::endl;
+    return keep;
 }
 
 bool compare(const SetElement * const in1, const SetElement * const in2) {
@@ -264,14 +267,15 @@ int main() {
 //    std::cerr << "running e6,e6" << std::endl;
 //    assert(compare(e6, e6));
 
+
     TransformStage xform = create_transform_stage(&jit, compute_md5, "compute_md5", &in, &out);
-    TransformStage useless = create_transform_stage(&jit, donothing, "donothing", &in2, &out2);
+//    TransformStage useless = create_transform_stage(&jit, donothing, "donothing", &in2, &out2);
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &out);
 
     Pipeline pipeline;
     pipeline.register_stage(&xform, &in, &out);
-    pipeline.register_stage(&useless, &in2, &out2);
-//    pipeline.register_stage(&filt, &out);
+//    pipeline.register_stage(&useless, &in2, &out2);
+    pipeline.register_stage(&filt, &out);
     pipeline.codegen(&jit);
     jit.dump();
     jit.add_module();

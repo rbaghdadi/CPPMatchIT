@@ -25,9 +25,8 @@ public:
 
     ~TransformStage() { }
 
-    bool is_transform() {
-        return true;
-    }
+    bool is_transform();
+
 };
 
 #endif //MATCHIT_TRANSFORMSTAGE_H

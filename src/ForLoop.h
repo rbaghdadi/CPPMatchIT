@@ -7,6 +7,9 @@
 
 #include "./JIT.h"
 #include "./MFunc.h"
+#include "./CodegenUtils.h"
+
+using namespace Codegen;
 
 class LoopComponent {
 protected:

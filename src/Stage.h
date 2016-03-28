@@ -85,7 +85,7 @@ public:
      * Stages should override this is if the stage outputs something from the extern function that needs
      * to be specially handled (such as the boolean output from the FilterStage).
      */
-    virtual void handle_extern_output(llvm::AllocaInst *output_data_array_size);
+    virtual void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
 
     virtual bool is_filter();
 
@@ -114,14 +114,12 @@ public:
     /**
      * Can update the number of data array elements to be stored if necessary
      */
-    virtual void finalize_data_array_size(llvm::AllocaInst *output_data_array_size);
+//    virtual void finalize_data_array_size(llvm::AllocaInst *output_data_array_size);
 
     /**
      * Do the final malloc for the output struct, save the outputs to it, return from the stage
      */
-    virtual llvm::AllocaInst *finish_stage(llvm::AllocaInst *output_data_array_size, unsigned int fixed_size);
-
-    JIT *get_jit();
+    virtual llvm::AllocaInst *finish_stage(unsigned int fixed_size);
 
     virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_idxs();
 

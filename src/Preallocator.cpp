@@ -5,11 +5,11 @@
 #include "./Preallocator.h"
 #include "./CodegenUtils.h"
 
-using namespace CodegenUtils;
+using namespace Codegen;
 
 llvm::AllocaInst *preallocate_field(JIT *jit, BaseField *base_field, llvm::Value *total_space_to_allocate) {
     // do the malloc
-    llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, llvm_int8ptr, 8); //base_field->get_data_mtype()->codegen_type(), 8);
+    llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, llvm_int8Ptr, 8); //base_field->get_data_mtype()->codegen_type(), 8);
 //    llvm::Value *space = codegen_c_malloc32_and_cast(jit, total_space_to_allocate, base_field->get_data_mtype()->codegen_type());
     llvm::Value *space = codegen_c_malloc32(jit, total_space_to_allocate);
     codegen_llvm_store(jit, space, allocated_space, 8);
@@ -70,9 +70,9 @@ llvm::AllocaInst *preallocate_field(JIT *jit, BaseField *base_field, llvm::Value
 //
 //    //  e_ptr[i].data = &t[T_ptr_idx];
 //    std::vector<llvm::Value *> struct_ptr_data_gep_idxs;
-//    struct_ptr_data_gep_idxs.push_back(get_i32(0));
+//    struct_ptr_data_gep_idxs.push_back(as_i32(0));
 //    // TODO this won't work for types like comparison b/c that has 2 arrays (I think?) Or can I just keep it at 1 array?
-//    struct_ptr_data_gep_idxs.push_back(get_i32(data_mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
+//    struct_ptr_data_gep_idxs.push_back(as_i32(data_mtype->get_underlying_types().size() - 1)); // get the last field which contains the data array
 //    llvm::Value *struct_ptr_data_gep = codegen_llvm_gep(jit, preallocate_struct_ptr_gep, struct_ptr_data_gep_idxs);
 //
 //    // get t[T_ptr_idx]
@@ -87,26 +87,26 @@ llvm::AllocaInst *preallocate_field(JIT *jit, BaseField *base_field, llvm::Value
 //llvm::AllocaInst *preallocate(BaseField *base, JIT *jit, llvm::Value *num_set_elements, llvm::Function *function) {
 //    llvm::AllocaInst *preallocated_struct_ptr_ptr_space =
 //            do_malloc(jit, codegen_llvm_ptr(jit, codegen_llvm_ptr(jit, base->to_data_mtype()->codegen_type())),
-//                      codegen_llvm_mul(jit, num_set_elements, get_i32(base->get_data_mtype()->get_size())), "struct_ptr_ptr_pool");
+//                      codegen_llvm_mul(jit, num_set_elements, as_i32(base->get_data_mtype()->get_size())), "struct_ptr_ptr_pool");
 //    // this is like doing Element<T> *e = (Element<T>*)malloc(sizeof(Element<T>) * num_elements);
 //    llvm::AllocaInst *preallocated_struct_ptr_space =
 //            do_malloc(jit, codegen_llvm_ptr(jit, base->to_data_mtype()->codegen_type()),
-//                      codegen_llvm_mul(jit, num_set_elements, get_i32(base->get_data_mtype()->get_size())), "struct_ptr_pool");
+//                      codegen_llvm_mul(jit, num_set_elements, as_i32(base->get_data_mtype()->get_size())), "struct_ptr_pool");
 //    // this is like doing T *t = (T*)malloc(sizeof(T) * num_prim_values)
 //    llvm::Value *num;
 //    if (base->get_dim1() == 0 && base->get_dim2() == 0) {
 //        num = num_set_elements;
 //    } else if (base->get_dim2() == 0) {
-//        num = codegen_llvm_mul(jit, get_i32(base->get_dim1()), num_set_elements);
+//        num = codegen_llvm_mul(jit, as_i32(base->get_dim1()), num_set_elements);
 //    }  else {
 //        num = codegen_llvm_mul(jit, num_set_elements,
-//                               codegen_llvm_mul(jit, get_i32(base->get_dim1()), get_i32(base->get_dim2())));
+//                               codegen_llvm_mul(jit, get_i32(base->get_dim1()), as_i32(base->get_dim2())));
 //    }
 //    assert(base->get_data_mtype()->get_underlying_types().size() == 1); // the type shouldn't be a struct
 //    MType *t_type = base->get_data_mtype()->get_underlying_types()[0];//create_type<T>();
 //    llvm::AllocaInst *preallocated_T_ptr_space =
 //            do_malloc(jit, codegen_llvm_ptr(jit, t_type->codegen_type()),
-//                      codegen_llvm_mul(jit, num, get_i32(base->get_data_mtype()->get_underlying_types()[0]->get_size())),
+//                      codegen_llvm_mul(jit, num, as_i32(base->get_data_mtype()->get_underlying_types()[0]->get_size())),
 //                      "T_ptr_pool");
 //
 //    // now take the memory pools and split it up evenly across num_elements
@@ -128,7 +128,7 @@ llvm::AllocaInst *preallocate_field(JIT *jit, BaseField *base_field, llvm::Value
 //    }  else {
 //        fixed = base->get_dim1() * base->get_dim2();
 //    }
-//    llvm::Value *T_ptr_idx = codegen_llvm_mul(jit, codegen_llvm_load(jit, loop_idx, 8), get_i32(fixed));
+//    llvm::Value *T_ptr_idx = codegen_llvm_mul(jit, codegen_llvm_load(jit, loop_idx, 8), as_i32(fixed));
 //    divide_preallocated_struct_space(jit, preallocated_struct_ptr_ptr_space, preallocated_struct_ptr_space,
 //                                     preallocated_T_ptr_space, loop_idx, T_ptr_idx, base->to_data_mtype());
 //    jit->get_builder().CreateBr(loop.get_increment_bb());

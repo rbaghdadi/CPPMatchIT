@@ -3,20 +3,16 @@
 //
 
 #include <stdio.h>
-#include "llvm/IR/Type.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
-#include "./JIT.h"
-#include "./Pipeline.h"
 #include "./CodegenUtils.h"
 #include "./Field.h"
+#include "./JIT.h"
+#include "./Pipeline.h"
 
-using namespace CodegenUtils;
-
-void Pipeline::register_stage(Stage *stage) {
-    stages.push_back(stage);
-}
+using namespace Codegen;
 
 void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
@@ -62,7 +58,7 @@ void Pipeline::codegen(JIT *jit) {
     }
 
     for (int i = 0; i < num_output_fields; i++) {
-        MType *field_type = new MPointerType(create_field_type());
+        MType *field_type = new MPointerType(create_type<BaseField>());
         pipeline_args.push_back(field_type->codegen_type());
     }
 
@@ -86,16 +82,19 @@ void Pipeline::codegen(JIT *jit) {
         if (iter_ctr < 2 + output_relation->get_fields().size()) { // only store the fields for this first stage as inputs
             llvm_stage_args.push_back(load);
         }
-        if (iter_ctr == 1) { // just added the number of input SetElements. Create the corresponding output SetElements and tack them on
-            std::vector<llvm::Value *> setelement_args;
-            setelement_args.push_back(load);
-            llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_setelements"),
-                                                        setelement_args);
-            llvm_stage_args.push_back(setelements);
-            llvm_stage_args.push_back(load); // the number of output setelements
-        }
-        if (iter_ctr > 1) { // these are all of the fields
-            fields.push_back(load);
+        if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
+            if (iter_ctr == 1) { // just added the number of input SetElements. Create the corresponding output SetElements and tack them on
+                std::vector<llvm::Value *> setelement_args;
+                setelement_args.push_back(load);
+                llvm::Value *setelements = jit->get_builder().CreateCall(
+                        jit->get_module()->getFunction("create_setelements"),
+                        setelement_args);
+                llvm_stage_args.push_back(setelements);
+                llvm_stage_args.push_back(load); // the number of output setelements
+            }
+            if (iter_ctr > 1) { // these are all of the fields of the output
+                fields.push_back(load);
+            }
         }
         iter_ctr++;
     }
@@ -114,27 +113,32 @@ void Pipeline::codegen(JIT *jit) {
         std::vector<llvm::Value *> llvm_stage_args;
         // use the output SetElements from the previous stage as inputs
         std::vector<llvm::Value *> call_idxs;
-        call_idxs.push_back(get_i64(0));
-        call_idxs.push_back(get_i32(0)); // get the SetElements
+        call_idxs.push_back(as_i64(0));
+        call_idxs.push_back(as_i32(0)); // get the SetElements
         llvm::Value *inputs_setelements = codegen_llvm_load(jit, codegen_llvm_gep(jit, call, call_idxs), 8);
         llvm_stage_args.push_back(inputs_setelements);
         call_idxs.clear();
-        call_idxs.push_back(get_i64(0));
-        call_idxs.push_back(get_i32(1)); // get the number of SetElements
+        call_idxs.push_back(as_i64(0));
+        call_idxs.push_back(as_i32(1)); // get the number of SetElements
         llvm::Value *num = codegen_llvm_load(jit, codegen_llvm_gep(jit, call, call_idxs), 8);
         llvm_stage_args.push_back(num);
         // make the new output setelements
-        std::vector<llvm::Value *> setelement_args;
-        setelement_args.push_back(num);
-        llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_setelements"),
-                                                    setelement_args);
-        llvm_stage_args.push_back(setelements);
-        llvm_stage_args.push_back(num);
-        // the fields for this stage
-        for (int i = field_idx; i < field_idx + output_relation->get_fields().size(); i++) {
-            llvm_stage_args.push_back(fields[i]);
+        if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
+            std::vector<llvm::Value *> setelement_args;
+            setelement_args.push_back(num);
+            llvm::Value *setelements = jit->get_builder().CreateCall(
+                    jit->get_module()->getFunction("create_setelements"),
+                    setelement_args);
+            llvm_stage_args.push_back(setelements);
+            llvm_stage_args.push_back(num);
+            // the fields for this stage
+            if (output_relation) { // some stages (like Filter) don't have an output relation because the input relation is passed along instead
+                for (int i = field_idx; i < field_idx + output_relation->get_fields().size(); i++) {
+                    llvm_stage_args.push_back(fields[i]);
+                }
+                field_idx += output_relation->get_fields().size();
+            }
         }
-        field_idx += output_relation->get_fields().size();
         // call things
         call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
