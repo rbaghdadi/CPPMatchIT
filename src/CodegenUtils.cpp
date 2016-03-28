@@ -90,6 +90,9 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
 
     // output SetElement
     if (!is_filter_stage) { // a filter only gets inputs. outputs are implicitly handled
+        llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[1], 4); // TODO this needs to be handled better--assumes only 2 max SetElements in signature
+        std::vector<llvm::Value *> element_idxs;
+        element_idxs.push_back(loop_idx_load);
         llvm::Value *output_set_element_gep = codegen_llvm_gep(jit, output_set_elements, element_idxs);
         llvm::LoadInst *output_set_element_load = codegen_llvm_load(jit, output_set_element_gep, 8);
         llvm::AllocaInst *output_set_element_alloc = codegen_llvm_alloca(jit, output_set_element_load->getType(), 8);

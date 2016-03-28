@@ -51,6 +51,15 @@ public:
             user_function_return_type(user_function_return_type), stage_name(stage_name),
             user_function_name(user_function_name) { }
 
+    // no output relation
+    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Relation *input_relation,
+          MType *user_function_return_type) :
+            jit(jit), input_relation_field_types(input_relation->get_fields()),
+            output_relation_field_types(std::vector<BaseField *>()),
+            user_function_return_type(user_function_return_type), stage_name(stage_name),
+            user_function_name(user_function_name) { }
+
+
     virtual ~Stage() {
         delete mfunction;
         delete loop;
@@ -124,6 +133,9 @@ public:
     virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_idxs();
 
     virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_data();
+
+    virtual llvm::CallInst *codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
+                                              llvm::BasicBlock *stage_end);
 
 };
 

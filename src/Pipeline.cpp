@@ -53,8 +53,10 @@ void Pipeline::codegen(JIT *jit) {
     int num_output_fields = 0;
     for (std::vector<std::tuple<Stage *, Relation *, Relation *>>::iterator iter = paramaterized_stages.begin();
          iter != paramaterized_stages.end(); iter++) {
-        Relation *output_relation = std::get<2>(first_stage);
-        num_output_fields += output_relation->get_fields().size();
+        Relation *output_relation = std::get<2>(*iter);
+        if (output_relation) {
+            num_output_fields += output_relation->get_fields().size();
+        }
     }
 
     for (int i = 0; i < num_output_fields; i++) {
@@ -123,7 +125,10 @@ void Pipeline::codegen(JIT *jit) {
         llvm::Value *num = codegen_llvm_load(jit, codegen_llvm_gep(jit, call, call_idxs), 8);
         llvm_stage_args.push_back(num);
         // make the new output setelements
-        if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
+        if (stage->is_comparison()) { // duplicate the input setelements
+            llvm_stage_args.push_back(inputs_setelements);
+            llvm_stage_args.push_back(num);
+        } else if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns the inputs that weren't filtered out
             std::vector<llvm::Value *> setelement_args;
             setelement_args.push_back(num);
             llvm::Value *setelements = jit->get_builder().CreateCall(

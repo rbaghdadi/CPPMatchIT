@@ -7,8 +7,6 @@
 
 #include <string>
 #include "./Stage.h"
-#include "./CodegenUtils.h"
-#include "./ForLoop.h"
 
 using namespace Codegen;
 

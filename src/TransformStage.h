@@ -5,16 +5,14 @@
 #ifndef MATCHIT_TRANSFORMSTAGE_H
 #define MATCHIT_TRANSFORMSTAGE_H
 
+#include <string>
 #include "./Stage.h"
-#include "./MFunc.h"
 #include "./MType.h"
-#include "./CodegenUtils.h"
 
 class TransformStage : public Stage {
-
 private:
 
-    void (*transform)(const SetElement * const , SetElement * const);
+    void (*transform)(const SetElement * const, SetElement * const);
 
 public:
 

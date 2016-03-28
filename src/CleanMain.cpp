@@ -4,6 +4,7 @@
 #include <openssl/md5.h>
 #include <llvm/IR/Type.h>
 #include <fftw3.h>
+#include "./ComparisonStage.h"
 #include "./LLVM.h"
 #include "./JIT.h"
 #include "./Utils.h"
@@ -23,7 +24,8 @@ Field<float> float_field;
 
 extern "C" void compute_md5(const SetElement * const in, SetElement * const out) {
     char *filepath = in->get(&filepath_field1);
-    std::cerr << "computing md5 for: " << filepath << std::endl;
+    float f = in->get(&float_field);
+    std::cerr << "computing md5 for: " << filepath << " " << f << std::endl;
     // read in file
     FILE *file = fopen(filepath, "rb");
     fseek(file, 0L, SEEK_END);
@@ -58,19 +60,21 @@ extern "C" void donothing(const SetElement * const in, SetElement * const out) {
 extern "C" bool filter_file(const SetElement * const in) {
     char *filepath = in->get(&filepath_field1);
     std::cerr << "Checking suffix of " << filepath;
-    bool keep = strstr(filepath, "cpp") == nullptr; // if == nullptr, keep it because it does NOT end in cpp
+    bool keep = strstr(filepath, "txt") == nullptr; // if == nullptr, keep it because it does NOT end in txt
     std::cerr << " keep it? " << (keep ? "yes" : "no") << std::endl;
     return keep;
 }
 
-bool compare(const SetElement * const in1, const SetElement * const in2) {
+extern "C" bool compare(const SetElement * const in1, const SetElement * const in2) {
     unsigned char *computed_md5_1 = in1->get(&md5_field);
     unsigned char *computed_md5_2 = in2->get(&md5_field);
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
         if (computed_md5_1[i] != computed_md5_2[i]) {
+            std::cerr << in1->get(&filepath_field2) << " and " << in2->get(&filepath_field2) << " do not match :(" << std::endl;
             return false;
         }
     }
+    std::cerr << in1->get(&filepath_field2) << " and " << in2->get(&filepath_field2) << " match!" << std::endl;
     return true;
 }
 
@@ -222,25 +226,29 @@ int main() {
     in.add(&float_field);
     out.add(&filepath_field2);
     out.add(&md5_field);
-    Relation in2;
-    Relation out2;
-    in2.add(&md5_field);
-    out2.add(&md5_field2);
+//    Relation in2;
+//    Relation out2;
+//    in2.add(&md5_field);
+//    out2.add(&md5_field2);
 
     // Inputs
     SetElement *e1 = new SetElement(0);
     SetElement *e2 = new SetElement(1);
     SetElement *e3 = new SetElement(2);
+    SetElement *e4 = new SetElement(3);
 
     // initialize some data and attach the SetElements
     std::string fname1 = "/Users/JRay/Desktop/scratch/test2.cpp";
     std::string fname2 = "/Users/JRay/Desktop/scratch/conversionTest.cpp";
+    std::string fname3 = "/Users/JRay/Desktop/scratch/Driver.txt";
     e1->init(&filepath_field1, fname1.c_str());
     e1->init(&float_field, 17.0f);
     e2->init(&filepath_field1, fname2.c_str());
     e2->init(&float_field, 29.0f);
-    e3->init(&filepath_field1, fname2.c_str());
+    e3->init(&filepath_field1, fname3.c_str());
     e3->init(&float_field, 37.0f);
+    e4->init(&filepath_field1, fname2.c_str());
+    e4->init(&float_field, 48.0f);
 
     // attach output SetElements
 //    e4->init_no_malloc(&filepath_field2);
@@ -269,13 +277,15 @@ int main() {
 
 
     TransformStage xform = create_transform_stage(&jit, compute_md5, "compute_md5", &in, &out);
-//    TransformStage useless = create_transform_stage(&jit, donothing, "donothing", &in2, &out2);
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &out);
+    ComparisonStage comp = create_comparison_stage(&jit, compare, "compare", &out);
+
+
 
     Pipeline pipeline;
     pipeline.register_stage(&xform, &in, &out);
-//    pipeline.register_stage(&useless, &in2, &out2);
     pipeline.register_stage(&filt, &out);
+    pipeline.register_stage(&comp, &out);
     pipeline.codegen(&jit);
     jit.dump();
     jit.add_module();
@@ -285,9 +295,10 @@ int main() {
     in_setelements.push_back(e1);
     in_setelements.push_back(e2);
     in_setelements.push_back(e3);
+    in_setelements.push_back(e4);
 
-    // add the output fields here
-    runMacro(jit, in_setelements, &filepath_field2, &md5_field, &md5_field2);
+    // add the output fields here (add all across the stages)
+    runMacro(jit, in_setelements, &filepath_field2, &md5_field);
 
     return 0;
 }

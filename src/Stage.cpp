@@ -126,17 +126,6 @@ void Stage::codegen() {
         jit->get_builder().CreateBr(loop->get_counter_bb());
         loop->codegen_counters(loop_bound_alloc);
 
-        // This value is used to keep track of the total number of array elements that will be dumped out of this stage
-        // once the loop is completely executed. For example, if the output of the stage is of type FloatElement,
-        // then each individual FloatElement has a data array float[]. If M total FloatElements are returned from this
-        // stage, then the sum of the lengths of all M float[] arrays is stored in here. This value is needed for preallocation
-        // of later stages. It can usually be calculated just from the input values, but in the case of a FilterStage,
-        // it has to be computed on the fly since we don't know which FloatElements (or w/e type) will be kept ahead of time.
-        // TODO do we need this anymore?
-        llvm::AllocaInst *output_data_array_size = codegen_llvm_alloca(jit, llvm_int32, 4, "output_size");
-        codegen_llvm_store(jit, as_i32(0), output_data_array_size, 4);
-        llvm::LoadInst *loop_bound = codegen_llvm_load(jit, loop_bound_alloc, 4);
-
         // preallocate space for all the output fields in the relation OR something else if a Stage overrwrites preallocate()
         std::vector<llvm::AllocaInst *> preallocated_space = preallocate();
         // TODO this is super dangerous!
@@ -157,53 +146,62 @@ void Stage::codegen() {
                 codegen_llvm_store(jit, src, gep, 8);
             }
         }
-        jit->get_builder().CreateBr(loop->get_condition_bb());
 
         // Create the main loop
-
-        // Create the loop index check
-        loop->codegen_condition();
-        jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(),
-                                        user_function_arg_loader->get_basic_block(), stage_end);
-
-        // Create the loop index increment
-        loop->codegen_loop_idx_increment();
-        jit->get_builder().CreateBr(loop->get_condition_bb());
-
-        // Process the data through the user function in the loop body
-        // Get the current input to the user function
-        user_function_arg_loader->set_loop_idx_alloc(get_user_function_arg_loader_idxs());
-        if (is_filter()) {
-            user_function_arg_loader->set_no_output_param();
-        }
-//        user_function_arg_loader->set_preallocated_output_space(preallocator->get_preallocated_space());
-        user_function_arg_loader->set_stage_input_arg_alloc(get_user_function_arg_loader_data());
-        user_function_arg_loader->set_output_idx_alloc(loop->get_return_idx());
-        if (is_segmentation()) {
-            user_function_arg_loader->set_segmentation_stage();
-        } else if (is_filter()) {
-            user_function_arg_loader->set_filter_stage();
-        }
-        user_function_arg_loader->codegen(jit);
-        jit->get_builder().CreateBr(call->get_basic_block());
-
-        // Call the extern function
-        call->set_extern_arg_allocs(user_function_arg_loader->get_user_function_input_allocs());
-        call->codegen(jit);
-
-        handle_extern_output(preallocated_space);
-        jit->get_builder().CreateBr(loop->get_increment_bb());
+        codegen_main_loop(preallocated_space, stage_end);
 
         // Finish up the stage and create the final stage output.
         jit->get_builder().SetInsertPoint(stage_end);
         llvm::AllocaInst *final_stage_output = finish_stage(0);
 
         // exit
-        jit->get_builder().CreateRet(codegen_llvm_load(jit, final_stage_output, 8));
+        if (final_stage_output) {
+            jit->get_builder().CreateRet(codegen_llvm_load(jit, final_stage_output, 8));
+        } else {
+            jit->get_builder().CreateRet(nullptr);
+        }
         codegen_done = true;
     }
 }
 
+// components for processing data through the user function
+llvm::CallInst *Stage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
+                                         llvm::BasicBlock *stage_end) {
+    jit->get_builder().CreateBr(loop->get_condition_bb());
+    loop->codegen_condition();
+    jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(),
+                                    user_function_arg_loader->get_basic_block(), stage_end);
+    // Create the loop index increment
+    loop->codegen_loop_idx_increment();
+    jit->get_builder().CreateBr(loop->get_condition_bb());
+    // Process the data through the user function in the loop body
+    // Get the current input to the user function
+    // TODO hacky
+    std::vector<llvm::AllocaInst *> loop_idxs;
+    loop_idxs.push_back(get_user_function_arg_loader_idxs()[0]);
+    loop_idxs.push_back(get_user_function_arg_loader_idxs()[0]); // same idx for output as the input
+    user_function_arg_loader->set_loop_idx_alloc(loop_idxs);
+    if (is_filter()) {
+        user_function_arg_loader->set_no_output_param();
+    }
+    user_function_arg_loader->set_stage_input_arg_alloc(get_user_function_arg_loader_data());
+    user_function_arg_loader->set_output_idx_alloc(loop->get_return_idx());
+    if (is_segmentation()) {
+        user_function_arg_loader->set_segmentation_stage();
+    } else if (is_filter()) {
+        user_function_arg_loader->set_filter_stage();
+    }
+    user_function_arg_loader->codegen(jit);
+    jit->get_builder().CreateBr(call->get_basic_block());
+
+    // Call the extern function
+    call->set_extern_arg_allocs(user_function_arg_loader->get_user_function_input_allocs());
+    call->codegen(jit);
+    handle_extern_output(preallocated_space);
+    jit->get_builder().CreateBr(loop->get_increment_bb());
+}
+
+// TODO get rid of this and just inline it
 std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_idxs() {
     std::vector<llvm::AllocaInst *> idxs;
     idxs.push_back(loop->get_loop_idx());
@@ -213,7 +211,8 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_idxs() {
 std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
     std::vector<llvm::AllocaInst *> data;
     data.push_back(stage_arg_loader->get_data(0)); // input SetElement
-    data.push_back(stage_arg_loader->get_data(2)); // output SetElement
+    // TODO hacky, see comment on the next line
+    data.push_back(stage_arg_loader->get_data(2)); // output SetElement or someother input in the case of comparison
     return data;
 }
 
@@ -273,5 +272,3 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
     }
     return preallocated_space;
 }
-
-//void Stage::finalize_data_array_size(llvm::AllocaInst *output_data_array_size) { }
