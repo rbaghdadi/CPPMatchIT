@@ -45,9 +45,9 @@ void Stage::init_stage() {
     user_function_param_types.push_back(set_element_ptr_type);
     if (!is_filter()) {
         if (!is_segmentation()) {
-            // give the user an array of pointers to hold all of the generated segments
             user_function_param_types.push_back(set_element_ptr_type);
         } else {
+            // give the user an array of pointers to hold all of the generated segments
             user_function_param_types.push_back(set_element_ptr_ptr_type);
         }
     }
@@ -61,7 +61,6 @@ void Stage::init_stage() {
     }
     // add the types of the output relation fields
     // we need these fields so that space in them can be preallocated
-    // TODO left off here
     // What kind of preallocation does a filter need? All of the fields are already preallocated, we just need a new list of them
     // I think its just a matter of preallocating a smaller amount of space (enough to just hold a bunch of pointers)
     for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin();
@@ -128,6 +127,7 @@ void Stage::codegen() {
 
         // preallocate space for all the output fields in the relation OR something else if a Stage overrwrites preallocate()
         std::vector<llvm::AllocaInst *> preallocated_space = preallocate();
+
         // TODO this is super dangerous!
         if (!is_filter()) {
             std::vector<llvm::Value *> field_data_idxs;
@@ -143,6 +143,11 @@ void Stage::codegen() {
                 llvm::LoadInst *src = codegen_llvm_load(jit, this_prealloc, 8);
                 // within the field, the last member type is the data array
                 llvm::Value *gep = codegen_llvm_gep(jit, dest, field_data_idxs);
+//                std::vector<llvm::Value *> wtf;
+//                wtf.push_back(as_i64(0));
+//                llvm::Value *wtf_gep = codegen_llvm_gep(jit, src, wtf);
+//                llvm::Value *use_this = codegen_llvm_load(jit, wtf_gep, 8);
+//                codegen_fprintf_int(jit, use_this);
                 codegen_llvm_store(jit, src, gep, 8);
             }
         }
@@ -218,7 +223,7 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
 
 // stages that have an extern output (like filter) can do their own thing
 void Stage::handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space) {
-    loop->codegen_return_idx_increment();
+    loop->codegen_return_idx_increment(nullptr);
 }
 
 llvm::Value *Stage::compute_preallocation_data_array_size(unsigned int fixed_size) {
@@ -238,7 +243,6 @@ llvm::AllocaInst *Stage::finish_stage(unsigned int fixed_size) {
     // The space we preallocated earlier is now filled with the results of the extern function, so we have to save it in
     // this final_stage_output struct.
     llvm::Value *output_set_elements = gep_i64_i32(jit, final_stage_output_load, 0, 0);
-    stage_arg_loader->get_args_alloc()[2]->getType()->dump();
     codegen_llvm_store(jit, codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2], 8), output_set_elements, 8); // pass along the output set elements
     llvm::Value *num_output_setelements = gep_i64_i32(jit, final_stage_output_load, 0, 1);
     codegen_llvm_store(jit, codegen_llvm_load(jit, loop->get_return_idx(), 8), num_output_setelements, 8); // store the number of output SetElements
@@ -252,7 +256,7 @@ llvm::AllocaInst *Stage::compute_num_output_structs() {
 
 std::vector<llvm::AllocaInst *> Stage::preallocate() {
     // The preallocated space for the outputs of this stage.
-    // Note: For a FilterStage, since we don't know how many inputs will actually be kept in the output, just
+    // Note: For FilterStage/SegmentationStage, since we don't know how many inputs will actually be kept in the output, just
     // preallocate enough space to store all of the inputs.
     std::vector<llvm::AllocaInst *> preallocated_space;
     preallocator->insert(mfunction->get_extern_wrapper());
@@ -266,7 +270,6 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
         preallocator->set_base_type(*iter);
         preallocator->set_num_output_structs_alloc(compute_num_output_structs());
         preallocator->set_fixed_size((*iter)->get_fixed_size());
-        preallocator->set_data_array_size(compute_preallocation_data_array_size((*iter)->get_fixed_size()));
         preallocator->codegen(jit, true);
         preallocated_space.push_back(preallocator->get_preallocated_space());
     }

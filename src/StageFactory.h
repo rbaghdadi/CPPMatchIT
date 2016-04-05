@@ -8,6 +8,7 @@
 #include "./ComparisonStage.h"
 #include "./Field.h"
 #include "./FilterStage.h"
+#include "./SegmentationStage.h"
 #include "./TransformStage.h"
 
 TransformStage create_transform_stage(JIT *jit, void (*transform)(const SetElement * const, SetElement * const),
@@ -28,6 +29,11 @@ ComparisonStage create_comparison_stage(JIT *jit, void (*compareVIO)(const SetEl
                                                                      SetElement * const), std::string comparison_name,
                                         Relation *input_relation, Relation *output_relation);
 
+SegmentationStage create_segmentation_stage(JIT *jit,
+                                            unsigned int (*segment)(const SetElement *const, SetElement **const),
+                                            std::string segmentation_name, Relation *input_relation,
+                                            Relation *output_relation, BaseField *field_to_segment,
+                                            unsigned int segment_size, float overlap);
 
 
 //template <typename I, typename O>

@@ -141,6 +141,8 @@ private:
      */
     llvm::AllocaInst *loop_idx_alloc;
 
+    llvm::Value *step_size;
+
 public:
 
     ForLoopIncrementIB() {
@@ -150,6 +152,10 @@ public:
     ~ForLoopIncrementIB() { }
 
     void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
+
+    void set_step_size(llvm::Value* step_size) {
+        this->step_size = step_size;
+    }
 
     void codegen(JIT *jit, bool no_insert = false);
 
@@ -203,7 +209,7 @@ public:
 
     void codegen_loop_idx_increment();
 
-    void codegen_return_idx_increment();
+    void codegen_return_idx_increment(llvm::Value *step_size);
 
     void codegen_condition();
 

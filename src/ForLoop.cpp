@@ -89,7 +89,7 @@ void ForLoopIncrementIB::codegen(JIT *jit, bool no_insert) {
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
-    llvm::Value *increment = codegen_llvm_add(jit, codegen_llvm_load(jit, loop_idx_alloc, 4), as_i32(1));
+    llvm::Value *increment = codegen_llvm_add(jit, codegen_llvm_load(jit, loop_idx_alloc, 4), step_size);
     codegen_llvm_store(jit, increment, loop_idx_alloc, 4);
     codegen_done = true;
 }
@@ -106,11 +106,17 @@ void ForLoop::init_codegen(llvm::Function *function) {
 }
 
 void ForLoop::codegen_loop_idx_increment() {
+    loop_idx_increment->set_step_size(as_i32(1));
     loop_idx_increment->set_loop_idx_alloc(counters->get_loop_idx_alloc());
     loop_idx_increment->codegen(jit);
 }
 
-void ForLoop::codegen_return_idx_increment() {
+void ForLoop::codegen_return_idx_increment(llvm::Value *step_size) {
+    if (step_size == nullptr) {
+        return_idx_increment->set_step_size(as_i32(1));
+    } else {
+        return_idx_increment->set_step_size(step_size);
+    }
     return_idx_increment->set_loop_idx_alloc(counters->get_return_idx_alloc());
     return_idx_increment->codegen(jit, true);
 }

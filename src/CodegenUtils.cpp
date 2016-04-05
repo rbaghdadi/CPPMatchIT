@@ -90,16 +90,26 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
 
     // output SetElement
     if (!is_filter_stage) { // a filter only gets inputs. outputs are implicitly handled
-        llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[1], 4); // TODO this needs to be handled better--assumes only 2 max SetElements in signature
         std::vector<llvm::Value *> element_idxs;
-        element_idxs.push_back(loop_idx_load);
-        llvm::Value *output_set_element_gep = codegen_llvm_gep(jit, output_set_elements, element_idxs);
-        llvm::LoadInst *output_set_element_load = codegen_llvm_load(jit, output_set_element_gep, 8);
-        llvm::AllocaInst *output_set_element_alloc = codegen_llvm_alloca(jit, output_set_element_load->getType(), 8);
-        codegen_llvm_store(jit, output_set_element_load, output_set_element_alloc, 8);
-        arg_types.push_back(output_set_element_alloc);
+        if (!is_segmentation_stage) {
+            llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[1], 4); // TODO this needs to be handled better--assumes only 2 max SetElements in signature
+            element_idxs.push_back(loop_idx_load);
+        } else {
+            llvm::LoadInst *output_idx_load = codegen_llvm_load(jit, output_idx, 4);
+            element_idxs.push_back(output_idx_load);
+        }
+        llvm::Value *output_set_element_gep = codegen_llvm_gep(jit, output_set_elements, element_idxs); // *
+        if (!is_segmentation_stage) {
+            llvm::LoadInst *output_set_element_load = codegen_llvm_load(jit, output_set_element_gep, 8);
+            llvm::AllocaInst *output_set_element_alloc = codegen_llvm_alloca(jit, output_set_element_load->getType(), 8); // ** alloc
+            codegen_llvm_store(jit, output_set_element_load, output_set_element_alloc, 8);
+            arg_types.push_back(output_set_element_alloc);
+        } else {
+            llvm::AllocaInst *gep_alloc = codegen_llvm_alloca(jit, output_set_element_gep->getType(), 8);
+            codegen_llvm_store(jit, output_set_element_gep, gep_alloc, 8);
+            arg_types.push_back(gep_alloc);
+        }
     }
-
     return arg_types;
 }
 
@@ -307,7 +317,6 @@ llvm::Value *codegen_llvm_mul(JIT *jit, llvm::Value *left, llvm::Value *right) {
 llvm::Value *codegen_llvm_add(JIT *jit, llvm::Value *left, llvm::Value *right) {
     return jit->get_builder().CreateAdd(left, right);
 }
-
 
 
 }

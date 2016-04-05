@@ -44,3 +44,14 @@ ComparisonStage create_comparison_stage(JIT *jit, void (*compareVIO)(const SetEl
     stage.init_stage();
     return stage;
 }
+
+SegmentationStage create_segmentation_stage(JIT *jit,
+                                            unsigned int (*segment)(const SetElement *const, SetElement **const),
+                                            std::string segmentation_name, Relation *input_relation,
+                                            Relation *output_relation, BaseField *field_to_segment,
+                                            unsigned int segment_size, float overlap) {
+    SegmentationStage stage(segment, segmentation_name, jit, input_relation, output_relation, segment_size, overlap,
+                      field_to_segment);
+    stage.init_stage();
+    return stage;
+}

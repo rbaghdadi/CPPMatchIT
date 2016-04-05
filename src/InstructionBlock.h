@@ -355,7 +355,7 @@ protected:
 
     /**
      * The number of data elements that space needs to be allocated for.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     llvm::Value *data_array_size;
 

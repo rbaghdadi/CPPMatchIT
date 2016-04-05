@@ -249,7 +249,7 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
 //    assert(!codegen_done);
     assert(loop_bound_alloc);
     assert(base_field);
-    assert(data_array_size);
+//    assert(data_array_size);
     assert(fixed_size != 0);
     llvm::LoadInst *loop_bound_load = jit->get_builder().CreateLoad(loop_bound_alloc);
     llvm::Value *size_per_element =

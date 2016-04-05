@@ -16,6 +16,8 @@ std::vector<llvm::AllocaInst *> ComparisonStage::preallocate() {
     }
 }
 
+// TODO how does this work with load_user_function_input_arg? That assumes only a single input SetElement
+// It might not actually work--just getting lucky because the two inputs are the same
 llvm::CallInst *ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
                                                    llvm::BasicBlock *stage_end) {
     ForLoop inner(jit, mfunction);

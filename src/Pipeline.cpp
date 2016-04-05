@@ -11,6 +11,7 @@
 #include "./Field.h"
 #include "./JIT.h"
 #include "./Pipeline.h"
+#include "SegmentationStage.h"
 
 using namespace Codegen;
 
@@ -87,7 +88,12 @@ void Pipeline::codegen(JIT *jit) {
         if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
             if (iter_ctr == 1) { // just added the number of input SetElements. Create the corresponding output SetElements and tack them on
                 std::vector<llvm::Value *> setelement_args;
-                setelement_args.push_back(load);
+                if (!stage->is_segmentation()) {
+                    setelement_args.push_back(load); // the loop bound is the number of elements
+                } else {
+                    load = codegen_llvm_load(jit, ((SegmentationStage *) stage)->compute_num_output_structs(), 4);
+                    setelement_args.push_back(load);
+                }
                 llvm::Value *setelements = jit->get_builder().CreateCall(
                         jit->get_module()->getFunction("create_setelements"),
                         setelement_args);
@@ -130,7 +136,13 @@ void Pipeline::codegen(JIT *jit) {
             llvm_stage_args.push_back(num);
         } else if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns the inputs that weren't filtered out
             std::vector<llvm::Value *> setelement_args;
-            setelement_args.push_back(num);
+            if (!stage->is_segmentation()) {
+                setelement_args.push_back(num);
+            } else {
+                num = ((SegmentationStage*)stage)->compute_num_segments(((SegmentationStage*)stage)->get_field_to_segment(), num);
+                codegen_fprintf_int(jit, num);
+                setelement_args.push_back(num);
+            }
             llvm::Value *setelements = jit->get_builder().CreateCall(
                     jit->get_module()->getFunction("create_setelements"),
                     setelement_args);

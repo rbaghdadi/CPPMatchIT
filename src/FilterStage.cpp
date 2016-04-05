@@ -10,7 +10,7 @@ bool FilterStage::is_filter() {
 
 void FilterStage::handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space) {
     // check if this output should be kept
-    llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_extern_call_result_alloc(), 8);
+    llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_extern_call_result_alloc(), 1);
     llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
                                                        mfunction->get_extern_wrapper());
@@ -50,7 +50,8 @@ std::vector<llvm::AllocaInst *> FilterStage::preallocate() {
 //    llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, llvm_int8Ptr, 8); //base_field->get_data_mtype()->codegen_type(), 8);
     llvm::Type *cast_to = (new MPointerType(new MPointerType((MStructType*)create_type<SetElement>())))->codegen_type();
     llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, cast_to, 8); //base_field->get_data_mtype()->codegen_type(), 8);
-    llvm::Value *space = codegen_c_malloc32(jit, codegen_llvm_mul(jit, codegen_llvm_load(jit, compute_num_output_structs(), 4), as_i32(sizeof(SetElement*))));
+    llvm::Value *space = codegen_c_malloc32(jit, codegen_llvm_mul(jit, codegen_llvm_load(jit,
+                                                                                         compute_num_output_structs(), 4), as_i32(sizeof(SetElement*))));
     codegen_llvm_store(jit, jit->get_builder().CreateBitCast(space, cast_to), allocated_space, 8);
     preallocated_space.push_back(allocated_space);
     return preallocated_space;

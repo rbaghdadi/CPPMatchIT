@@ -20,7 +20,6 @@ public:
     BaseField(int dim1, int dim2, MType *data_mtype) : idx(0), cur_length(0), max_malloc(0), dim1(dim1), dim2(dim2),
                                     element_ctr(0), data_mtype(data_mtype) { }
 
-
     void set_idx(int idx);
 
     int get_idx();

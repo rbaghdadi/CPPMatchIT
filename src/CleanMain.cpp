@@ -20,6 +20,7 @@ Field<char,200> filepath_field1;
 Field<char,200> filepath_field2;
 Field<unsigned char,100> md5_field;
 Field<unsigned char,100> md5_field2;
+Field<unsigned char,1> md5_segment_field;
 Field<float> float_field;
 
 extern "C" void compute_md5(const SetElement * const in, SetElement * const out) {
@@ -39,7 +40,7 @@ extern "C" void compute_md5(const SetElement * const in, SetElement * const out)
     MD5_Init(&context);
     MD5_Update(&context, data, length);
     out->set(&filepath_field2, filepath);
-    MD5_Final(out->get(&md5_field), &context);
+    MD5_Final(out->get(&md5_field), &context); // does this instead of calling set
     char md5_str[MD5_DIGEST_LENGTH * 2 + 1];
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
         sprintf(&md5_str[i * 2], "%02x", out->get(&md5_field, i));
@@ -76,6 +77,24 @@ extern "C" bool compare(const SetElement * const in1, const SetElement * const i
     }
     std::cerr << in1->get(&filepath_field2) << " and " << in2->get(&filepath_field2) << " match!" << std::endl;
     return true;
+}
+
+extern "C" unsigned int segment_file(const SetElement * const to_segment, SetElement ** const segmented) {
+    unsigned char *md5_data = to_segment->get(&md5_field);
+    std::cerr << "in segment_file and processing " << to_segment->get(&filepath_field2) << std::endl;
+    int ctr = 0;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) { // segment_size = 1, overlap = 0
+        unsigned char segment[2];
+        segment[0] = md5_data[i];
+        if (i+1 >= MD5_DIGEST_LENGTH)
+            segment[1] = md5_data[i];
+        else
+            segment[1] = md5_data[i+1];
+        segmented[i]->set(&md5_segment_field, segment);
+        ctr++;
+    }
+    std::cerr << "computed " << ctr << " segments." << std::endl;
+    return ctr;
 }
 
 const unsigned int window_size = 10;
@@ -226,6 +245,7 @@ int main() {
     in.add(&float_field);
     out.add(&filepath_field2);
     out.add(&md5_field);
+
 //    Relation in2;
 //    Relation out2;
 //    in2.add(&md5_field);
@@ -240,7 +260,7 @@ int main() {
     // initialize some data and attach the SetElements
     std::string fname1 = "/Users/JRay/Desktop/scratch/test2.cpp";
     std::string fname2 = "/Users/JRay/Desktop/scratch/conversionTest.cpp";
-    std::string fname3 = "/Users/JRay/Desktop/scratch/Driver.txt";
+    std::string fname3 = "/Users/JRay/Desktop/scratch/addrOf.txt";
     e1->init(&filepath_field1, fname1.c_str());
     e1->init(&float_field, 17.0f);
     e2->init(&filepath_field1, fname2.c_str());
@@ -275,17 +295,19 @@ int main() {
 //    std::cerr << "running e6,e6" << std::endl;
 //    assert(compare(e6, e6));
 
+    Relation seg_out;
+    seg_out.add(&md5_segment_field);
 
     TransformStage xform = create_transform_stage(&jit, compute_md5, "compute_md5", &in, &out);
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &out);
+    SegmentationStage seg = create_segmentation_stage(&jit, segment_file, "segment_file", &out, &seg_out, &md5_field, 2, 0.5);
     ComparisonStage comp = create_comparison_stage(&jit, compare, "compare", &out);
-
-
 
     Pipeline pipeline;
     pipeline.register_stage(&xform, &in, &out);
     pipeline.register_stage(&filt, &out);
-    pipeline.register_stage(&comp, &out);
+//    pipeline.register_stage(&comp, &out);
+    pipeline.register_stage(&seg, &out, &seg_out);
     pipeline.codegen(&jit);
     jit.dump();
     jit.add_module();
@@ -297,8 +319,11 @@ int main() {
     in_setelements.push_back(e3);
     in_setelements.push_back(e4);
 
+
+
     // add the output fields here (add all across the stages)
-    runMacro(jit, in_setelements, &filepath_field2, &md5_field);
+    // TODO this isn't good b/c it requires you to put all output fields in order of how they are created in the "struct"
+    runMacro(jit, in_setelements, &filepath_field2, &md5_field, &md5_segment_field);
 
     return 0;
 }
