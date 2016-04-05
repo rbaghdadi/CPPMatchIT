@@ -27,32 +27,22 @@ public:
 
     bool is_segmentation();
 
-//    llvm::Value *compute_preallocation_data_array_size() {
-//        return jit->get_builder().CreateMul(compute_num_segments(), CodegenUtils::get_i64(segment_size));
-//    }
-
-    llvm::Value *compute_num_segments();
-
-    llvm::Value *compute_num_segments(BaseField *output_field, llvm::Value *loop_bound);
+    /*
+     * Compute using the following formula:
+     *
+     *       (total # data points) - ((segment size) * overlap)
+     * ceil( -------------------------------------------------- )
+     *       (segment size) - ((segment size) * overlap)
+     *
+     */
+    llvm::Value *compute_num_segments(llvm::Value *loop_bound);
 
     void handle_extern_output(llvm::AllocaInst *output_data_array_size) { }
-
-//    void finalize_data_array_size(llvm::AllocaInst *output_data_array_size) {
-//        llvm::Value *x = jit->get_builder().CreateMul(compute_num_segments(), CodegenUtils::get_i64(segment_size));
-//        jit->get_builder().CreateStore(x, output_data_array_size);
-//    }
 
     llvm::AllocaInst *compute_num_output_structs();
 
     void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
 
-    llvm::Value *compute_segments_per_setelement();
-
-    BaseField *get_field_to_segment() {
-        return field_to_segment;
-    }
-
 };
-
 
 #endif //MATCHIT_SEGMENTATIONSTAGE_H

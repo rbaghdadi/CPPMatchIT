@@ -31,6 +31,14 @@ bool Stage::is_comparison() {
     return false;
 }
 
+std::vector<BaseField *> Stage::get_input_relation_field_types() {
+    return input_relation_field_types;
+}
+
+std::vector<BaseField *> Stage::get_output_relation_field_types() {
+    return output_relation_field_types;
+}
+
 void Stage::init_stage() {
     MType *set_element_type = create_type<SetElement>();
     MType *set_element_ptr_type = new MPointerType(set_element_type);

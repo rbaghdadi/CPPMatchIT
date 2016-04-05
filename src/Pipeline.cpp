@@ -19,28 +19,21 @@ void Pipeline::simple_execute(JIT *jit, const void **data) {
     jit->run("pipeline", data);
 }
 
-void Pipeline::register_stage(Stage *stage, Relation *input_relation, Relation *output_relation) {
-    std::tuple<Stage *, Relation *, Relation *> parameterized_stage(stage, input_relation, output_relation);
-    paramaterized_stages.push_back(parameterized_stage);
-}
-
-void Pipeline::register_stage(Stage *stage, Relation *input_relation) {
-    std::tuple<Stage *, Relation *, Relation *> parameterized_stage(stage, input_relation, nullptr);
-    paramaterized_stages.push_back(parameterized_stage);
+void Pipeline::register_stage(Stage *stage) {
+    stages.push_back(stage);
 }
 
 void Pipeline::codegen(JIT *jit) {
-    assert(!paramaterized_stages.empty());
+    assert(!stages.empty());
 
     // codegen everything ahead of time
-    for (std::vector<std::tuple<Stage *, Relation *, Relation *>>::iterator iter = paramaterized_stages.begin(); iter != paramaterized_stages.end(); iter++) {
-        Stage *stage = std::get<0>(*iter);
-        stage->codegen();
+    for (std::vector<Stage *>::iterator iter = stages.begin(); iter != stages.end(); iter++) {
+        (*iter)->codegen();
     }
 
-    std::tuple<Stage *, Relation *, Relation *> first_stage = paramaterized_stages[0];
-    Stage *stage = std::get<0>(first_stage);
-    Relation *output_relation = std::get<2>(first_stage);
+    Stage *stage = stages[0];
+    std::vector<BaseField *> output_relation_fields = stage->get_output_relation_field_types();
+    unsigned long num_output_relation_fields = output_relation_fields.size();
 
     MFunc *mfunction = stage->get_mfunction();
     llvm::Function *llvm_stage = mfunction->get_extern_wrapper();
@@ -51,16 +44,13 @@ void Pipeline::codegen(JIT *jit) {
     pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[0]->codegen_type()); // input SetElements
     pipeline_args.push_back(mfunction->get_extern_wrapper_param_types()[1]->codegen_type()); // number of input SetElements
     // find out the number of output fields across all the stages (inputs are just the previous stages outputs) and then add them to the signature
-    int num_output_fields = 0;
-    for (std::vector<std::tuple<Stage *, Relation *, Relation *>>::iterator iter = paramaterized_stages.begin();
-         iter != paramaterized_stages.end(); iter++) {
-        Relation *output_relation = std::get<2>(*iter);
-        if (output_relation) {
-            num_output_fields += output_relation->get_fields().size();
-        }
+    int total_num_output_fields = 0;
+    for (std::vector<Stage *>::iterator iter = stages.begin(); iter != stages.end(); iter++) {
+        unsigned long num_output_relation_fields = (*iter)->get_output_relation_field_types().size();
+        total_num_output_fields += num_output_relation_fields;
     }
 
-    for (int i = 0; i < num_output_fields; i++) {
+    for (int i = 0; i < total_num_output_fields; i++) {
         MType *field_type = new MPointerType(create_type<BaseField>());
         pipeline_args.push_back(field_type->codegen_type());
     }
@@ -82,7 +72,9 @@ void Pipeline::codegen(JIT *jit) {
         llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
         codegen_llvm_store(jit, iter, alloc, 8);
         llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-        if (iter_ctr < 2 + output_relation->get_fields().size()) { // only store the fields for this first stage as inputs
+        if (stage->is_filter() && iter_ctr < 2) {
+            llvm_stage_args.push_back(load);
+        } else if (!stage->is_filter() && iter_ctr < 2 + num_output_relation_fields) { // only store the fields for this first stage as inputs
             llvm_stage_args.push_back(load);
         }
         if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
@@ -100,22 +92,29 @@ void Pipeline::codegen(JIT *jit) {
                 llvm_stage_args.push_back(setelements);
                 llvm_stage_args.push_back(load); // the number of output setelements
             }
-            if (iter_ctr > 1) { // these are all of the fields of the output
-                fields.push_back(load);
-            }
+        }
+        if (iter_ctr > 1) { // these are all of the fields of the output
+            fields.push_back(load);
         }
         iter_ctr++;
     }
-    int field_idx = output_relation->get_fields().size();
+    int field_idx;
+    if (num_output_relation_fields != 0) {
+        field_idx = num_output_relation_fields;
+    } else {
+        field_idx = 0;
+    }
+
     // call the first stage
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     llvm::Value *call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
     // chain the other stages together
-    for (std::vector<std::tuple<Stage *, Relation *, Relation *>>::iterator iter = paramaterized_stages.begin() + 1; iter != paramaterized_stages.end(); iter++) {
-        stage = std::get<0>(*iter);
-        output_relation = std::get<2>(*iter);
+    for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
+        stage = *iter;
+        output_relation_fields = stage->get_output_relation_field_types();
+        num_output_relation_fields = output_relation_fields.size();
         mfunction = stage->get_mfunction();
         llvm_stage = mfunction->get_extern_wrapper();
         std::vector<llvm::Value *> llvm_stage_args;
@@ -139,7 +138,7 @@ void Pipeline::codegen(JIT *jit) {
             if (!stage->is_segmentation()) {
                 setelement_args.push_back(num);
             } else {
-                num = ((SegmentationStage*)stage)->compute_num_segments(((SegmentationStage*)stage)->get_field_to_segment(), num);
+                num = ((SegmentationStage *) stage)->compute_num_segments(num);
                 codegen_fprintf_int(jit, num);
                 setelement_args.push_back(num);
             }
@@ -149,11 +148,11 @@ void Pipeline::codegen(JIT *jit) {
             llvm_stage_args.push_back(setelements);
             llvm_stage_args.push_back(num);
             // the fields for this stage
-            if (output_relation) { // some stages (like Filter) don't have an output relation because the input relation is passed along instead
-                for (int i = field_idx; i < field_idx + output_relation->get_fields().size(); i++) {
+            if (num_output_relation_fields != 0) { // some stages (like Filter) don't have an output relation because the input relation is passed along instead
+                for (int i = field_idx; i < field_idx + num_output_relation_fields; i++) {
                     llvm_stage_args.push_back(fields[i]);
                 }
-                field_idx += output_relation->get_fields().size();
+                field_idx += num_output_relation_fields;
             }
         }
         // call things

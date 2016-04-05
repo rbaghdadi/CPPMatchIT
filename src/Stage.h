@@ -78,6 +78,10 @@ public:
 
     MFunc *get_mfunction();
 
+    std::vector<BaseField *> get_input_relation_field_types();
+
+    std::vector<BaseField *> get_output_relation_field_types();
+
     void set_function(MFunc *mfunction);
 
     /**

@@ -15,15 +15,13 @@ class Pipeline {
 
 private:
 
-    std::vector<std::tuple<Stage *, Relation *, Relation *>> paramaterized_stages;
+    std::vector<Stage *> stages;
 
 public:
 
     ~Pipeline() {}
 
-    void register_stage(Stage *stage, Relation *input_relation);
-
-    void register_stage(Stage *stage, Relation *input_relation, Relation *output_relation);
+    void register_stage(Stage *stage);
 
     // a simple all at once execution for right now
     void simple_execute(JIT *jit, const void **data);
