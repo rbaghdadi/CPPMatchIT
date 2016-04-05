@@ -10,7 +10,6 @@
 #include "./JIT.h"
 #include "./Stage.h"
 #include "./Field.h"
-#include "./Input.h"
 
 class Pipeline {
 
