@@ -12,7 +12,8 @@ std::vector<llvm::AllocaInst *> ComparisonStage::preallocate() {
     if (compareBI) { // nothing to preallocate space for
         return std::vector<llvm::AllocaInst *>();
     } else {
-        assert(false); // can't do the other two yet (will need to allocate n^2 setelement data though)
+        return Stage::preallocate();
+//        assert(false); // can't do the other two yet (will need to allocate n^2 setelement data though)
     }
 }
 
@@ -61,8 +62,4 @@ llvm::CallInst *ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst 
     handle_extern_output(preallocated_space); // doesn't really do anything for now since I'm not returning anything
     jit->get_builder().CreateBr(inner.get_increment_bb());
 
-}
-
-llvm::AllocaInst *ComparisonStage::finish_stage(unsigned int fixed_size) {
-    return nullptr;
 }

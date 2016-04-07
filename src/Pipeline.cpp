@@ -26,7 +26,7 @@ void Pipeline::register_stage(Stage *stage) {
 void Pipeline::codegen(JIT *jit) {
     assert(!stages.empty());
 
-    // codegen everything ahead of time
+    // codegen the stages ahead of time
     for (std::vector<Stage *>::iterator iter = stages.begin(); iter != stages.end(); iter++) {
         (*iter)->codegen();
     }
@@ -66,13 +66,17 @@ void Pipeline::codegen(JIT *jit) {
     // load all the pipeline inputs and get the inputs for the first stage
     std::vector<llvm::Value *> llvm_stage_args;
     std::vector<llvm::Value *> fields;
+    std::vector<llvm::Value *> tmp_comparison_args; // only needed for comparison--used to duplicate the input
+    llvm::Value *inputs_to_next_stage;
     int iter_ctr = 0;
     for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
         // allocate space and load the arguments
         llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
         codegen_llvm_store(jit, iter, alloc, 8);
         llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-        std::vector<llvm::Value *> tmp_comparison_args;
+        if (iter_ctr == 0) {
+            inputs_to_next_stage = load; // will be overwritten later if it's not a filter stage
+        }
         if (stage->is_filter() && iter_ctr < 2) {
             llvm_stage_args.push_back(load);
         } else if (!stage->is_filter() && iter_ctr < 2 + num_output_relation_fields) { // only store the fields for this first stage as inputs (filter has no fields)
@@ -84,7 +88,7 @@ void Pipeline::codegen(JIT *jit) {
                 llvm_stage_args.push_back(tmp_comparison_args[1]);
             }
         }
-        if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
+        if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns the inputs
             if (iter_ctr == 1) { // just added the number of input SetElements. Create the corresponding output SetElements and tack them on
                 std::vector<llvm::Value *> setelement_args;
                 if (!stage->is_segmentation()) {
@@ -96,6 +100,7 @@ void Pipeline::codegen(JIT *jit) {
                 llvm::Value *setelements = jit->get_builder().CreateCall(
                         jit->get_module()->getFunction("create_setelements"),
                         setelement_args);
+                inputs_to_next_stage = setelements;
                 llvm_stage_args.push_back(setelements);
                 llvm_stage_args.push_back(load); // the number of output setelements
             }
@@ -114,7 +119,7 @@ void Pipeline::codegen(JIT *jit) {
 
     // call the first stage
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
-    llvm::Value *call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
+    llvm::Value *num_outputs = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
     // chain the other stages together
@@ -129,31 +134,31 @@ void Pipeline::codegen(JIT *jit) {
         std::vector<llvm::Value *> call_idxs;
         call_idxs.push_back(as_i64(0));
         call_idxs.push_back(as_i32(0)); // get the SetElements
-        llvm::Value *inputs_setelements = codegen_llvm_load(jit, codegen_llvm_gep(jit, call, call_idxs), 8);
-        llvm_stage_args.push_back(inputs_setelements);
+        llvm_stage_args.push_back(inputs_to_next_stage); // pass the previous outputs into this stage as inputs
         call_idxs.clear();
         call_idxs.push_back(as_i64(0));
         call_idxs.push_back(as_i32(1)); // get the number of SetElements
-        llvm::Value *num = codegen_llvm_load(jit, codegen_llvm_gep(jit, call, call_idxs), 8);
-        llvm_stage_args.push_back(num);
+        llvm_stage_args.push_back(num_outputs);
         // make the new output setelements
+        // TODO modify here to allow outputs for comparison stage
         if (stage->is_comparison()) { // duplicate the input setelements
-            llvm_stage_args.push_back(inputs_setelements);
-            llvm_stage_args.push_back(num);
+            llvm_stage_args.push_back(inputs_to_next_stage);
+            llvm_stage_args.push_back(num_outputs);
         } else if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns the inputs that weren't filtered out
             std::vector<llvm::Value *> setelement_args;
             if (!stage->is_segmentation()) {
-                setelement_args.push_back(num);
+                setelement_args.push_back(num_outputs);
             } else {
-                num = ((SegmentationStage *) stage)->compute_num_segments(num);
-                codegen_fprintf_int(jit, num);
-                setelement_args.push_back(num);
+                num_outputs = ((SegmentationStage *) stage)->compute_num_segments(num_outputs);
+                codegen_fprintf_int(jit, num_outputs);
+                setelement_args.push_back(num_outputs);
             }
             llvm::Value *setelements = jit->get_builder().CreateCall(
                     jit->get_module()->getFunction("create_setelements"),
                     setelement_args);
+            inputs_to_next_stage = setelements;
             llvm_stage_args.push_back(setelements);
-            llvm_stage_args.push_back(num);
+            llvm_stage_args.push_back(num_outputs);
             // the fields for this stage
             if (num_output_relation_fields != 0) { // some stages (like Filter) don't have an output relation because the input relation is passed along instead
                 for (int i = field_idx; i < field_idx + num_output_relation_fields; i++) {
@@ -162,8 +167,8 @@ void Pipeline::codegen(JIT *jit) {
                 field_idx += num_output_relation_fields;
             }
         }
-        // call things
-        call = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
+        // call the next stage
+        num_outputs = jit->get_builder().CreateCall(llvm_stage, llvm_stage_args);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     }
 
