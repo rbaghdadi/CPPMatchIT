@@ -68,6 +68,7 @@ void Pipeline::codegen(JIT *jit) {
     std::vector<llvm::Value *> fields;
     std::vector<llvm::Value *> tmp_comparison_args; // only needed for comparison--used to duplicate the input
     llvm::Value *inputs_to_next_stage;
+//
     int iter_ctr = 0;
     for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
         // allocate space and load the arguments
