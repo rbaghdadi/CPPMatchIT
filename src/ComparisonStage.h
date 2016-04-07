@@ -32,8 +32,6 @@ public:
 
     llvm::CallInst *codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space, llvm::BasicBlock *stage_end);
 
-    llvm::AllocaInst *finish_stage(unsigned int fixed_size);
-
 };
 
 #endif //MATCHIT_COMPARISONBLOCK_H

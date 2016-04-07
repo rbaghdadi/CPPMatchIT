@@ -90,7 +90,7 @@ void Stage::init_stage() {
     mtypes_to_delete.push_back(return_type_struct);
     mtypes_to_delete.push_back(return_type_str_ptr);
 
-    MFunc *func = new MFunc(user_function_name, stage_name, user_function_return_type, return_type_str_ptr,
+    MFunc *func = new MFunc(user_function_name, stage_name, user_function_return_type, MScalarType::get_int_type(),/*return_type_str_ptr,*/
                             user_function_param_types, stage_param_types, jit);
 
     set_function(func);
@@ -151,11 +151,6 @@ void Stage::codegen() {
                 llvm::LoadInst *src = codegen_llvm_load(jit, this_prealloc, 8);
                 // within the field, the last member type is the data array
                 llvm::Value *gep = codegen_llvm_gep(jit, dest, field_data_idxs);
-//                std::vector<llvm::Value *> wtf;
-//                wtf.push_back(as_i64(0));
-//                llvm::Value *wtf_gep = codegen_llvm_gep(jit, src, wtf);
-//                llvm::Value *use_this = codegen_llvm_load(jit, wtf_gep, 8);
-//                codegen_fprintf_int(jit, use_this);
                 codegen_llvm_store(jit, src, gep, 8);
             }
         }
@@ -239,22 +234,23 @@ llvm::Value *Stage::compute_preallocation_data_array_size(unsigned int fixed_siz
 }
 
 llvm::AllocaInst *Stage::finish_stage(unsigned int fixed_size) {
-    // The final stage output is a struct wrapping the computed BaseElements, the number of output BaseElements,
-    // and the total x_dimension of all the arrays in the output BaseElements.
-    llvm::Type *llvm_return_type = mfunction->get_extern_wrapper_return_type()->codegen_type();
-    llvm::AllocaInst *final_stage_output = codegen_llvm_alloca(jit, llvm_return_type, 8);
-    // RetStruct *rs = (RetStruct*)malloc(sizeof(RetStruct)), RetStruct = { { i64, i64, float* }**, i64, i64 }, so sizeof = 24
-    llvm::Value *stage_output_malloc = codegen_c_malloc32_and_cast(jit, 24, llvm_return_type);
-    jit->get_builder().CreateStore(stage_output_malloc, final_stage_output);
-    llvm::LoadInst *final_stage_output_load = codegen_llvm_load(jit, final_stage_output, 8);
-
-    // The space we preallocated earlier is now filled with the results of the extern function, so we have to save it in
-    // this final_stage_output struct.
-    llvm::Value *output_set_elements = gep_i64_i32(jit, final_stage_output_load, 0, 0);
-    codegen_llvm_store(jit, codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2], 8), output_set_elements, 8); // pass along the output set elements
-    llvm::Value *num_output_setelements = gep_i64_i32(jit, final_stage_output_load, 0, 1);
-    codegen_llvm_store(jit, codegen_llvm_load(jit, loop->get_return_idx(), 8), num_output_setelements, 8); // store the number of output SetElements
-    return final_stage_output;
+//    // The final stage output is a struct wrapping the computed BaseElements, the number of output BaseElements,
+//    // and the total x_dimension of all the arrays in the output BaseElements.
+//    llvm::Type *llvm_return_type = mfunction->get_extern_wrapper_return_type()->codegen_type();
+//    llvm::AllocaInst *final_stage_output = codegen_llvm_alloca(jit, llvm_return_type, 8);
+//    // RetStruct *rs = (RetStruct*)malloc(sizeof(RetStruct)), RetStruct = { { i64, i64, float* }**, i64, i64 }, so sizeof = 24
+//    llvm::Value *stage_output_malloc = codegen_c_malloc32_and_cast(jit, 24, llvm_return_type);
+//    jit->get_builder().CreateStore(stage_output_malloc, final_stage_output);
+//    llvm::LoadInst *final_stage_output_load = codegen_llvm_load(jit, final_stage_output, 8);
+//
+//    // The space we preallocated earlier is now filled with the results of the extern function, so we have to save it in
+//    // this final_stage_output struct.
+//    llvm::Value *output_set_elements = gep_i64_i32(jit, final_stage_output_load, 0, 0);
+//    codegen_llvm_store(jit, codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2], 8), output_set_elements, 8); // pass along the output set elements
+//    llvm::Value *num_output_setelements = gep_i64_i32(jit, final_stage_output_load, 0, 1);
+//    codegen_llvm_store(jit, codegen_llvm_load(jit, loop->get_return_idx(), 8), num_output_setelements, 8); // store the number of output SetElements
+//    return final_stage_output;
+    return loop->get_return_idx();
 }
 
 // TODO get rid of this and just inline the get_loop_bound
