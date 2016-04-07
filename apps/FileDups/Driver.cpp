@@ -98,9 +98,6 @@ int main() {
     pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
     pipeline.register_stage(&comp);
-//    pipeline.register_stage(&filt, &filter_in);
-//    pipeline.register_stage(&xform, &filter_in, &file_to_md5_out);
-//    pipeline.register_stage(&comp, &file_to_md5_out);
     pipeline.codegen(&jit);
     jit.dump();
     jit.add_module();

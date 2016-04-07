@@ -72,10 +72,17 @@ void Pipeline::codegen(JIT *jit) {
         llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
         codegen_llvm_store(jit, iter, alloc, 8);
         llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
+        std::vector<llvm::Value *> tmp_comparison_args;
         if (stage->is_filter() && iter_ctr < 2) {
             llvm_stage_args.push_back(load);
-        } else if (!stage->is_filter() && iter_ctr < 2 + num_output_relation_fields) { // only store the fields for this first stage as inputs
+        } else if (!stage->is_filter() && iter_ctr < 2 + num_output_relation_fields) { // only store the fields for this first stage as inputs (filter has no fields)
             llvm_stage_args.push_back(load);
+            if (iter_ctr < 2) {
+                tmp_comparison_args.push_back(load);
+            } else if (iter_ctr == 2 && stage->is_comparison()) { // duplicate the inputs
+                llvm_stage_args.push_back(tmp_comparison_args[0]);
+                llvm_stage_args.push_back(tmp_comparison_args[1]);
+            }
         }
         if (!stage->is_filter()) { // FilterStage only gets input SetElements passed in. It returns
             if (iter_ctr == 1) { // just added the number of input SetElements. Create the corresponding output SetElements and tack them on

@@ -37,14 +37,6 @@ ComparisonStage create_comparison_stage(JIT *jit, bool (*compareBI)(const SetEle
     return stage;
 }
 
-ComparisonStage create_comparison_stage(JIT *jit, void (*compareVIO)(const SetElement * const, const SetElement * const,
-                                                                     SetElement * const), std::string comparison_name,
-                                        Relation *input_relation, Relation *output_relation) {
-    ComparisonStage stage(compareVIO, comparison_name, jit, input_relation, output_relation);
-    stage.init_stage();
-    return stage;
-}
-
 SegmentationStage create_segmentation_stage(JIT *jit,
                                             unsigned int (*segment)(const SetElement *const, SetElement **const),
                                             std::string segmentation_name, Relation *input_relation,

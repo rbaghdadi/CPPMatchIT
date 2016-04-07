@@ -14,9 +14,6 @@ private:
     // This version only lets you say these match or they don't
     bool (*compareBI)(const SetElement * const, const SetElement * const);
 
-    // This version keeps all comparisons and let's you return the object (like compareBIO if it only returns true)
-    void (*compareVIO)(const SetElement * const, const SetElement * const, SetElement * const);
-
 public:
 
     ComparisonStage(bool (*compareBIO)(const SetElement * const, const SetElement * const, SetElement * const),
@@ -28,12 +25,6 @@ public:
                     std::string comparison_name, JIT *jit, Relation *input_relation) :
             Stage(jit, "ComparisonStage", comparison_name, input_relation,
                   MScalarType::get_bool_type()), compareBI(compareBI) { }
-
-    ComparisonStage(void (*compareVIO)(const SetElement * const, const SetElement * const, SetElement * const),
-                    std::string comparison_name, JIT *jit, Relation *input_relation, Relation *output_relation) :
-            Stage(jit, "ComparisonStage", comparison_name, input_relation, output_relation,
-                  MScalarType::get_bool_type()), compareVIO(compareVIO) { }
-
 
     bool is_comparison();
 
