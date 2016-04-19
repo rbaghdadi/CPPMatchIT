@@ -27,7 +27,7 @@ llvm::Value *SegmentationStage::compute_num_segments(llvm::Value *loop_bound) {
     return num_segments;
 }
 
-llvm::AllocaInst *SegmentationStage::compute_num_output_structs() {
+llvm::AllocaInst *SegmentationStage::compute_num_output_elements() {
     llvm::Value *num = compute_num_segments( codegen_llvm_load(jit, loop->get_loop_bound(), 4));
     llvm::AllocaInst *num_alloca = jit->get_builder().CreateAlloca(num->getType());
     jit->get_builder().CreateStore(num, num_alloca);

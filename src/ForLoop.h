@@ -41,7 +41,7 @@ public:
 /**
  * Create the various loop control/storage indices that will be used during execution of a stage.
  */
-class ForLoopCountersIB : public LoopComponent {
+class ForLoopCounters : public LoopComponent {
 
 private:
 
@@ -67,9 +67,9 @@ private:
 
 public:
 
-    ~ForLoopCountersIB() { }
+    ~ForLoopCounters() { }
 
-    ForLoopCountersIB() {
+    ForLoopCounters() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop_counters");
     }
 
@@ -87,7 +87,7 @@ public:
 /**
  * Create the for loop component that checks whether the loop is done.
  */
-class ForLoopConditionIB : public LoopComponent {
+class ForLoopCondition : public LoopComponent {
 
 private:
 
@@ -111,11 +111,11 @@ private:
 
 public:
 
-    ForLoopConditionIB() {
+    ForLoopCondition() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.loop_condition");
     }
 
-    ~ForLoopConditionIB() { }
+    ~ForLoopCondition() { }
 
     llvm::Value *get_loop_comparison();
 
@@ -131,7 +131,7 @@ public:
 /**
  * Create the for loop component that increments the loop idx
  */
-class ForLoopIncrementIB : public LoopComponent {
+class ForLoopIncrement : public LoopComponent {
 
 private:
 
@@ -145,11 +145,11 @@ private:
 
 public:
 
-    ForLoopIncrementIB() {
+    ForLoopIncrement() {
         bb = llvm::BasicBlock::Create(llvm::getGlobalContext(), "for.increment");
     }
 
-    ~ForLoopIncrementIB() { }
+    ~ForLoopIncrement() { }
 
     void set_loop_idx_alloc(llvm::AllocaInst *loop_idx_alloc);
 
@@ -166,26 +166,26 @@ class ForLoop {
 private:
 
     JIT *jit;
-    ForLoopCountersIB *counters; // has loop bound
-    ForLoopIncrementIB *loop_idx_increment;
-    ForLoopIncrementIB *return_idx_increment;
-    ForLoopConditionIB *condition;
+    ForLoopCounters *counters; // has loop bound
+    ForLoopIncrement *loop_idx_increment;
+    ForLoopIncrement *return_idx_increment;
+    ForLoopCondition *condition;
     MFunc *mfunction;
 
 public:
 
     ForLoop(JIT *jit, MFunc *mfunction) : jit(jit), mfunction(mfunction) {
-        counters = new ForLoopCountersIB();
-        loop_idx_increment = new ForLoopIncrementIB();
-        return_idx_increment = new ForLoopIncrementIB();
-        condition = new ForLoopConditionIB();
+        counters = new ForLoopCounters();
+        loop_idx_increment = new ForLoopIncrement();
+        return_idx_increment = new ForLoopIncrement();
+        condition = new ForLoopCondition();
     }
 
     ForLoop(JIT *jit) : jit(jit) {
-        counters = new ForLoopCountersIB();
-        loop_idx_increment = new ForLoopIncrementIB();
-        return_idx_increment = new ForLoopIncrementIB();
-        condition = new ForLoopConditionIB();
+        counters = new ForLoopCounters();
+        loop_idx_increment = new ForLoopIncrement();
+        return_idx_increment = new ForLoopIncrement();
+        condition = new ForLoopCondition();
     }
 
     ~ForLoop() {
@@ -227,9 +227,9 @@ public:
 
     llvm::BasicBlock *get_condition_bb();
 
-    ForLoopIncrementIB *get_increment();
+    ForLoopIncrement *get_increment();
 
-    ForLoopConditionIB *get_condition();
+    ForLoopCondition *get_condition();
 
 };
 

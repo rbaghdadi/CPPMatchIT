@@ -31,10 +31,10 @@ protected:
 
     // Building blocks for a given stage
     ForLoop *loop;
-    StageArgLoaderIB *stage_arg_loader;
-    UserFunctionArgLoaderIB *user_function_arg_loader;
-    ExternCallIB *call;
-    PreallocatorIB *preallocator;
+    StageArgLoader *stage_arg_loader;
+    UserFunctionArgLoader *user_function_arg_loader;
+    UserFunctionCall *call;
+    Preallocator *preallocator;
 
 public:
 
@@ -122,7 +122,7 @@ public:
      * The number of output structs returned across all the extern calls.
      * Will usually just be the loop bound value.
      */
-    virtual llvm::AllocaInst *compute_num_output_structs();
+    virtual llvm::AllocaInst *compute_num_output_elements();
 
     /**
      * Can update the number of data array elements to be stored if necessary

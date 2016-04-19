@@ -39,7 +39,7 @@ public:
 
     void handle_extern_output(llvm::AllocaInst *output_data_array_size) { }
 
-    llvm::AllocaInst *compute_num_output_structs();
+    llvm::AllocaInst *compute_num_output_elements();
 
     void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
 

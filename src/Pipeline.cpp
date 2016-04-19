@@ -109,7 +109,8 @@ void Pipeline::codegen(JIT *jit) {
         }
         // create output SetElements
         std::vector<llvm::Value *> create_setelements_args;
-        llvm::LoadInst *num_of_output_setelements = codegen_llvm_load(jit, ((SegmentationStage *) stage)->compute_num_output_structs(), 4);
+        llvm::LoadInst *num_of_output_setelements = codegen_llvm_load(jit,
+                                                                      ((SegmentationStage *) stage)->compute_num_output_elements(), 4);
         create_setelements_args.push_back(num_of_output_setelements);
         llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
                                                                  create_setelements_args);

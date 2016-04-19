@@ -51,7 +51,7 @@ std::vector<llvm::AllocaInst *> FilterStage::preallocate() {
     llvm::Type *cast_to = (new MPointerType(new MPointerType((MStructType*)create_type<Element>())))->codegen_type();
     llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, cast_to, 8); //base_field->get_data_mtype()->codegen_type(), 8);
     llvm::Value *space = codegen_c_malloc32(jit, codegen_llvm_mul(jit, codegen_llvm_load(jit,
-                                                                                         compute_num_output_structs(), 4), as_i32(sizeof(Element*))));
+                                                                                         compute_num_output_elements(), 4), as_i32(sizeof(Element*))));
     codegen_llvm_store(jit, jit->get_builder().CreateBitCast(space, cast_to), allocated_space, 8);
     preallocated_space.push_back(allocated_space);
     return preallocated_space;
