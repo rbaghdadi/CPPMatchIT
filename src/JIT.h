@@ -26,7 +26,7 @@ typedef CompileLayer::ModuleSetHandleT ModuleHandle;
 //    }
 
 #define run(jit,in_setelements,...) { \
-     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+     auto jit_sym = jit->find_mangled_name(jit->mangle("pipeline")); \
      void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
      jit_func((&(in_setelements[0])), in_setelements.size(), __VA_ARGS__); \
     }

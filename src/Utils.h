@@ -9,29 +9,10 @@
 #include <string>
 #include "./JIT.h"
 
-/*
- * Various utilities for use in MatchIT IR or llvm IR.
- */
+// following split methods are from http://stackoverflow.com/questions/236129/split-a-string-in-c
+std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
 
-/*
- * Vector functions
- */
-
-/**
- * Return the last extern_input_arg_alloc of a vector
- */
-template <typename T>
-T last(std::vector<T> vec) {
-    return vec[vec.size() - 1];
-}
-
-/**
- * Convert a vector to an array
- */
-template <typename T>
-T* as_array(std::vector<T> *vec) {
-    return &((*vec)[0]);
-}
+std::vector<std::string> split(const std::string &s, char delim);
 
 /*
  * Wrappers for c functions that can be called in llvm

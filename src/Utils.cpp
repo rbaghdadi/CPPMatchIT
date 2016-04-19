@@ -2,6 +2,7 @@
 // Created by Jessica Ray on 2/1/16.
 //
 
+#include <sstream>
 #include "./Utils.h"
 
 extern "C" void print_sep() {
@@ -17,7 +18,9 @@ extern "C" void c_fprintf_float(float f) {
 }
 
 extern "C" void *malloc_32(size_t size) {
+#ifdef PRINT_MALLOC
     std::cerr << "Mallocing " << size << " bytes" << std::endl;
+#endif
     return malloc(size);
 }
 
@@ -26,12 +29,30 @@ extern "C" void *malloc_64(size_t size) {
 }
 
 extern "C" void *realloc_32(void *structure, size_t size) {
+#ifdef PRINT_MALLOC
     std::cerr << "Reallocing " << size << " bytes" << std::endl;
+#endif
     return realloc(structure, size);
 }
 
 extern "C" void *realloc_64(void *structure, size_t size) {
     return realloc(structure, size);
+}
+
+// following split methods are from http://stackoverflow.com/questions/236129/split-a-string-in-c
+std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
 }
 
 void register_utils(JIT *jit) {

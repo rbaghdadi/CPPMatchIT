@@ -6,6 +6,7 @@
 #define MATCHIT_NWUTILS_H
 
 #include <string>
+#include <sstream>
 
 /**
  * Similarity matrix between two bases.
@@ -75,25 +76,25 @@ inline Direction max_scores_idx(int *scores) {
     }
 }
 
-inline std::string get_second_token(std::string to_split, char delimiter) {
-    char c[to_split.size() + 1];
-    const char *cc = to_split.c_str();
-    for (int i = 0; i < to_split.size(); i++) {
-        c[i] = cc[i];
-    }
-    c[to_split.size()] = '\0';
-    strtok(c, &delimiter);
-    return std::string(strtok(NULL, &delimiter));
-}
-
-inline char *get_all_tokens(std::string to_split) {
-    char *c = (char*)malloc(sizeof(char) * (to_split.size() + 1));
-    for (int i = 0; i < to_split.size(); i++) {
-        c[i] = to_split[i];
-    }
-    c[to_split.size()] = '\0';
-    return c;
-}
+//inline std::string get_second_token(std::string to_split, char delimiter) {
+//    char c[to_split.size() + 1];
+//    const char *cc = to_split.c_str();
+//    for (int i = 0; i < to_split.size(); i++) {
+//        c[i] = cc[i];
+//    }
+//    c[to_split.size()] = '\0';
+//    strtok(c, &delimiter);
+//    return std::string(strtok(NULL, &delimiter));
+//}
+//
+//inline char *get_all_tokens(std::string to_split) {
+//    char *c = (char*)malloc(sizeof(char) * (to_split.size() + 1));
+//    for (int i = 0; i < to_split.size(); i++) {
+//        c[i] = to_split[i];
+//    }
+//    c[to_split.size()] = '\0';
+//    return c;
+//}
 
 typedef struct {
     std::string name;
@@ -101,31 +102,31 @@ typedef struct {
     int sequence_length;
 } Sequence;
 
-std::vector<Sequence *> read_fasta(std::string filename) {
-    std::string line;
-    std::ifstream fasta(filename);
-    std::vector<Sequence *> sequences;
-    int cur_seq = 0;
-    if (fasta.is_open()) {
-        while (getline(fasta, line)) {
-            if (line.c_str()[0] == '>') {
-                Sequence *next = new Sequence();
-                next->name = get_second_token(line, ' ');
-                sequences.push_back(next);
-            } else {
-                char *tokens = get_all_tokens(line);
-                Sequence *cur = sequences[cur_seq++];
-                cur->sequence_length = line.size();
-                cur->sequence = (char*)malloc(sizeof(char) * (line.size() + 1));
-                for (int i = 0; i < line.size(); i++) {
-                    cur->sequence[i] = to_digit_base(tokens[i]);
-                }
-                cur->sequence[line.size()] = '\0';
-            }
-        }
-    }
-    fasta.close();
-    return sequences;
-}
+//std::vector<Sequence *> read_fasta(std::string filename) {
+//    std::string line;
+//    std::ifstream fasta(filename);
+//    std::vector<Sequence *> sequences;
+//    int cur_seq = 0;
+//    if (fasta.is_open()) {
+//        while (getline(fasta, line)) {
+//            if (line.c_str()[0] == '>') {
+//                Sequence *next = new Sequence();
+//                next->name = get_second_token(line, ' ');
+//                sequences.push_back(next);
+//            } else {
+//                char *tokens = get_all_tokens(line);
+//                Sequence *cur = sequences[cur_seq++];
+//                cur->sequence_length = line.size();
+//                cur->sequence = (char*)malloc(sizeof(char) * (line.size() + 1));
+//                for (int i = 0; i < line.size(); i++) {
+//                    cur->sequence[i] = to_digit_base(tokens[i]);
+//                }
+//                cur->sequence[line.size()] = '\0';
+//            }
+//        }
+//    }
+//    fasta.close();
+//    return sequences;
+//}
 
 #endif //MATCHIT_NWUTILS_H

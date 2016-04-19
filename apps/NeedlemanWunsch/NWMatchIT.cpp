@@ -48,23 +48,15 @@ std::vector<Element *> read_fasta2(std::string fasta_file) {
             if (line.c_str()[0] == '>') {
                 Element *next = new Element(cur_seq);
                 // set the filepath
-                const char *fpath = fasta_file.c_str();
-                char *c_fpath = (char*)malloc_32(sizeof(char) * max_filepath_size);
-                strcpy(c_fpath, fpath);
-                next->allocate_and_set(&filepath, c_fpath);
+                next->allocate_and_set(&filepath, &fasta_file[0]);
                 // set the sequence name
-                std::string token = get_second_token(line, ' ');
-                const char *name = token.c_str();
-                std::cerr << "reading " << name << std::endl;
-                char *c_name = (char*)malloc_32(sizeof(char) * max_sequence_name);
-                strcpy(c_name, name);
-                next->allocate_and_set(&sequence_name, c_name);
+                std::vector<std::string> tokens = split(line, ' ');
+                std::cerr << "reading " << tokens[1] << " from file " << fasta_file << std::endl;
+                next->allocate_and_set(&sequence_name, &(tokens[1][0]));//c_name);
                 elements.push_back(next);
-                free(c_fpath);
-                free(c_name);
             } else {
                 // set the sequence
-                char *tokens = get_all_tokens(line);
+                const char *tokens = line.c_str();
                 Element *cur = elements[cur_seq++];
                 cur->allocate(&sequence);
                 for (int i = 0; i < line.size(); i++) {
@@ -172,18 +164,19 @@ extern "C" void compute_traceback_alignment(const Element * const in, Element * 
 
 int main() {
 
-    LLVM::init();
-    JIT jit;
-    register_utils(&jit);
-    init_element(&jit);
+    JIT *jit = init();
+//    LLVM::init();
+//    JIT jit;
+//    register_utils(&jit);
+//    init_element(&jit);
 
     Fields alignment_matrix_inputs;
-    Fields alignment_matrix_relation;
-    Fields traceback_relation;
     alignment_matrix_inputs.add(&filepath);
     alignment_matrix_inputs.add(&sequence);
     alignment_matrix_inputs.add(&sequence_name);
     alignment_matrix_inputs.add(&sequence_length);
+
+    Fields alignment_matrix_relation;
     alignment_matrix_relation.add(&alignment_matrix);
     alignment_matrix_relation.add(&sequence1_name);
     alignment_matrix_relation.add(&sequence2_name);
@@ -191,23 +184,25 @@ int main() {
     alignment_matrix_relation.add(&sequence2);
     alignment_matrix_relation.add(&sequence1_length);
     alignment_matrix_relation.add(&sequence2_length);
+
+    Fields traceback_relation;
     traceback_relation.add(&traceback);
 
 
     std::vector<Element *> in_setelements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
 
-    ComparisonStage compare = create_comparison_stage(&jit, compute_alignment_matrix, "compute_alignment_matrix",
+    ComparisonStage compare = create_comparison_stage(jit, compute_alignment_matrix, "compute_alignment_matrix",
                                                       &alignment_matrix_inputs, &alignment_matrix_relation);
 
-    TransformStage traceback_stage = create_transform_stage(&jit, compute_traceback_alignment, "compute_traceback_alignment",
+    TransformStage traceback_stage = create_transform_stage(jit, compute_traceback_alignment, "compute_traceback_alignment",
                                                             &alignment_matrix_relation, &traceback_relation);
 
     Pipeline pipeline;
     pipeline.register_stage(&compare);
     pipeline.register_stage(&traceback_stage);
-    pipeline.codegen(&jit);
-    jit.dump();
-    jit.add_module();
+    pipeline.codegen(jit);
+//    jit->dump();
+    jit->add_module();
 
     run(jit, in_setelements, &alignment_matrix, &sequence1_name, &sequence2_name,
         &sequence1, &sequence2, &sequence1_length, &sequence2_length, &traceback);
