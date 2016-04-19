@@ -93,7 +93,7 @@ int main() {
     std::vector<Sequence *> sequences = read_fasta("/Users/JRay/Documents/Research/datasets/genome/sequences.fasta");
 
     Sequence *top = sequences[0];
-    Sequence *left = sequences[0];
+    Sequence *left = sequences[1];
 
     std::cerr << "top sequence is " << top->name << " with length " << top->sequence_length << std::endl;
     std::cerr << "left sequence is " << left->name << " with length " << left->sequence_length << std::endl;
@@ -129,8 +129,8 @@ int main() {
     }
 
     std::cerr << std::endl;
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) {
             std::cerr << alignment_matrix[i][j] << " ";
         }
     }

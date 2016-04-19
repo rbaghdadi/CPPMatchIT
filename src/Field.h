@@ -101,7 +101,7 @@ public:
                 data = malloc_32(sizeof(T) + sizeof(T) * id);
                 max_malloc++;
             } else {
-                data = realloc_32(data, max_malloc + sizeof(T) + sizeof(T) * id);
+                data = realloc_32(data, sizeof(T) + sizeof(T) * id);
                 max_malloc++;
             }
         }
@@ -217,9 +217,18 @@ public:
         return field->template get_array<T,dim1,dim2>(dim1 * dim2 * id);
     }
 
+    // get a particular row of the matrix
     template <typename T, int dim1, int dim2>
-    T get(Field<T,dim1,dim2> *field, int offset1, int offset2) const {
-        return field->template get_scalar<T,dim1,dim2>(dim1 * id + dim2 + dim1 * offset1 + offset2);
+    T *get(Field<T,dim1,dim2> *field, int row_offset) const {
+        // dim1 * dim2 * id = starting point of needed matrix
+        // dim1 * row_offset = starting point of row within needed matrix
+        return field->template get_array<T,dim1,dim2>(dim1 * dim2 * id + dim1 * row_offset);//dim2 + dim1 * row_offset);
+    }
+
+    template <typename T, int dim1, int dim2>
+    T get(Field<T,dim1,dim2> *field, int row_offset, int col_offset) const {
+//        return field->template get_scalar<T,dim1,dim2>(dim1 * id + dim2 + dim1 * offset1 + offset2);
+        return field->template get_scalar<T,dim1,dim2>(dim1 * dim2 * id + dim1 * row_offset + col_offset);
     }
 
     template <typename T>
@@ -238,8 +247,9 @@ public:
     }
 
     template <typename T, int dim1, int dim2>
-    void set(Field<T, dim1, dim2> *field, int offset1, int offset2, T val) {
-        field->template set_scalar<T,dim1,dim2>(dim1 * id + dim2 + dim1 * offset1 + offset2, val);
+    void set(Field<T, dim1, dim2> *field, int row_offset, int col_offset, T val) {
+//        field->template set_scalar<T,dim1,dim2>(dim1 * id + dim2 + dim1 * row_offset + col_offset, val);
+        field->template set_scalar<T,dim1,dim2>(dim1 * dim2 * id + dim1 * row_offset + col_offset, val);
     }
 
     /*

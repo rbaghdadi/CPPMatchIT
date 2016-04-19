@@ -249,17 +249,28 @@ void FixedPreallocatorIB::codegen(JIT *jit, bool no_insert) {
     assert(loop_bound_alloc);
     assert(base_field);
     assert(fixed_size != 0);
-    llvm::LoadInst *loop_bound_load = codegen_llvm_load(jit, loop_bound_alloc, 4);
+    // TODO this needs to be squared for comparison stage (temporarily do it for all)
+    // TODO pass in the llvm::Value that has the correct bound
+    llvm::Value *loop_bound_load = codegen_llvm_mul(jit, codegen_llvm_load(jit, loop_bound_alloc, 4),
+                                                    codegen_llvm_load(jit, loop_bound_alloc, 4));
     llvm::Value *size_per_element;
-    if (base_field->get_data_mtype()->get_size() == 0) { // is a primitive value
-        size_per_element =
-                Codegen::codegen_llvm_mul(jit, Codegen::as_i32(base_field->get_fixed_size()),
-                                          Codegen::as_i32(1));
-    } else {
-        size_per_element =
-                Codegen::codegen_llvm_mul(jit, Codegen::as_i32(base_field->get_fixed_size()),
-                                          Codegen::as_i32(base_field->get_data_mtype()->get_size()));
-    }
+
+    std::cerr << "dim1: " << base_field->get_dim1() << std::endl;
+    std::cerr << "dim2: " << base_field->get_dim2() << std::endl;
+    std::cerr << "get size: " << base_field->get_data_mtype()->underlying_size() << std::endl;
+//    codegen_fprintf_int(jit, as_i32(base_field->get_fixed_size()));
+
+//    if (base_field->get_data_mtype()->get_size() == 0) { // is a scalar value
+//        std::cerr << "here" << std::endl;
+    // TODO base_field->get_fixed_size needs to be sizeof(T)
+    size_per_element =
+            Codegen::codegen_llvm_mul(jit, Codegen::as_i32(base_field->get_fixed_size()),
+                                      as_i32(base_field->get_data_mtype()->underlying_size()));
+//    } else {
+//        size_per_element =
+//                Codegen::codegen_llvm_mul(jit, Codegen::as_i32(base_field->get_fixed_size()),
+//                                          Codegen::as_i32(base_field->get_data_mtype()->get_size()));
+//    }
     llvm::Value *total_space_to_preallocate = Codegen::codegen_llvm_mul(jit, size_per_element, loop_bound_load);
     preallocated_space = preallocate_field(jit, base_field, total_space_to_preallocate);
 }

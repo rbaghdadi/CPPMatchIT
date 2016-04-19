@@ -213,6 +213,8 @@ public:
 
     virtual size_t get_size() = 0;
 
+    virtual int underlying_size() = 0;
+
 };
 
 /*
@@ -257,6 +259,10 @@ public:
 
     unsigned int get_bits() {
         return bits;
+    }
+
+    int underlying_size() {
+        return bits / 8;
     }
 
     /**
@@ -324,6 +330,10 @@ public:
         return 8;
     }
 
+    int underlying_size() {
+        return underlying_types[0]->underlying_size();
+    }
+
 };
 
 /*
@@ -355,6 +365,14 @@ public:
 
     size_t get_size() {
         return _sizeof();
+    }
+
+    int underlying_size() {
+        int total = 0;
+        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+            total += (*iter)->underlying_size();
+        }
+        return total;
     }
 
 };
@@ -417,6 +435,11 @@ public:
     bool is_variable_length() {
         return variable_length;
     }
+
+    int underlying_size() {
+        return array_element_type->underlying_size();
+    }
+
 };
 
 class MMatrixType : public MType {
@@ -477,6 +500,11 @@ public:
     bool is_variable_length() {
         return x_variable_length;
     }
+
+    int underlying_size() {
+        return matrix_element_type->underlying_size();
+    }
+
 };
 
 template <typename T>
