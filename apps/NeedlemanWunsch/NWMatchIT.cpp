@@ -165,10 +165,6 @@ extern "C" void compute_traceback_alignment(const Element * const in, Element * 
 int main() {
 
     JIT *jit = init();
-//    LLVM::init();
-//    JIT jit;
-//    register_utils(&jit);
-//    init_element(&jit);
 
     Fields alignment_matrix_inputs;
     alignment_matrix_inputs.add(&filepath);
