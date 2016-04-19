@@ -76,7 +76,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
         output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[stage_input_arg_alloc.size() - 1], 8);
     }
 
-    // extract the input/output SetElement corresponding to this loop iteration
+    // extract the input/output Element corresponding to this loop iteration
     llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[0], 4);
     std::vector<llvm::Value *> element_idxs;
     element_idxs.push_back(loop_idx_load);
@@ -93,7 +93,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
         std::vector<llvm::Value *> element_idxs;
         element_idxs.push_back(loop_idx_load);
 
-        // input SetElement
+        // input Element
         llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
         llvm::Value *input_set_element_gep = codegen_llvm_gep(jit, input_set_elements, element_idxs);
         llvm::LoadInst *input_set_element_load = codegen_llvm_load(jit, input_set_element_gep, 8);
@@ -102,7 +102,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
         arg_types.push_back(input_set_element_alloc);
     }
 
-    // output SetElement
+    // output Element
     if (!is_filter_stage) { // a filter only gets inputs. outputs are implicitly handled
         std::vector<llvm::Value *> element_idxs;
         if (!is_segmentation_stage) {

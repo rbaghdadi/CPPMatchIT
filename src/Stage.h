@@ -44,15 +44,15 @@ public:
     // user_function_return_type: this is the output type of the extern call. It will usually be mvoid_type, but in the case of
     // something like filter, it will be mbool_type
 
-    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Relation *input_relation,
-          Relation *output_relation, MType *user_function_return_type) :
+    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Fields *input_relation,
+          Fields *output_relation, MType *user_function_return_type) :
             jit(jit), input_relation_field_types(input_relation->get_fields()),
             output_relation_field_types(output_relation->get_fields()),
             user_function_return_type(user_function_return_type), stage_name(stage_name),
             user_function_name(user_function_name) { }
 
     // no output relation
-    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Relation *input_relation,
+    Stage(JIT *jit, std::string stage_name, std::string user_function_name, Fields *input_relation,
           MType *user_function_return_type) :
             jit(jit), input_relation_field_types(input_relation->get_fields()),
             output_relation_field_types(std::vector<BaseField *>()),

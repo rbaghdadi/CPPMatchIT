@@ -6,6 +6,7 @@
 
 #include "../../src/ComparisonStage.h"
 #include "../../src/Field.h"
+#include "../../src/Init.h"
 #include "../../src/LLVM.h"
 #include "../../src/Pipeline.h"
 #include "../../src/StageFactory.h"
@@ -36,8 +37,8 @@ Field<char, traceback_length> traceback;
 
 // Custom input function. Reads in sequences
 // TODO create const char create_type functions
-std::vector<SetElement *> read_fasta2(std::string fasta_file) {
-    std::vector<SetElement *> elements;
+std::vector<Element *> read_fasta2(std::string fasta_file) {
+    std::vector<Element *> elements;
     std::string line;
     std::ifstream fasta(fasta_file);
     assert(fasta && "FASTA file does not exist!");
@@ -45,32 +46,32 @@ std::vector<SetElement *> read_fasta2(std::string fasta_file) {
     if (fasta.is_open()) {
         while (getline(fasta, line)) {
             if (line.c_str()[0] == '>') {
-                SetElement *next = new SetElement(cur_seq);
+                Element *next = new Element(cur_seq);
                 // set the filepath
                 const char *fpath = fasta_file.c_str();
                 char *c_fpath = (char*)malloc_32(sizeof(char) * max_filepath_size);
                 strcpy(c_fpath, fpath);
-                next->init(&filepath, c_fpath);
+                next->allocate_and_set(&filepath, c_fpath);
                 // set the sequence name
                 std::string token = get_second_token(line, ' ');
                 const char *name = token.c_str();
                 std::cerr << "reading " << name << std::endl;
                 char *c_name = (char*)malloc_32(sizeof(char) * max_sequence_name);
                 strcpy(c_name, name);
-                next->init(&sequence_name, c_name);
+                next->allocate_and_set(&sequence_name, c_name);
                 elements.push_back(next);
                 free(c_fpath);
                 free(c_name);
             } else {
                 // set the sequence
                 char *tokens = get_all_tokens(line);
-                SetElement *cur = elements[cur_seq++];
-                cur->init_blank(&sequence);
+                Element *cur = elements[cur_seq++];
+                cur->allocate(&sequence);
                 for (int i = 0; i < line.size(); i++) {
                     cur->set(&sequence, i, to_digit_base(tokens[i]));
                 }
                 cur->set(&sequence, line.size(), '\0');
-                cur->init_blank(&sequence_length);
+                cur->allocate(&sequence_length);
                 cur->set(&sequence_length, (int)line.size());
             }
         }
@@ -82,7 +83,7 @@ std::vector<SetElement *> read_fasta2(std::string fasta_file) {
 /**
  * Comparison function that computes the alignment matrix all at once without any optimizations
  */
-extern "C" bool compute_alignment_matrix(const SetElement * const sequence1_in, const SetElement * const sequence2_in, SetElement * const out) {
+extern "C" bool compute_alignment_matrix(const Element * const sequence1_in, const Element * const sequence2_in, Element * const out) {
     std::cerr << "computing the alignment matrix for " << sequence1_in->get(&sequence_name) << " and " << sequence2_in->get(&sequence_name) << std::endl;
     out->set(&sequence1_name, sequence1_in->get(&sequence_name));
     out->set(&sequence2_name, sequence2_in->get(&sequence_name));
@@ -113,7 +114,7 @@ extern "C" bool compute_alignment_matrix(const SetElement * const sequence1_in, 
     return true;
 }
 
-extern "C" void compute_traceback_alignment(const SetElement * const in, SetElement * const out) {
+extern "C" void compute_traceback_alignment(const Element * const in, Element * const out) {
     std::cerr << "Computing traceback for sequences: " << in->get(&sequence1_name) << " and " <<
     in->get(&sequence2_name) << std::endl;
     int i = in->get(&sequence2_length);
@@ -174,11 +175,11 @@ int main() {
     LLVM::init();
     JIT jit;
     register_utils(&jit);
-    init_set_element(&jit);
+    init_element(&jit);
 
-    Relation alignment_matrix_inputs;
-    Relation alignment_matrix_relation;
-    Relation traceback_relation;
+    Fields alignment_matrix_inputs;
+    Fields alignment_matrix_relation;
+    Fields traceback_relation;
     alignment_matrix_inputs.add(&filepath);
     alignment_matrix_inputs.add(&sequence);
     alignment_matrix_inputs.add(&sequence_name);
@@ -193,7 +194,7 @@ int main() {
     traceback_relation.add(&traceback);
 
 
-    std::vector<SetElement *> in_setelements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
+    std::vector<Element *> in_setelements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
 
     ComparisonStage compare = create_comparison_stage(&jit, compute_alignment_matrix, "compute_alignment_matrix",
                                                       &alignment_matrix_inputs, &alignment_matrix_relation);

@@ -18,7 +18,7 @@
  */
 // if returns true, keep the element
 Field<char, 200> filepath_in; // holds the filepath (an input)
-extern "C" bool filter_file(const SetElement * const in) {
+extern "C" bool filter_file(const Element * const in) {
     char *filepath = in->get(&filepath_in);
     bool keep = strstr(filepath, "txt") == nullptr; // if == nullptr, keep it because it does NOT end in txt
     if (keep) {
@@ -34,7 +34,7 @@ extern "C" bool filter_file(const SetElement * const in) {
  */
 Field<char, 200> filepath_out; // if field is not going to change, should it just be pointed to the same place?
 Field<unsigned char, MD5_DIGEST_LENGTH> md5_out; // holds the computed md5 (an output)
-extern "C" void file_to_md5(const SetElement * const in, SetElement * const out) {
+extern "C" void file_to_md5(const Element * const in, Element * const out) {
     char *filepath = in->get(&filepath_in);
     std::cerr << "computing md5 for: " << filepath << std::endl;
     // read in file
@@ -62,7 +62,7 @@ extern "C" void file_to_md5(const SetElement * const in, SetElement * const out)
 /*
  * ComparisonStage function
  */
-extern "C" bool compare(const SetElement * const in1, const SetElement * const in2) {
+extern "C" bool compare(const Element * const in1, const Element * const in2) {
     unsigned char *computed_md5_1 = in1->get(&md5_out);
     unsigned char *computed_md5_2 = in2->get(&md5_out);
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
@@ -75,7 +75,7 @@ extern "C" bool compare(const SetElement * const in1, const SetElement * const i
     return true;
 }
 
-extern "C" bool fake(const SetElement * const sequence1, const SetElement * const sequence2, SetElement * const out) {
+extern "C" bool fake(const Element * const sequence1, const Element * const sequence2, Element * const out) {
     return true;
 }
 
@@ -84,15 +84,15 @@ int main() {
     LLVM::init();
     JIT jit;
     register_utils(&jit);
-    init_set_element(&jit);
+    init_element(&jit);
 
-    Relation filter_in; // passed into filter_file
-    Relation file_to_md5_out; // passed out of file_to_md5
+    Fields filter_in; // passed into filter_file
+    Fields file_to_md5_out; // passed out of file_to_md5
     filter_in.add(&filepath_in);
     file_to_md5_out.add(&filepath_out);
     file_to_md5_out.add(&md5_out);
 
-    std::vector<SetElement *> in_setelements = init(&filepath_in);
+    std::vector<Element *> in_setelements = init(&filepath_in);
 
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &filter_in);
     TransformStage xform = create_transform_stage(&jit, file_to_md5, "file_to_md5", &filter_in, &file_to_md5_out);

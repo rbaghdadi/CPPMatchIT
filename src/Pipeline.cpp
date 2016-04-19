@@ -68,7 +68,7 @@ void Pipeline::codegen(JIT *jit) {
     std::vector<llvm::Value *> fields;
     std::vector<llvm::Value *> tmp_comparison_args; // only needed for comparison--used to duplicate the input
     llvm::Value *inputs_to_next_stage;
-    MType *type = create_type<SetElement>();
+    MType *type = create_type<Element>();
     llvm::Type *setelement_type = llvm::PointerType::get(llvm::PointerType::get(type->codegen_type(), 0), 0);
 //    int iter_ctr = 0;
     // get the fields from the pipeline parameters
@@ -111,7 +111,7 @@ void Pipeline::codegen(JIT *jit) {
         std::vector<llvm::Value *> create_setelements_args;
         llvm::LoadInst *num_of_output_setelements = codegen_llvm_load(jit, ((SegmentationStage *) stage)->compute_num_output_structs(), 4);
         create_setelements_args.push_back(num_of_output_setelements);
-        llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_setelements"),
+        llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
                                                                  create_setelements_args);
         inputs_to_next_stage = setelements;
         llvm_stage_args.push_back(setelements);
@@ -143,7 +143,7 @@ void Pipeline::codegen(JIT *jit) {
             llvm::Value *num_of_output_setelements = llvm_stage_args[1];
             create_setelements_args.push_back(codegen_llvm_mul(jit, num_of_output_setelements, num_of_output_setelements));
             llvm::Value *setelements = jit->get_builder().CreateCall(
-                    jit->get_module()->getFunction("create_setelements"),
+                    jit->get_module()->getFunction("create_elements"),
                     create_setelements_args);
             inputs_to_next_stage = setelements;
             llvm_stage_args.push_back(setelements);
@@ -166,8 +166,8 @@ void Pipeline::codegen(JIT *jit) {
         llvm::Value *num_of_output_setelements = llvm_stage_args[1];
         create_setelements_args.push_back(num_of_output_setelements);
         std::cerr << "dumping" << std::endl;
-        jit->get_module()->getFunction("create_setelements")->dump();
-        llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_setelements"),
+        jit->get_module()->getFunction("create_elements")->dump();
+        llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
                                                                  create_setelements_args);
         inputs_to_next_stage = setelements;
         llvm_stage_args.push_back(setelements);
@@ -210,7 +210,7 @@ void Pipeline::codegen(JIT *jit) {
                 num_outputs = ((SegmentationStage *) stage)->compute_num_segments(num_outputs);
                 setelement_args.push_back(num_outputs);
             }
-            llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_setelements"),
+            llvm::Value *setelements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
                                                                      setelement_args);
             inputs_to_next_stage = setelements;
             llvm_stage_args.push_back(setelements);

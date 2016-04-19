@@ -12,12 +12,12 @@
 class TransformStage : public Stage {
 private:
 
-    void (*transform)(const SetElement * const, SetElement * const);
+    void (*transform)(const Element * const, Element * const);
 
 public:
 
-    TransformStage(void (*transform)(const SetElement * const, SetElement * const), std::string transform_name,
-                   JIT *jit, Relation *input_relation, Relation *output_relation) :
+    TransformStage(void (*transform)(const Element * const, Element * const), std::string transform_name,
+                   JIT *jit, Fields *input_relation, Fields *output_relation) :
             Stage(jit, "TransformStage", transform_name, input_relation, output_relation, MScalarType::get_void_type()),
             transform(transform) { }
 

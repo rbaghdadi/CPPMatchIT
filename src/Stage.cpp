@@ -40,7 +40,7 @@ std::vector<BaseField *> Stage::get_output_relation_field_types() {
 }
 
 void Stage::init_stage() {
-    MType *set_element_type = create_type<SetElement>();
+    MType *set_element_type = create_type<Element>();
     MType *set_element_ptr_type = new MPointerType(set_element_type);
     MPointerType *set_element_ptr_ptr_type = new MPointerType(set_element_ptr_type);
 
@@ -66,20 +66,20 @@ void Stage::init_stage() {
     }
 
     std::vector<MType *> stage_param_types;
-    stage_param_types.push_back(set_element_ptr_ptr_type); // the input SetElement objects
-    stage_param_types.push_back(MScalarType::get_int_type()); // the number of input SetElement objects'
+    stage_param_types.push_back(set_element_ptr_ptr_type); // the input Element objects
+    stage_param_types.push_back(MScalarType::get_int_type()); // the number of input Element objects'
     if (is_comparison()) {
         // 2 sets of inputs
         stage_param_types.push_back(set_element_ptr_ptr_type);
         stage_param_types.push_back(MScalarType::get_int_type());
         // possibly some outputs
         if (!output_relation_field_types.empty()) { // there is an output field
-            stage_param_types.push_back(set_element_ptr_ptr_type); // the output SetElement objects
-            stage_param_types.push_back(MScalarType::get_int_type()); // the number of output SetElement objects
+            stage_param_types.push_back(set_element_ptr_ptr_type); // the output Element objects
+            stage_param_types.push_back(MScalarType::get_int_type()); // the number of output Element objects
         }
     } else if (!is_filter()) {
-        stage_param_types.push_back(set_element_ptr_ptr_type); // the output SetElement objects
-        stage_param_types.push_back(MScalarType::get_int_type()); // the number of output SetElement objects
+        stage_param_types.push_back(set_element_ptr_ptr_type); // the output Element objects
+        stage_param_types.push_back(MScalarType::get_int_type()); // the number of output Element objects
     }
     // add the types of the output relation fields
     // we need these fields so that space in them can be preallocated
@@ -153,7 +153,7 @@ void Stage::codegen() {
         if (!is_filter()) {
             std::vector<llvm::Value *> field_data_idxs;
             field_data_idxs.push_back(as_i32(0));
-            field_data_idxs.push_back(as_i32(7)); // the last member of BaseField is the data array
+            field_data_idxs.push_back(as_i32(BaseField::get_data_idx())); // the last member of BaseField is the data array
             // store the preallocated space in the field data arrays
             for (int i = 0; i < preallocated_space.size(); i++) {
                 // the fields are the last stage args, so pull out those and overwrite their data and size fields
@@ -233,9 +233,9 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_idxs() {
 
 std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
     std::vector<llvm::AllocaInst *> data;
-    data.push_back(stage_arg_loader->get_data(0)); // input SetElement
+    data.push_back(stage_arg_loader->get_data(0)); // input Element
     // TODO hacky, see comment on the next line
-    data.push_back(stage_arg_loader->get_data(2)); // output SetElement or someother input in the case of comparison
+    data.push_back(stage_arg_loader->get_data(2)); // output Element or someother input in the case of comparison
     if (is_comparison() && !output_relation_field_types.empty()) { // check if this is a comparison with an output
         data.push_back(stage_arg_loader->get_data(4));
     }
@@ -340,7 +340,7 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
 //}
 //
 //void Stage::init_stage() {
-//    MType *set_element_type = create_type<SetElement>();
+//    MType *set_element_type = create_type<Element>();
 //    MType *set_element_ptr_type = new MPointerType(set_element_type);
 //    MPointerType *set_element_ptr_ptr_type = new MPointerType(set_element_ptr_type);
 //
@@ -361,11 +361,11 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
 //    }
 //
 //    std::vector<MType *> stage_param_types;
-//    stage_param_types.push_back(set_element_ptr_ptr_type); // the input SetElement objects
-//    stage_param_types.push_back(MScalarType::get_int_type()); // the number of input SetElement objects'
+//    stage_param_types.push_back(set_element_ptr_ptr_type); // the input Element objects
+//    stage_param_types.push_back(MScalarType::get_int_type()); // the number of input Element objects'
 //    if (!is_filter()) {
-//        stage_param_types.push_back(set_element_ptr_ptr_type); // the output SetElement objects
-//        stage_param_types.push_back(MScalarType::get_int_type()); // the number of output SetElement objects
+//        stage_param_types.push_back(set_element_ptr_ptr_type); // the output Element objects
+//        stage_param_types.push_back(MScalarType::get_int_type()); // the number of output Element objects
 //    }
 //    // add the types of the output relation fields
 //    // we need these fields so that space in them can be preallocated
@@ -518,9 +518,9 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
 //
 //std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
 //    std::vector<llvm::AllocaInst *> data;
-//    data.push_back(stage_arg_loader->get_data(0)); // input SetElement
+//    data.push_back(stage_arg_loader->get_data(0)); // input Element
 //    // TODO hacky, see comment on the next line
-//    data.push_back(stage_arg_loader->get_data(2)); // output SetElement or someother input in the case of comparison
+//    data.push_back(stage_arg_loader->get_data(2)); // output Element or someother input in the case of comparison
 //    return data;
 //}
 //

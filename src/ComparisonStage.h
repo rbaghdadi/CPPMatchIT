@@ -9,20 +9,20 @@ class ComparisonStage : public Stage {
 private:
 
     // This version lets you set an output object. If returns false, the output object is removed
-    bool (*compareBIO)(const SetElement * const, const SetElement * const, SetElement * const);
+    bool (*compareBIO)(const Element * const, const Element * const, Element * const);
 
     // This version only lets you say these match or they don't
-    bool (*compareBI)(const SetElement * const, const SetElement * const);
+    bool (*compareBI)(const Element * const, const Element * const);
 
 public:
 
-    ComparisonStage(bool (*compareBIO)(const SetElement * const, const SetElement * const, SetElement * const),
-                    std::string comparison_name, JIT *jit, Relation *input_relation, Relation *output_relation) :
+    ComparisonStage(bool (*compareBIO)(const Element * const, const Element * const, Element * const),
+                    std::string comparison_name, JIT *jit, Fields *input_relation, Fields *output_relation) :
             Stage(jit, "ComparisonStage", comparison_name, input_relation, output_relation,
                   MScalarType::get_bool_type()), compareBIO(compareBIO) { }
 
-    ComparisonStage(bool (*compareBI)(const SetElement * const, const SetElement * const),
-                    std::string comparison_name, JIT *jit, Relation *input_relation) :
+    ComparisonStage(bool (*compareBI)(const Element * const, const Element * const),
+                    std::string comparison_name, JIT *jit, Fields *input_relation) :
             Stage(jit, "ComparisonStage", comparison_name, input_relation,
                   MScalarType::get_bool_type()), compareBI(compareBI) { }
 
@@ -48,20 +48,20 @@ public:
 //private:
 //
 //    // This version lets you set an output object. If returns false, the output object is removed
-//    bool (*compareBIO)(const SetElement * const, const SetElement * const, SetElement * const);
+//    bool (*compareBIO)(const Element * const, const Element * const, Element * const);
 //
 //    // This version only lets you say these match or they don't
-//    bool (*compareBI)(const SetElement * const, const SetElement * const);
+//    bool (*compareBI)(const Element * const, const Element * const);
 //
 //public:
 //
-//    ComparisonStage(bool (*compareBIO)(const SetElement * const, const SetElement * const, SetElement * const),
-//                    std::string comparison_name, JIT *jit, Relation *input_relation, Relation *output_relation) :
+//    ComparisonStage(bool (*compareBIO)(const Element * const, const Element * const, Element * const),
+//                    std::string comparison_name, JIT *jit, Fields *input_relation, Fields *output_relation) :
 //            Stage(jit, "ComparisonStage", comparison_name, input_relation, output_relation,
 //                  MScalarType::get_bool_type()), compareBIO(compareBIO) { }
 //
-//    ComparisonStage(bool (*compareBI)(const SetElement * const, const SetElement * const),
-//                    std::string comparison_name, JIT *jit, Relation *input_relation) :
+//    ComparisonStage(bool (*compareBI)(const Element * const, const Element * const),
+//                    std::string comparison_name, JIT *jit, Fields *input_relation) :
 //            Stage(jit, "ComparisonStage", comparison_name, input_relation,
 //                  MScalarType::get_bool_type()), compareBI(compareBI) { }
 //

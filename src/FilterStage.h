@@ -14,12 +14,12 @@ class FilterStage : public Stage {
 
 private:
 
-    bool (*filter)(const SetElement * const);
+    bool (*filter)(const Element * const);
 
 public:
 
-    FilterStage(bool (*filter)(const SetElement * const), std::string filter_name, JIT *jit, Relation *input_relation) :
-            Stage(jit, "FilterStage", filter_name, input_relation, new Relation(), MScalarType::get_bool_type()),
+    FilterStage(bool (*filter)(const Element * const), std::string filter_name, JIT *jit, Fields *input_relation) :
+            Stage(jit, "FilterStage", filter_name, input_relation, new Fields(), MScalarType::get_bool_type()),
             filter(filter) { }
 
     ~FilterStage() {}

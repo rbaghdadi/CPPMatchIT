@@ -10,7 +10,7 @@
 class SegmentationStage : public Stage {
 private:
 
-    unsigned int (*segment)(const SetElement * const, SetElement ** const);
+    unsigned int (*segment)(const Element * const, Element ** const);
     unsigned int segment_size;
     float overlap;
     BaseField *field_to_segment;
@@ -18,8 +18,8 @@ private:
 public:
 
     // field_to_segment: the field that will actually be segmented
-    SegmentationStage(unsigned int (*segment)(const SetElement * const, SetElement ** const), std::string segmentation_name,
-                      JIT *jit, Relation *input_relation, Relation *output_relation,
+    SegmentationStage(unsigned int (*segment)(const Element * const, Element ** const), std::string segmentation_name,
+                      JIT *jit, Fields *input_relation, Fields *output_relation,
                       unsigned int segment_size, float overlap, BaseField *field_to_segment) :
             Stage(jit, "SegmentationStage", segmentation_name, input_relation, output_relation,
                   MScalarType::get_int_type()), segment(segment), segment_size(segment_size), overlap(overlap),

@@ -3,20 +3,11 @@
 //
 
 #include "./Field.h"
-#include "./ForLoop.h"
 #include "./CodegenUtils.h"
 
 /*
  * BaseField
  */
-
-void BaseField::set_idx(int idx) {
-    this->idx = idx;
-}
-
-int BaseField::get_idx() {
-    return idx;
-}
 
 int BaseField::get_dim1() {
     return dim1;
@@ -48,24 +39,27 @@ int BaseField::get_fixed_size() {
     }
 }
 
+int BaseField::get_data_idx() {
+    return 6;
+}
+
 /*
- * SetElement
+ * Element
  */
 
-int SetElement::get_element_id() const {
+int Element::get_element_id() const {
     return id;
 }
 
 /*
- * Relation
+ * Fields
  */
 
-void Relation::add(BaseField *field) {
-    field->set_idx(fields.size());
+void Fields::add(BaseField *field) {
     fields.push_back(field);
 }
 
-std::vector<MType *> Relation::get_mtypes() {
+std::vector<MType *> Fields::get_mtypes() {
     std::vector<MType *> mtypes;
     for(std::vector<BaseField *>::iterator iter = fields.begin(); iter != fields.end(); iter++) {
         mtypes.push_back((*iter)->get_data_mtype());
@@ -73,24 +67,24 @@ std::vector<MType *> Relation::get_mtypes() {
     return mtypes;
 }
 
-std::vector<BaseField *> Relation::get_fields() {
+std::vector<BaseField *> Fields::get_fields() {
     return fields;
 }
 
-void init_set_element(JIT *jit) {
-    std::vector<llvm::Type *> setelement_args;
-    setelement_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
-    MType *setelement_mtype = create_type<SetElement>();
-    llvm::FunctionType *setelement_ft = llvm::FunctionType::get(
+void init_element(JIT *jit) {
+    std::vector<llvm::Type *> element_args;
+    element_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    MType *setelement_mtype = create_type<Element>();
+    llvm::FunctionType *element_ft = llvm::FunctionType::get(
             llvm::PointerType::get(llvm::PointerType::get(setelement_mtype->codegen_type(), 0), 0),
-            setelement_args, false);
-    jit->get_module()->getOrInsertFunction("create_setelements", setelement_ft);
+            element_args, false);
+    jit->get_module()->getOrInsertFunction("create_elements", element_ft);
 }
 
-extern "C" SetElement **create_setelements(int num_to_create) {
-    SetElement **elements = (SetElement**)malloc(sizeof(SetElement*) * num_to_create);
+extern "C" Element **create_elements(int num_to_create) {
+    Element **elements = (Element**)malloc(sizeof(Element*) * num_to_create);
     for (int i = 0; i < num_to_create; i++) {
-        elements[i] = new SetElement(i);
+        elements[i] = new Element(i);
     }
     return elements;
 }
