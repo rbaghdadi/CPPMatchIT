@@ -24,6 +24,7 @@ Field<char,max_filepath_size> filepath;
 Field<char,max_seq_size> sequence;
 Field<char,max_sequence_name> sequence_name;
 Field<int> sequence_length;
+
 // outputs of compute_alignment_matrix
 Field<int,max_seq_size+1,max_seq_size+1> alignment_matrix;
 Field<char,max_sequence_name> sequence1_name;
@@ -32,11 +33,11 @@ Field<int> sequence1_length;
 Field<char,max_sequence_name> sequence2_name;
 Field<char,max_seq_size> sequence2;
 Field<int> sequence2_length;
+
 // outputs of compute_traceback_alignment
 Field<char, traceback_length> traceback;
 
 // Custom input function. Reads in sequences
-// TODO create const char create_type functions
 std::vector<Element *> read_fasta2(std::string fasta_file) {
     std::vector<Element *> elements;
     std::string line;
@@ -103,7 +104,7 @@ extern "C" bool compute_alignment_matrix(const Element * const sequence1_in, con
             cur_row[col] = scores[max_idx];
         }
     }
-    return true;
+    return true; // keep everything since the traceback alignment will be computed next
 }
 
 extern "C" void compute_traceback_alignment(const Element * const in, Element * const out) {

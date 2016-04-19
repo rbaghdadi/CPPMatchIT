@@ -19,26 +19,12 @@ mtype_code_t MType::get_mtype_code() {
     return mtype_code;
 }
 
-unsigned int MType::get_bits() {
-    int bits_sum = 0;
-    if (!underlying_types.empty()) { // if its empty, its a primitive type
-        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-            bits_sum += (*iter)->get_bits();
-        }
-    }
-    return bits_sum + this->bits;
-}
-
 std::vector<MType *> MType::get_underlying_types() {
     return underlying_types;
 }
 
 void MType::add_underlying_type(MType *mtype) {
     underlying_types.push_back(mtype);
-}
-
-void MType::set_bits(unsigned int bits) {
-    this->bits = bits;
 }
 
 bool MType::is_int_type() {
@@ -61,7 +47,7 @@ bool MType::is_void_type() {
     return mtype_code == mtype_void;
 }
 
-bool MType::is_prim_type() {
+bool MType::is_scalar_type() {
     return is_int_type() || is_float_type() || is_double_type() || is_bool_type() || is_void_type() ;
 }
 
@@ -70,51 +56,22 @@ bool MType::is_ptr_type() {
 }
 
 bool MType::is_struct_type() {
-    return mtype_code == mtype_struct || mtype_code == mtype_file || mtype_code == mtype_element ||
-           mtype_code == mtype_comparison_element || mtype_code == mtype_segments ||
-           mtype_code == mtype_segment;
+    return mtype_code == mtype_struct;
 }
 
 bool MType::is_mtype_marray_type() {
     return mtype_code == mtype_marray;
 }
 
-bool MType::is_mtype_file_type() {
-    return mtype_code == mtype_file;
-}
-
-bool MType::is_mtype_element_type() {
-    return mtype_code == mtype_element;
-}
-
-bool MType::is_mtype_segmented_element_type() {
-    return mtype_code == mtype_segment;
-}
-
-bool MType::is_mtype_segments_type() {
-    return mtype_code == mtype_segments;
-}
-
-bool MType::is_mtype_comparison_element_type() {
-    return mtype_code == mtype_comparison_element;
-}
-
-bool MType::is_mtype_stage() {
-    return mtype_code == mtype_wrapper_output;
-}
-
 /*
  * MScalarType
  */
-
-// TODO a lot of this codegen_old stuff can be refactored into a single function
-
 
 llvm::Type *MScalarType::codegen_type() {
     if (is_void_type()) {
         return llvm::Type::getVoidTy(llvm::getGlobalContext());
     } else if (is_int_type()) {
-        return llvm::IntegerType::get(llvm::getGlobalContext(), get_bits());
+        return llvm::IntegerType::get(llvm::getGlobalContext(), underlying_size() * 8);
     } else if (is_bool_type()) {
         return llvm::IntegerType::get(llvm::getGlobalContext(), 1);
     } else if (is_float_type()) {
@@ -125,8 +82,13 @@ llvm::Type *MScalarType::codegen_type() {
         return nullptr;
     }
 }
+
 void MScalarType::dump() {
     std::cerr << "MScalarType with type code: " << mtype_code << std::endl;
+}
+
+int MScalarType::underlying_size() {
+    return bytes;
 }
 
 /*
@@ -142,6 +104,14 @@ void MPointerType::dump() {
     underlying_types[0]->dump();
 }
 
+int MPointerType::underlying_size() {
+    return underlying_types[0]->underlying_size();
+}
+
+/*
+ * MStructType
+ */
+
 llvm::Type *create_struct_type(std::vector<MType *> underlying_types) {
     std::vector<llvm::Type*> llvm_types;
     for (std::vector<MType*>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
@@ -150,10 +120,6 @@ llvm::Type *create_struct_type(std::vector<MType *> underlying_types) {
     llvm::ArrayRef<llvm::Type*> struct_fields(llvm_types);
     return llvm::StructType::get(llvm::getGlobalContext(), struct_fields);
 }
-
-/*
- * MStructType
- */
 
 llvm::Type *MStructType::codegen_type() {
     return create_struct_type(underlying_types);
@@ -167,17 +133,81 @@ void MStructType::dump() {
     }
 }
 
+int MStructType::underlying_size() {
+    int total = 0;
+    for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
+        total += (*iter)->underlying_size();
+    }
+    return total;
+}
+
 /*
- * Uniqued types
+ * MArrayType
+ */
+
+void MArrayType::dump() {
+    std::cerr << "MArrayType with element type: ";
+    array_element_type->dump();
+}
+
+MType *MArrayType::get_array_element_type() {
+    return array_element_type;
+}
+
+int MArrayType::get_length() {
+    return length;
+}
+
+llvm::Type *MArrayType::codegen_type() {
+    assert(false); // this isn't needed currently
+    return nullptr;
+}
+
+int MArrayType::underlying_size() {
+    return array_element_type->underlying_size();
+}
+
+/*
+ * MMatrixType
+ */
+
+int MMatrixType::get_row_dimension() {
+    return row_dimension;
+}
+
+int MMatrixType::get_col_dimension() {
+    return col_dimension;
+}
+
+MType *MMatrixType::get_matrix_element_type() {
+    return matrix_element_type;
+}
+
+void MMatrixType::dump() {
+    std::cerr << "MMatrixType with element type: ";
+    matrix_element_type->dump();
+}
+
+llvm::Type *MMatrixType::codegen_type() {
+    assert(false);
+    return nullptr;
+}
+
+int MMatrixType::underlying_size() {
+    return matrix_element_type->underlying_size();
+}
+
+/*
+ * Premade MScalarType values
  */
 
 MScalarType *MScalarType::bool_type = new MScalarType(mtype_bool, 1);
-MScalarType *MScalarType::char_type = new MScalarType(mtype_char, sizeof(char) * 8);
-MScalarType *MScalarType::short_type = new MScalarType(mtype_short, sizeof(short) * 8);
-MScalarType *MScalarType::int_type = new MScalarType(mtype_int, sizeof(int) * 8);
-MScalarType *MScalarType::long_type = new MScalarType(mtype_long, sizeof(long) * 8);
-MScalarType *MScalarType::float_type = new MScalarType(mtype_float, sizeof(float) * 8);
-MScalarType *MScalarType::double_type = new MScalarType(mtype_double, sizeof(double) * 8);
+MScalarType *MScalarType::char_type = new MScalarType(mtype_char, sizeof(char));
+MScalarType *MScalarType::short_type = new MScalarType(mtype_short, sizeof(short));
+MScalarType *MScalarType::int_type = new MScalarType(mtype_int, sizeof(int));
+MScalarType *MScalarType::long_type = new MScalarType(mtype_long, sizeof(long));
+MScalarType *MScalarType::float_type = new MScalarType(mtype_float, sizeof(float));
+MScalarType *MScalarType::double_type = new MScalarType(mtype_double, sizeof(double));
 MScalarType *MScalarType::void_type = new MScalarType(mtype_void, 0);
 
 MScalarType *MScalarType::get_bool_type() {

@@ -9,29 +9,20 @@
 #include "llvm/IR/Type.h"
 #include "./JIT.h"
 
-/**
- * All the possible types available for users to use in their stages
- */
 typedef enum {
-    mtype_null, // 0
-    mtype_void, // 1
-    mtype_bool, // 2
-    mtype_char, // 3
-    mtype_short, // 4
-    mtype_int, // 5
-    mtype_long, // 6
-    mtype_float, // 7
-    mtype_double, // 8
-    mtype_struct, // 9
-    mtype_ptr, // 10
-    mtype_element, // 11
-    mtype_comparison_element, // 12
-    mtype_file, // 13
-    mtype_segments, // 14
-    mtype_segment, // 15
-    mtype_marray, // 16
-    mtype_mmatrix, // 17
-    mtype_wrapper_output // 18 -- the return struct that wraps a user return type
+    mtype_null,
+    mtype_void,
+    mtype_bool,
+    mtype_char,
+    mtype_short,
+    mtype_int,
+    mtype_long,
+    mtype_float,
+    mtype_double,
+    mtype_struct,
+    mtype_ptr,
+    mtype_marray,
+    mtype_mmatrix
 } mtype_code_t;
 
 /*
@@ -41,56 +32,23 @@ typedef enum {
 class MType {
 protected:
 
+    /**
+     * Type code corresponding to this MType
+     */
     mtype_code_t mtype_code;
 
-    unsigned int bits;
+    /**
+     * If the C type is T, this is essentially the result of calling sizeof(T)
+     */
+    unsigned int bytes;
 
+    /**
+     * If this is a "composite" type (struct, pointer, array, or matrix), this is the element type (or types in
+     * the case of a struct).
+     */
     std::vector<MType *> underlying_types;
 
-    MType(mtype_code_t mtype_code) : mtype_code(mtype_code) {
-        switch (mtype_code) {
-            case mtype_bool:
-                bits = 1;
-            case mtype_char:
-                bits = 8;
-            case mtype_short:
-                bits = 16;
-            case mtype_int:
-                bits = 32;
-            case mtype_long:
-                bits = 64;
-            case mtype_float:
-                bits = 32;
-            case mtype_double:
-                bits = 64;
-            default:
-                bits = 0;
-        }
-    }
-
-    size_t sizeof_mtype(MType *type) {
-        switch (type->get_mtype_code()) {
-            case mtype_bool:
-                return sizeof(bool);
-            case mtype_char:
-                return sizeof(char);
-            case mtype_short:
-                return sizeof(short);
-            case mtype_int:
-                return sizeof(int);
-            case mtype_long:
-                return sizeof(long);
-            case mtype_float:
-                return sizeof(float);
-            case mtype_double:
-                return sizeof(double);
-            default:
-                std::cerr << "bad user type for MType" << type->get_mtype_code() << std::endl;
-                exit(8);
-        }
-    }
-
-    MType(mtype_code_t mtype_code, unsigned int bits) : mtype_code(mtype_code), bits(bits) {}
+    MType(mtype_code_t mtype_code, unsigned int bytes) : mtype_code(mtype_code), bytes(bytes) { }
 
 public:
 
@@ -99,17 +57,12 @@ public:
     virtual ~MType() {}
 
     /**
-     * Get the mtype_code_t for this MType
+     * Get the mtype_code_t for this MType.
      */
     mtype_code_t get_mtype_code();
 
     /**
-     * Get the number of bits in this MType
-     */
-    virtual unsigned int get_bits();
-
-    /**
-     * Generate LLVM code for this MType
+     * Generate LLVM code for this MType.
      */
     virtual llvm::Type *codegen_type() = 0;
 
@@ -122,12 +75,15 @@ public:
      */
     std::vector<MType *> get_underlying_types();
 
+    /**
+     * Add an underlying type to the underlying_types vector.
+     */
     void add_underlying_type(MType *mtype);
 
     /**
-     * Is this an MScalarType
+     * Is this a primitive (MScalarType)
      */
-    bool is_prim_type();
+    bool is_scalar_type();
 
     /**
      * Is this an mtype_bool
@@ -165,54 +121,18 @@ public:
     bool is_ptr_type();
 
     /**
-     * Is this an mtype_mvector
+     * Is this an mtype_marray
      */
     bool is_mtype_marray_type();
 
     /**
-     * Is this an mtype_file
-     */
-    bool is_mtype_file_type();
-
-    /**
-     * Is this an mtype_element
-     */
-    bool is_mtype_element_type();
-
-    /**
-     * Is this an mtype_segmented_element
-     */
-    bool is_mtype_segmented_element_type();
-
-    /**
-     * Is this an mtype_segments
-     */
-    bool is_mtype_segments_type();
-
-    /**
-     * Is this an mtype_int
-     */
-    bool is_mtype_comparison_element_type();
-
-    /**
-     * Is this an mtype_stage
-     */
-    bool is_mtype_stage();
-
-    /**
-     * Print out all the types associated with this MType
+     * Print out all the types associated with this MType.
      */
     virtual void dump() = 0;
 
     /**
-     * Override the number of bits in this MType
+     * Get size of the underlying types of this MType.
      */
-    void set_bits(unsigned int bits);
-
-    virtual MType* get_user_type() { std::cerr << "wtf" << std::endl; return nullptr; }
-
-    virtual size_t get_size() = 0;
-
     virtual int underlying_size() = 0;
 
 };
@@ -224,6 +144,7 @@ public:
 class MScalarType : public MType {
 private:
 
+    // premade types
     static MScalarType *void_type;
     static MScalarType *bool_type;
     static MScalarType *char_type;
@@ -236,34 +157,25 @@ private:
 public:
 
     MScalarType(mtype_code_t mtype_code, unsigned int bits) : MType(mtype_code, bits) {
-        assert(is_prim_type());
+        assert(is_scalar_type());
     }
 
     ~MScalarType() {}
 
+    /**
+     * Generate simple LLVM Type (float/double) or IntegerType (void, bool, char, short, int, long)
+     */
     llvm::Type *codegen_type();
 
+    /**
+     * Print out the type of this scalar.
+     */
     void dump();
 
-    size_t get_size() {
-        return bits / 8;
-    }
-
-    size_t _sizeof_T_type() {
-        return bits / 8;
-    }
-
-    size_t _sizeof_ptr() {
-        return 8;
-    }
-
-    unsigned int get_bits() {
-        return bits;
-    }
-
-    int underlying_size() {
-        return bits / 8;
-    }
+    /**
+     * Return the number of bytes of this scalar value.
+     */
+    int underlying_size();
 
     /**
      * Get preconstructed mtype_bool
@@ -307,6 +219,10 @@ public:
 
 };
 
+/*
+ * MPointerType
+ */
+
 class MPointerType : public MType {
 public:
 
@@ -318,21 +234,20 @@ public:
 
     ~MPointerType() {}
 
+    /**
+     * Generate LLVM PointerType.
+     */
     llvm::Type *codegen_type();
 
+    /**
+     * Print out the element type that this pointer points to.
+     */
     void dump();
 
-    size_t _sizeof() {
-        return 8;
-    }
-
-    size_t get_size() {
-        return 8;
-    }
-
-    int underlying_size() {
-        return underlying_types[0]->underlying_size();
-    }
+    /**
+     * Return the number of bytes in the element type that this pointer points to.
+     */
+    int underlying_size();
 
 };
 
@@ -351,94 +266,87 @@ public:
         }
     }
 
+    /**
+     * Print out the invidual element types of this MStruct.
+     */
     void dump();
 
+    /**
+     * Generate an LLVM StructType.
+     */
     llvm::Type *codegen_type();
 
-    size_t _sizeof() {
-        size_t total = 0;
-        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-            total += (*iter)->get_size();//sizeof(*iter);
-        }
-        return total;
-    }
-
-    size_t get_size() {
-        return _sizeof();
-    }
-
-    int underlying_size() {
-        int total = 0;
-        for (std::vector<MType *>::iterator iter = underlying_types.begin(); iter != underlying_types.end(); iter++) {
-            total += (*iter)->underlying_size();
-        }
-        return total;
-    }
+    /**
+     * Sum up the number of bytes in each of the underlying types.
+     */
+    int underlying_size();
 
 };
 
+/**
+ * Creates a type that is the actual MType type. Hack for BaseField.
+ */
 struct create_mtype_type {
 
     operator MStructType*() {
         std::vector<MType *> mtypes;
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
+        mtypes.push_back(new MPointerType(MScalarType::get_char_type())); // TODO need a delete for this
         return new MStructType(mtype_struct, mtypes);
     }
 
 };
 
+/*
+ * MarrayType
+ */
+
 class MArrayType : public MType {
 private:
 
+    /**
+     * Length of this array.
+     */
     int length;
-    bool variable_length;
+
+    /**
+     * Type of the array element.
+     */
     MType *array_element_type;
 
 public:
 
     MArrayType(int length, MType *array_element_type) : length(length), array_element_type(array_element_type) {
-//        if (length == 0) {
-//            variable_length = true;
-//        } else {
-        variable_length = false;
-//        }
         underlying_types.push_back(array_element_type);
-        set_bits(array_element_type->get_size() * 8);
+        bytes = array_element_type->underlying_size();
         mtype_code = mtype_marray;
     }
 
-    int get_length() {
-        return length;
-    }
+    /**
+     * Get the length of this array.
+     */
+    int get_length();
 
-    MType *get_array_element_type() {
-        return array_element_type;
-    }
+    /**
+     * Get the type of the array element.
+     */
+    MType *get_array_element_type();
 
-    size_t get_size() {
-        return (array_element_type->get_bits() / 8) * length;
-    }
+    /**
+     * Print out the type of the array element.
+     */
+    void dump();
 
-    void dump() {
-        std::cerr << "MArrayType" << std::endl;
-    }
+    /**
+     * TODO not used. I think this is because the actual array type is abstracted away from llvm due to using the fields.
+     */
+    llvm::Type *codegen_type();
 
-    llvm::Type *codegen_type() {
-        std::vector<MType *> types;
-        types.push_back(new MPointerType(array_element_type)); // data
-        types.push_back(MScalarType::get_int_type()); // size
-        MStructType s(mtype_struct, types);
-        return s.codegen_type();
-    }
-
-    bool is_variable_length() {
-        return variable_length;
-    }
-
-    int underlying_size() {
-        return array_element_type->underlying_size();
-    }
+    /**
+     * Return the number of bytes in the array element type.
+     */
+    int underlying_size();
 
 };
 
@@ -447,76 +355,63 @@ private:
 
     int row_dimension;
     int col_dimension;
-    bool x_variable_length;
-    bool y_variable_length;
     MType *matrix_element_type;
 
 public:
 
     MMatrixType(int row_dimension, int col_dimension, MType *matrix_element_type) :
             row_dimension(row_dimension), col_dimension(col_dimension), matrix_element_type(matrix_element_type) {
-//        if (row_dimension == 0) {
-//            x_variable_length = true;
-//        } else if (col_dimension == 0){
-//            y_variable_length = true;
-//        } else {
-//            x_variable_length = false;
-//            y_variable_length = false;
-//        }
         underlying_types.push_back(matrix_element_type);
-        set_bits(matrix_element_type->get_size() * 8);
+        bytes = matrix_element_type->underlying_size();
         mtype_code = mtype_mmatrix;
     }
 
-    int get_length() {
-        return row_dimension * col_dimension;
-    }
+    /**
+     * Number of rows in this matrix.
+     */
+    int get_row_dimension();
 
-    int get_row_dimension() {
-        return row_dimension;
-    }
+    /**
+     * Number of columns in this matrix.
+     */
+    int get_col_dimension();
 
-    int get_col_dimension() {
-        return col_dimension;
-    }
+    /**
+     * Get the type of the matrix element.
+     */
+    MType *get_matrix_element_type();
 
-    MType *get_array_element_type() {
-        return matrix_element_type;
-    }
+    /**
+     * Print out the matrix element type.
+     */
+    void dump();
 
-    size_t get_size() {
-        return (matrix_element_type->get_bits() / 8);// * (row_dimension * col_dimension);
-    }
+    /**
+     * TODO not used. See MArrayType
+     */
+    llvm::Type *codegen_type();
 
-    void dump() {
-        std::cerr << "MMatrixType" << std::endl;
-    }
-
-    llvm::Type *codegen_type() {
-        assert(false); // TODO not done yet
-        return nullptr;
-    }
-
-    bool is_variable_length() {
-        return x_variable_length;
-    }
-
-    int underlying_size() {
-        return matrix_element_type->underlying_size();
-    }
+    /**
+     * Return the number of bytes in the matrix element type.
+     */
+    int underlying_size();
 
 };
+
+/*
+ * Builders for the types.
+ */
 
 template <typename T>
 struct create_scalar_type;
 
-template <typename T>//, int row_dimension>
+template <typename T>
 struct create_array_type;
 
-template <typename T>//, int row_dimension, int col_dimension>
+template <typename T>
 struct create_matrix_type;
 
-template <typename T>//, int row_dimension = 1, int col_dimension = 0>
+template <typename T>
 struct create_type {
     int row_dimension;
     int col_dimension;
@@ -529,7 +424,7 @@ struct create_type {
         if (row_dimension == 1 && col_dimension == 0) {
             return (MScalarType*)create_scalar_type<T>();
         } else if (col_dimension == 0){
-            return (MArrayType*)create_array_type<T>(row_dimension); // if row_dimension == 0, we will have a variable row_dimension array
+            return (MArrayType*)create_array_type<T>(row_dimension);
         } else {
             return (MMatrixType*)create_matrix_type<T>(row_dimension, col_dimension);
         }
@@ -542,9 +437,8 @@ struct create_type {
 
 template <>
 struct create_scalar_type<bool> {
-
     operator MScalarType*() {
-        return MScalarType::get_bool_type(); // this is a custom implicit conversion
+        return MScalarType::get_bool_type();
     }
 };
 
@@ -604,6 +498,9 @@ struct create_scalar_type<double> {
     }
 };
 
+/*
+ * create array type
+ */
 
 template <>
 struct create_array_type<bool> {
@@ -795,76 +692,6 @@ struct create_matrix_type<double> {
 
     operator MMatrixType*() {
         return new MMatrixType(row_dimension, col_dimension, create_scalar_type<double>());
-    }
-};
-
-template <typename T>
-struct mtype_of {
-    operator mtype_code_t() {
-        return mtype_struct;
-    }
-};
-
-template <typename T>
-struct mtype_of<T *> {
-    operator mtype_code_t() {
-        return mtype_ptr;
-    }
-};
-
-template <>
-struct mtype_of<bool> {
-    operator mtype_code_t() {
-        return mtype_bool;
-    }
-};
-
-template <>
-struct mtype_of<char> {
-    operator mtype_code_t() {
-        return mtype_char;
-    }
-};
-
-template <>
-struct mtype_of<short> {
-    operator mtype_code_t() {
-        return mtype_short;
-    }
-};
-
-template <>
-struct mtype_of<int> {
-    operator mtype_code_t() {
-        return mtype_int;
-    }
-};
-
-template <>
-struct mtype_of<long> {
-    operator mtype_code_t() {
-        return mtype_long;
-    }
-};
-
-template <>
-struct mtype_of<float> {
-    operator mtype_code_t() {
-        return mtype_float;
-    }
-};
-
-template <>
-struct mtype_of<double> {
-    operator mtype_code_t() {
-        return mtype_double;
-    }
-};
-
-template <>
-struct mtype_of<void> {
-    operator mtype_code_t() {
-        return mtype_void;
     }
 };
 

@@ -1,13 +1,13 @@
-
-
-- get rid of usage of malloc and new explicitly on the user's side. that kind of stuff
-should just happen automatically I think (but this is further down the road)
-- Add SegmentStage
-    - flatten the segments so they can be processed individually
-- Allow merging with compare block
-- Add convenience methods so users don't need to keep calling get_underlying_data. Also don't require them to malloc stuff
-- move the extern_wrapper_ret_type initialization to the stage constructors. I can get rid of the if/else if I just do it in the stage since
-I know what the correct ret type should be
-- create an actual test case
-- figure out how to create the struct alias. things will look much nicer in the llvm output
-- realloc not needed in some of the stores since they won't realloc (like a transform for example--we know how many elements will be returned)
+- make a matrix get operation that converts the two indices to a linear index
+- create some debugging utilities (like print statements for user functions and stuff like that)
+- need some non-extern stuff
+- clean up the run function. Can I make it so that I don't need to pass in each thing separately
+- create const char create_type functions (see NWMatchIT input function)
+- fix compilation warnings
+- need to actually deallocate memory at some point
+- be consistent with user and extern (change to user)
+- try to reduce the number of loads and stores that happen just because I pass things around as AllocaInst (for example, in the compute_num_output_elements)
+- When I call underlying size, do I really want to be calling sizeof? It seems weird to call underlying size on a bunch of pointers
+when all you really need to do is allocate space for the pointers.
+- create output ComparisonStage for later parts of a pipeline (not just the first stage) and desperately clean pipeline
+- if only a single element, need to make sure comparison stage is 2, not 1 (which happens if just do squared)
