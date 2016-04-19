@@ -138,8 +138,8 @@ public:
 
     virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_data();
 
-    virtual llvm::CallInst *codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
-                                              llvm::BasicBlock *stage_end);
+    virtual void codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
+                                   llvm::BasicBlock *stage_end);
 
 };
 

@@ -25,23 +25,29 @@ typedef CompileLayer::ModuleSetHandleT ModuleHandle;
 //     jit_func((&(in_setelements[0])), in_setelements.size(), (&(out_setelements[0])), out_setelements.size(), __VA_ARGS__); \
 //    }
 
-#define runMacro(jit,in_setelements,...) { \
+#define run(jit,in_setelements,...) { \
      auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
      void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
      jit_func((&(in_setelements[0])), in_setelements.size(), __VA_ARGS__); \
     }
 
-#define runMacro2(jit,in_setelements,field_sep) { \
-     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
-     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
-     jit_func((&(in_setelements[0])), in_setelements.size(), field_sep, __VA_ARGS__); \
-    }
+//#define runMacro(jit,in_setelements) { \
+//     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+//     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+//     jit_func((&(in_setelements[0])), in_setelements.size()); \
+//    }
 
-#define runWrapper(jit,in_setelements,field_wrapper) { \
-     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
-     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
-     jit_func((&(in_setelements[0])), in_setelements.size(), field_wrapper); \
-    }
+//#define runMacro2(jit,in_setelements,field_sep) { \
+//     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+//     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+//     jit_func((&(in_setelements[0])), in_setelements.size(), field_sep, __VA_ARGS__); \
+//    }
+//
+//#define runWrapper(jit,in_setelements,field_wrapper) { \
+//     auto jit_sym = jit.find_mangled_name(jit.mangle("pipeline")); \
+//     void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress(); \
+//     jit_func((&(in_setelements[0])), in_setelements.size(), field_wrapper); \
+//    }
 
 class JIT {
 
@@ -107,14 +113,14 @@ public:
     /**
      * JIT the code and run data through the pipeline.
      */
-    void run(const std::string func_to_run, const void **data);
-
-    void run(const std::string func_to_run, ...);
-
-    void run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
-             int out_num, const void *base_field1, const void *base_field2);
-
-    void run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements);
+//    void run(const std::string func_to_run, const void **data);
+//
+//    void run(const std::string func_to_run, ...);
+//
+//    void run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
+//             int out_num, const void *base_field1, const void *base_field2);
+//
+//    void run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements);
 
 
 };

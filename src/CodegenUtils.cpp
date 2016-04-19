@@ -73,7 +73,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
     llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[0], 8); // TODO why don't I just pass in everything so I can index these as 0 and 2. Seems a little more natural
     llvm::LoadInst *output_set_elements;
     if (!is_filter_stage) {
-        output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
+        output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[stage_input_arg_alloc.size() - 1], 8);
     }
 
     // extract the input/output SetElement corresponding to this loop iteration
@@ -81,18 +81,35 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
     std::vector<llvm::Value *> element_idxs;
     element_idxs.push_back(loop_idx_load);
 
-    // input SetElement
     llvm::Value *input_set_element_gep = codegen_llvm_gep(jit, input_set_elements, element_idxs);
     llvm::LoadInst *input_set_element_load = codegen_llvm_load(jit, input_set_element_gep, 8);
     llvm::AllocaInst *input_set_element_alloc = codegen_llvm_alloca(jit, input_set_element_load->getType(), 8);
     codegen_llvm_store(jit, input_set_element_load, input_set_element_alloc, 8);
     arg_types.push_back(input_set_element_alloc);
 
+    // TODO clean up
+    if (loop_idx.size() == 3) { // this is a comparison stage with 3 indices
+        llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[1], 4);
+        std::vector<llvm::Value *> element_idxs;
+        element_idxs.push_back(loop_idx_load);
+
+        // input SetElement
+        llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
+        llvm::Value *input_set_element_gep = codegen_llvm_gep(jit, input_set_elements, element_idxs);
+        llvm::LoadInst *input_set_element_load = codegen_llvm_load(jit, input_set_element_gep, 8);
+        llvm::AllocaInst *input_set_element_alloc = codegen_llvm_alloca(jit, input_set_element_load->getType(), 8);
+        codegen_llvm_store(jit, input_set_element_load, input_set_element_alloc, 8);
+        arg_types.push_back(input_set_element_alloc);
+    }
+
     // output SetElement
     if (!is_filter_stage) { // a filter only gets inputs. outputs are implicitly handled
         std::vector<llvm::Value *> element_idxs;
         if (!is_segmentation_stage) {
-            llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[1], 4); // TODO this needs to be handled better--assumes only 2 max SetElements in signature
+            // TODO having loop_idxs mean separate things to separate stages is not good.
+            // For a transformation stage, 0 is the loop idx for the input and 1 is the loop idx for the output (they are the same)
+            // For a comparison, 0 is the loop idx for the first input and 1 is the loop idx for the second input.
+            llvm::LoadInst *loop_idx_load = codegen_llvm_load(jit, loop_idx[loop_idx.size() - 1], 4); // TODO this needs to be handled better--assumes only 2 max SetElements in signature
             element_idxs.push_back(loop_idx_load);
         } else {
             llvm::LoadInst *output_idx_load = codegen_llvm_load(jit, output_idx, 4);

@@ -68,8 +68,6 @@ std::vector<std::string> files =
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0302/1_dup.txt",
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0302/2.txt",
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0302/2_dup.txt",
-         "/Users/JRay/Documents/Research/datasets/youtube_metadata/0302/3.txt",
-         "/Users/JRay/Documents/Research/datasets/youtube_metadata/0302/3_dup.txt",
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0303/1.txt",
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0303/1_dup.txt",
          "/Users/JRay/Documents/Research/datasets/youtube_metadata/0303/2.txt",

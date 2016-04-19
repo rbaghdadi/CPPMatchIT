@@ -17,6 +17,7 @@ extern "C" void c_fprintf_float(float f) {
 }
 
 extern "C" void *malloc_32(size_t size) {
+    std::cerr << "Mallocing " << size << " bytes" << std::endl;
     return malloc(size);
 }
 
@@ -25,6 +26,7 @@ extern "C" void *malloc_64(size_t size) {
 }
 
 extern "C" void *realloc_32(void *structure, size_t size) {
+    std::cerr << "Reallocing " << size << " bytes" << std::endl;
     return realloc(structure, size);
 }
 
@@ -34,13 +36,13 @@ extern "C" void *realloc_64(void *structure, size_t size) {
 
 // right now, just assign ids to a group of these starting from 0. I assume that all of the SetElements for a relation are
 // made at once
-extern "C" SetElement **create_setelements(int num_to_create) {
-    SetElement **elements = (SetElement**)malloc(sizeof(SetElement*) * num_to_create);
-    for (int i = 0; i < num_to_create; i++) {
-        elements[i] = new SetElement(i);
-    }
-    return elements;
-}
+//extern "C" SetElement **create_setelements(int num_to_create) {
+//    SetElement **elements = (SetElement**)malloc(sizeof(SetElement*) * num_to_create);
+//    for (int i = 0; i < num_to_create; i++) {
+//        elements[i] = new SetElement(i);
+//    }
+//    return elements;
+//}
 
 void register_utils(JIT *jit) {
     /*
@@ -133,10 +135,10 @@ void register_utils(JIT *jit) {
     /*
      * set elements
      */
-    std::vector<llvm::Type *> setelement_args;
-    setelement_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
-    MType *setelement_mtype = create_type<SetElement>();
-    llvm::FunctionType *setelement_ft = llvm::FunctionType::get(llvm::PointerType::get(llvm::PointerType::get(setelement_mtype->codegen_type() ,0), 0),
-                                                                setelement_args, false);
-    jit->get_module()->getOrInsertFunction("create_setelements", setelement_ft);
+//    std::vector<llvm::Type *> setelement_args;
+//    setelement_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+//    MType *setelement_mtype = create_type<SetElement>();
+//    llvm::FunctionType *setelement_ft = llvm::FunctionType::get(llvm::PointerType::get(llvm::PointerType::get(setelement_mtype->codegen_type() ,0), 0),
+//                                                                setelement_args, false);
+//    jit->get_module()->getOrInsertFunction("create_setelements", setelement_ft);
 }

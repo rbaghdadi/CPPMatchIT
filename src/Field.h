@@ -2,6 +2,7 @@
 #define MATCHIT_FIELD_H
 
 #include "./MType.h"
+#include "./Utils.h"
 
 // DON'T ADD VIRTUAL METHODS TO THIS OTHERWISE IT WILL BREAK!!!!
 class BaseField {
@@ -36,6 +37,10 @@ public:
 
     int get_cur_length();
 
+    bool isNull() {
+        return data == nullptr;
+    }
+
     // size for a single entry in a field (i.e. for a single SetElement)
     int get_fixed_size();
 
@@ -65,10 +70,10 @@ public:
     void add_scalar(int idx, T value) {
         if (idx >= max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc(sizeof(T) + sizeof(T) * idx);
+                data = malloc_32(sizeof(T) + sizeof(T) * idx);
                 max_malloc++;
             } else {
-                data = realloc(data, max_malloc + sizeof(T) + sizeof(T) * idx);
+                data = realloc_32(data, max_malloc + sizeof(T) + sizeof(T) * idx);
                 max_malloc++;
             }
         }
@@ -79,10 +84,10 @@ public:
     void add_array(int idx, const T *values) {
         if ((idx + dim) >= max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc(sizeof(T) * (idx + dim));
+                data = malloc_32(sizeof(T) * (idx + dim));
                 max_malloc = idx;//+=idx;
             } else {
-                data = realloc(data, sizeof(T) * (idx + dim));
+                data = realloc_32(data, sizeof(T) * (idx + dim));
                 max_malloc = (idx + dim);
             }
         }
@@ -93,10 +98,10 @@ public:
     void init_scalar(int id) {
         if (id >= max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc(sizeof(T) + sizeof(T) * id);
+                data = malloc_32(sizeof(T) + sizeof(T) * id);
                 max_malloc++;
             } else {
-                data = realloc(data, max_malloc + sizeof(T) + sizeof(T) * id);
+                data = realloc_32(data, max_malloc + sizeof(T) + sizeof(T) * id);
                 max_malloc++;
             }
         }
@@ -104,13 +109,13 @@ public:
 
     template <typename T, int dim>
     void init_array(int id) {
-        if ((idx + dim) >= max_malloc) {
+        if ((id + dim) >= max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc(sizeof(T) * (idx + dim));
-                max_malloc = idx;
+                data = malloc_32(sizeof(T) * (id + dim));
+                max_malloc = id;
             } else {
-                data = realloc(data, sizeof(T) * (idx + dim));
-                max_malloc = (idx + dim);
+                data = realloc_32(data, sizeof(T) * (id + dim));
+                max_malloc = (id + dim);
             }
         }
     }
@@ -150,6 +155,38 @@ public:
 
 };
 
+// user fields
+
+// can I make these reference full fields under the hood?
+// in llvm, when I see a field inst type, use its ID to index into the full
+// data array
+
+// llvm generate code for a FieldInst: replace the field with a pointer to the correct
+// or, can I compile a user function and then get a handle to it and modify it
+// create a full data array for each field in a struct
+// when codegening the field
+// or, I could literally just write my own front end
+
+// llvm instruction iterators for instructions
+// build up function
+//
+//template <typename T>
+//class FieldInst<T,0> : public BaseField {
+//public:
+//
+//    FieldInst() : BaseField(0, 0, create_type<T>()) { }
+//
+//};
+//
+//template <typename T, int _dim1 = 0, int _dim2 = 0>
+//class FieldInst : public BaseField {
+//public:
+//
+//    FieldInst() : BaseField(_dim1, _dim2, (create_type<T>(_dim1, _dim2))) { }
+//
+//};
+
+
 // TODO there's nothing here to enforce that you should use a field corresponding to this SetElement. You could basically pass in any field.
 class SetElement {
     int id;
@@ -173,6 +210,11 @@ public:
     template <typename T, int dim>
     T get(Field<T, dim> *field, int offset) const {
         return field->template get_scalar<T,dim,0>(id * dim + offset);
+    }
+
+    template <typename T, int dim1, int dim2>
+    T *get(Field<T,dim1,dim2> *field) const {
+        return field->template get_array<T,dim1,dim2>(dim1 * dim2 * id);
     }
 
     template <typename T, int dim1, int dim2>
@@ -250,6 +292,10 @@ public:
     std::vector<BaseField *> get_fields();
 
 };
+
+void init_set_element(JIT *jit);
+
+extern "C" SetElement **create_setelements(int num_to_create);
 
 
 #endif //MATCHIT_FIELD_H

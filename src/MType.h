@@ -30,7 +30,8 @@ typedef enum {
     mtype_segments, // 14
     mtype_segment, // 15
     mtype_marray, // 16
-    mtype_wrapper_output // 17 -- the return struct that wraps a user return type
+    mtype_mmatrix, // 17
+    mtype_wrapper_output // 18 -- the return struct that wraps a user return type
 } mtype_code_t;
 
 /*
@@ -105,7 +106,7 @@ public:
     /**
      * Get the number of bits in this MType
      */
-    unsigned int get_bits();
+    virtual unsigned int get_bits();
 
     /**
      * Generate LLVM code for this MType
@@ -254,6 +255,10 @@ public:
         return 8;
     }
 
+    unsigned int get_bits() {
+        return bits;
+    }
+
     /**
      * Get preconstructed mtype_bool
      */
@@ -301,7 +306,7 @@ public:
 
     MPointerType() {}
 
-     MPointerType(MType *pointer_type) : MType(mtype_ptr, 64) {
+    MPointerType(MType *pointer_type) : MType(mtype_ptr, 64) {
         underlying_types.push_back(pointer_type);
     }
 
@@ -375,12 +380,14 @@ private:
 public:
 
     MArrayType(int length, MType *array_element_type) : length(length), array_element_type(array_element_type) {
-        if (length == 0) {
-            variable_length = true;
-        } else {
-            variable_length = false;
-        }
+//        if (length == 0) {
+//            variable_length = true;
+//        } else {
+        variable_length = false;
+//        }
         underlying_types.push_back(array_element_type);
+        set_bits(array_element_type->get_size() * 8);
+        mtype_code = mtype_marray;
     }
 
     int get_length() {
@@ -423,17 +430,19 @@ private:
 
 public:
 
-    MMatrixType(int row_dimension, int col_dimension,
-                MType *array_element_type) : row_dimension(row_dimension), col_dimension(col_dimension),
-                                             matrix_element_type(array_element_type) {
-        if (row_dimension == 0) {
-            x_variable_length = true;
-        } else if (col_dimension == 0){
-            y_variable_length = true;
-        } else {
-            x_variable_length = false;
-            y_variable_length = false;
-        }
+    MMatrixType(int row_dimension, int col_dimension, MType *matrix_element_type) :
+            row_dimension(row_dimension), col_dimension(col_dimension), matrix_element_type(matrix_element_type) {
+//        if (row_dimension == 0) {
+//            x_variable_length = true;
+//        } else if (col_dimension == 0){
+//            y_variable_length = true;
+//        } else {
+//            x_variable_length = false;
+//            y_variable_length = false;
+//        }
+        underlying_types.push_back(matrix_element_type);
+        set_bits(matrix_element_type->get_size() * 8);
+        mtype_code = mtype_mmatrix;
     }
 
     int get_length() {
@@ -453,7 +462,7 @@ public:
     }
 
     size_t get_size() {
-        return (matrix_element_type->get_bits() / 8) * (row_dimension * col_dimension);
+        return (matrix_element_type->get_bits() / 8);// * (row_dimension * col_dimension);
     }
 
     void dump() {
@@ -490,11 +499,11 @@ struct create_type {
 
     operator MType*() { // implicit conversion
         if (row_dimension == 1 && col_dimension == 0) {
-            return create_scalar_type<T>();
+            return (MScalarType*)create_scalar_type<T>();
         } else if (col_dimension == 0){
-            return create_array_type<T>(row_dimension); // if row_dimension == 0, we will have a variable row_dimension array
+            return (MArrayType*)create_array_type<T>(row_dimension); // if row_dimension == 0, we will have a variable row_dimension array
         } else {
-            return create_matrix_type<T>(row_dimension, col_dimension);
+            return (MMatrixType*)create_matrix_type<T>(row_dimension, col_dimension);
         }
     }
 };
@@ -505,6 +514,7 @@ struct create_type {
 
 template <>
 struct create_scalar_type<bool> {
+
     operator MScalarType*() {
         return MScalarType::get_bool_type(); // this is a custom implicit conversion
     }

@@ -9,7 +9,6 @@
 #include "./ForLoop.h"
 #include "./Field.h"
 
-
 llvm::AllocaInst *preallocate_field(JIT *jit, BaseField *base_field, llvm::Value *total_space_to_allocate);
 //llvm::AllocaInst *do_malloc(JIT *jit, llvm::Type *alloca_type, llvm::Value *size_to_malloc, std::string name = "");
 //

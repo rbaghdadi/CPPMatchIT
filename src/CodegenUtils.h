@@ -146,7 +146,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
                                                              bool has_output_param, llvm::AllocaInst *output_idx);
 
 llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
-                                      std::vector<llvm::AllocaInst *> extern_arg_allocs);
+                                     std::vector<llvm::AllocaInst *> extern_arg_allocs);
 
 llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound);
 

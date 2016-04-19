@@ -76,3 +76,21 @@ std::vector<MType *> Relation::get_mtypes() {
 std::vector<BaseField *> Relation::get_fields() {
     return fields;
 }
+
+void init_set_element(JIT *jit) {
+    std::vector<llvm::Type *> setelement_args;
+    setelement_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    MType *setelement_mtype = create_type<SetElement>();
+    llvm::FunctionType *setelement_ft = llvm::FunctionType::get(
+            llvm::PointerType::get(llvm::PointerType::get(setelement_mtype->codegen_type(), 0), 0),
+            setelement_args, false);
+    jit->get_module()->getOrInsertFunction("create_setelements", setelement_ft);
+}
+
+extern "C" SetElement **create_setelements(int num_to_create) {
+    SetElement **elements = (SetElement**)malloc(sizeof(SetElement*) * num_to_create);
+    for (int i = 0; i < num_to_create; i++) {
+        elements[i] = new SetElement(i);
+    }
+    return elements;
+}

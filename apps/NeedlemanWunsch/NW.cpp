@@ -32,6 +32,7 @@ void compute_row(char row_base, char *top_sequence, int *upper_row_scores, int *
         int scores[3] = {northwest_score, north_score, west_score};
         Direction max_idx = max_scores_idx(scores);
         cur_row_scores[col] = scores[max_idx];
+//        std::cerr << scores[max_idx] << std::endl;
     }
 }
 
@@ -53,6 +54,7 @@ char *compute_traceback_alignment(int **alignment_matrix, Sequence *top_sequence
     int top_idx = 0;
     int left_idx = 0;
     while (i > 0 || j > 0) {
+        std::cerr <<  alignment_matrix[i][j] << std::endl;
         if (i == 0 && j == 0) {
             top_alignment[top_idx++] = to_letter_base(top_sequence->sequence[j]);
             left_alignment[left_idx++] = to_letter_base(left_sequence->sequence[i]);
@@ -80,7 +82,7 @@ char *compute_traceback_alignment(int **alignment_matrix, Sequence *top_sequence
     top_alignment[top_idx] = '\n';
     top_alignment[top_idx+1] = '\0';
     left_alignment[left_idx] = '\0';
-    char *alignment = (char*)malloc(sizeof(char) * (top_idx + left_idx - 1));
+    char *alignment = (char*)malloc(sizeof(char) * (top_idx + left_idx + 1));
     strcat(alignment, top_alignment);
     strcat(alignment, left_alignment);
     return alignment;
@@ -91,7 +93,7 @@ int main() {
     std::vector<Sequence *> sequences = read_fasta("/Users/JRay/Documents/Research/datasets/genome/sequences.fasta");
 
     Sequence *top = sequences[0];
-    Sequence *left = sequences[1];
+    Sequence *left = sequences[0];
 
     std::cerr << "top sequence is " << top->name << " with length " << top->sequence_length << std::endl;
     std::cerr << "left sequence is " << left->name << " with length " << left->sequence_length << std::endl;
@@ -123,7 +125,14 @@ int main() {
     }
     // print out the traceback
     for (int j = idx-2; j > -1; j--) {
-        std::cerr << final_traceback[j];
+//        std::cerr << final_traceback[j];
+    }
+
+    std::cerr << std::endl;
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 5; j++) {
+            std::cerr << alignment_matrix[i][j] << " ";
+        }
     }
 
     return 0;

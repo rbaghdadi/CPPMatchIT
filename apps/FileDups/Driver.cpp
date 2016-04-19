@@ -17,7 +17,7 @@
  * FilterStage function
  */
 // if returns true, keep the element
-Field<char,200> filepath_in; // holds the filepath (an input)
+Field<char, 200> filepath_in; // holds the filepath (an input)
 extern "C" bool filter_file(const SetElement * const in) {
     char *filepath = in->get(&filepath_in);
     bool keep = strstr(filepath, "txt") == nullptr; // if == nullptr, keep it because it does NOT end in txt
@@ -32,8 +32,8 @@ extern "C" bool filter_file(const SetElement * const in) {
 /*
  * TransformStage fields and function
  */
-Field<char,200> filepath_out; // if field is not going to change, should it just be pointed to the same place?
-Field<unsigned char,MD5_DIGEST_LENGTH> md5_out; // holds the computed md5 (an output)
+Field<char, 200> filepath_out; // if field is not going to change, should it just be pointed to the same place?
+Field<unsigned char, MD5_DIGEST_LENGTH> md5_out; // holds the computed md5 (an output)
 extern "C" void file_to_md5(const SetElement * const in, SetElement * const out) {
     char *filepath = in->get(&filepath_in);
     std::cerr << "computing md5 for: " << filepath << std::endl;
@@ -75,12 +75,16 @@ extern "C" bool compare(const SetElement * const in1, const SetElement * const i
     return true;
 }
 
+extern "C" bool fake(const SetElement * const sequence1, const SetElement * const sequence2, SetElement * const out) {
+    return true;
+}
 
 int main() {
 
     LLVM::init();
     JIT jit;
     register_utils(&jit);
+    init_set_element(&jit);
 
     Relation filter_in; // passed into filter_file
     Relation file_to_md5_out; // passed out of file_to_md5
@@ -93,6 +97,7 @@ int main() {
     FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &filter_in);
     TransformStage xform = create_transform_stage(&jit, file_to_md5, "file_to_md5", &filter_in, &file_to_md5_out);
     ComparisonStage comp = create_comparison_stage(&jit, compare, "compare", &file_to_md5_out);
+    ComparisonStage f = create_comparison_stage(&jit, fake, "fake", &filter_in, &file_to_md5_out);
 
     Pipeline pipeline;
     pipeline.register_stage(&filt);
@@ -106,7 +111,7 @@ int main() {
     // add the output fields here (add all across the stages)
     // TODO this isn't good b/c it requires you to put all output fields in order of how they are created in the "struct"
     // could pass everything in as a struct and try to hand some of the work off to the framework
-    runMacro(jit, in_setelements, &filepath_out, &md5_out);
+    run(jit, in_setelements, &filepath_out, &md5_out);
 
     return 0;
 }

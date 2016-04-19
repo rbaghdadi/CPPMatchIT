@@ -111,31 +111,31 @@ void JIT::add_module(std::string jit_name) {
 ////    module->setDataLayout((*target_machine).createDataLayout());
 //}
 
-void JIT::run(const std::string func_to_run, const void **data) {
-    auto jit_sym = find_mangled_name(mangle(func_to_run));
-    void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
-    jit_func(data);
-}
-
-#define jit_args(...) __VA_ARGS__
-
-
-void JIT::run(const std::string func_to_run, ...) {
-    auto jit_sym = find_mangled_name(mangle(func_to_run));
-    void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress();
-
-}
-
-void JIT::run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
-              int out_num, const void *base_field1, const void *base_field2) {
-    auto jit_sym = find_mangled_name(mangle(func_to_run));
-    void (*jit_func)(const void **, int, const void **, int, const void *, const void *) =
-            (void (*)(const void **, int, const void **, int, const void *, const void *))(intptr_t)jit_sym.getAddress();
-    jit_func(in_setelements, in_num, out_setelements, out_num, base_field1, base_field2);
-}
-
-void JIT::run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements) {
-    auto jit_sym = find_mangled_name(mangle(func_to_run));
-    void (*jit_func)(const void **, long, long) = (void (*)(const void **, long, long))(intptr_t)jit_sym.getAddress();
-    jit_func(data, total_bytes_in_arrays, total_elements);
-}
+//void JIT::run(const std::string func_to_run, const void **data) {
+//    auto jit_sym = find_mangled_name(mangle(func_to_run));
+//    void (*jit_func)(const void **) = (void (*)(const void **))(intptr_t)jit_sym.getAddress();
+//    jit_func(data);
+//}
+//
+//#define jit_args(...) __VA_ARGS__
+//
+//
+//void JIT::run(const std::string func_to_run, ...) {
+//    auto jit_sym = find_mangled_name(mangle(func_to_run));
+//    void (*jit_func)(...) = (void (*)(...))(intptr_t)jit_sym.getAddress();
+//
+//}
+//
+//void JIT::run(const std::string func_to_run, const void **in_setelements, int in_num, const void **out_setelements,
+//              int out_num, const void *base_field1, const void *base_field2) {
+//    auto jit_sym = find_mangled_name(mangle(func_to_run));
+//    void (*jit_func)(const void **, int, const void **, int, const void *, const void *) =
+//            (void (*)(const void **, int, const void **, int, const void *, const void *))(intptr_t)jit_sym.getAddress();
+//    jit_func(in_setelements, in_num, out_setelements, out_num, base_field1, base_field2);
+//}
+//
+//void JIT::run(const std::string func_to_run, const void **data, long total_bytes_in_arrays, long total_elements) {
+//    auto jit_sym = find_mangled_name(mangle(func_to_run));
+//    void (*jit_func)(const void **, long, long) = (void (*)(const void **, long, long))(intptr_t)jit_sym.getAddress();
+//    jit_func(data, total_bytes_in_arrays, total_elements);
+//}
