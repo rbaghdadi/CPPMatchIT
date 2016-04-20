@@ -257,12 +257,12 @@ std::vector<std::string> files =
         };
 
 template <typename T, int dim>
-std::vector<SetElement *> init(Field<T,dim> *field) {
-    std::vector<SetElement *> elements;
+std::vector<Element *> init(Field<T,dim> *field) {
+    std::vector<Element *> elements;
     int id_ctr = 0;
     for (std::vector<std::string>::iterator iter = files.begin(); iter != files.end(); iter++) {
-        SetElement *e = new SetElement(id_ctr++);
-        e->init(field, (*iter).c_str());
+        Element *e = new Element(id_ctr++);
+        e->allocate_and_set(field, &(*iter)[0]);
         elements.push_back(e);
     }
     return elements;

@@ -6,6 +6,7 @@
 #include "../../src/ComparisonStage.h"
 #include "../../src/Field.h"
 #include "../../src/FilterStage.h"
+#include "../../src/Init.h"
 #include "../../src/JIT.h"
 #include "../../src/LLVM.h"
 #include "../../src/Pipeline.h"
@@ -75,43 +76,33 @@ extern "C" bool compare(const Element * const in1, const Element * const in2) {
     return true;
 }
 
-extern "C" bool fake(const Element * const sequence1, const Element * const sequence2, Element * const out) {
-    return true;
-}
-
 int main() {
 
-    LLVM::init();
-    JIT jit;
-    register_utils(&jit);
-    init_element(&jit);
+    JIT *jit = init();
 
     Fields filter_in; // passed into filter_file
+
     Fields file_to_md5_out; // passed out of file_to_md5
     filter_in.add(&filepath_in);
     file_to_md5_out.add(&filepath_out);
     file_to_md5_out.add(&md5_out);
 
-    std::vector<Element *> in_setelements = init(&filepath_in);
+    std::vector<Element *> in_elements = init(&filepath_in);
 
-    FilterStage filt = create_filter_stage(&jit, filter_file, "filter_file", &filter_in);
-    TransformStage xform = create_transform_stage(&jit, file_to_md5, "file_to_md5", &filter_in, &file_to_md5_out);
-    ComparisonStage comp = create_comparison_stage(&jit, compare, "compare", &file_to_md5_out);
-    ComparisonStage f = create_comparison_stage(&jit, fake, "fake", &filter_in, &file_to_md5_out);
+    FilterStage filt = create_filter_stage(jit, filter_file, "filter_file", &filter_in);
+    TransformStage xform = create_transform_stage(jit, file_to_md5, "file_to_md5", &filter_in, &file_to_md5_out);
+    ComparisonStage comp = create_comparison_stage(jit, compare, "compare", &file_to_md5_out);
 
     Pipeline pipeline;
     pipeline.register_stage(&filt);
     pipeline.register_stage(&xform);
     pipeline.register_stage(&comp);
-    pipeline.codegen(&jit);
-    jit.dump();
-    jit.add_module();
-
+    pipeline.codegen(jit);
+    jit->dump();
+    jit->add_module();
 
     // add the output fields here (add all across the stages)
-    // TODO this isn't good b/c it requires you to put all output fields in order of how they are created in the "struct"
-    // could pass everything in as a struct and try to hand some of the work off to the framework
-    run(jit, in_setelements, &filepath_out, &md5_out);
+    run(jit, in_elements, &filepath_out, &md5_out);
 
     return 0;
 }

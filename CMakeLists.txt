@@ -7,11 +7,13 @@ set(LLVM_FLAGS "-I/Users/JRay/llvm-build/llvm-3.7.0.src/include -I/Users/JRay/ll
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -v -std=c++11 ${MD5_FLAGS} ${LLVM_FLAGS} ${FFTW_FLAGS}")
 
 set(SOURCE_FILES src/Preallocator.cpp src/MType.cpp src/JIT.cpp src/Utils.cpp src/LLVM.cpp src/TransformStage.cpp src/FilterStage.cpp src/SegmentationStage.cpp src/InstructionBlock.cpp src/MFunc.cpp src/Stage.cpp src/CodegenUtils.cpp src/ForLoop.cpp src/Pipeline.cpp src/ComparisonStage.cpp src/StageFactory.cpp src/Field.cpp)
-set(FILEDUPS_SOURCE apps/FileDups/Driver.cpp src/Init.h)
+set(FILEDUPS_SOURCE apps/FileDups/Driver.cpp)
 set(NW_SOURCE apps/NeedlemanWunsch/NW.cpp)
 set(NWMatchIT_SOURCE apps/NeedlemanWunsch/NWMatchIT.cpp)
+set(MF_SOURCE apps/MatchedFilter/MatchedFilter.cpp)
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY /Users/JRay/Desktop/CPPMatchIT/bin/)
 add_executable(FileDups ${SOURCE_FILES} ${FILEDUPS_SOURCE})
 add_executable(NW ${SOURCE_FILES} ${NW_SOURCE})
 add_executable(NWMatchIT ${SOURCE_FILES} ${NWMatchIT_SOURCE})
+add_executable(MF ${SOURCE_FILES} ${MF_SOURCE})

@@ -20,7 +20,7 @@ const int max_sequence_name = 50;
 const int traceback_length = max_seq_size*2;
 
 // inputs to compute_alignment_matrix
-Field<char,max_filepath_size> filepath;
+Field<char,max_filepath_size> filter_filepath;
 Field<char,max_seq_size> sequence;
 Field<char,max_sequence_name> sequence_name;
 Field<int> sequence_length;
@@ -49,7 +49,7 @@ std::vector<Element *> read_fasta2(std::string fasta_file) {
             if (line.c_str()[0] == '>') {
                 Element *next = new Element(cur_seq);
                 // set the filepath
-                next->allocate_and_set(&filepath, &fasta_file[0]);
+                next->allocate_and_set(&filter_filepath, &fasta_file[0]);
                 // set the sequence name
                 std::vector<std::string> tokens = split(line, ' ');
                 std::cerr << "reading " << tokens[1] << " from file " << fasta_file << std::endl;
@@ -168,7 +168,7 @@ int main() {
     JIT *jit = init();
 
     Fields alignment_matrix_inputs;
-    alignment_matrix_inputs.add(&filepath);
+    alignment_matrix_inputs.add(&filter_filepath);
     alignment_matrix_inputs.add(&sequence);
     alignment_matrix_inputs.add(&sequence_name);
     alignment_matrix_inputs.add(&sequence_length);
@@ -185,8 +185,7 @@ int main() {
     Fields traceback_relation;
     traceback_relation.add(&traceback);
 
-
-    std::vector<Element *> in_setelements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
+    std::vector<Element *> in_elements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
 
     ComparisonStage compare = create_comparison_stage(jit, compute_alignment_matrix, "compute_alignment_matrix",
                                                       &alignment_matrix_inputs, &alignment_matrix_relation);
@@ -198,11 +197,11 @@ int main() {
     pipeline.register_stage(&compare);
     pipeline.register_stage(&traceback_stage);
     pipeline.codegen(jit);
-//    jit->dump();
+    jit->dump();
     jit->add_module();
 
-    run(jit, in_setelements, &alignment_matrix, &sequence1_name, &sequence2_name,
-        &sequence1, &sequence2, &sequence1_length, &sequence2_length, &traceback);
+    run(jit, in_elements, &alignment_matrix, &sequence1_name, &sequence2_name, &sequence1, &sequence2,
+        &sequence1_length, &sequence2_length, &traceback);
 
     return 0;
 }

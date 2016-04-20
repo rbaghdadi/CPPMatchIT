@@ -1,13 +1,35 @@
-- make a matrix get operation that converts the two indices to a linear index
+DOCUMENTATION
+- Finish commenting Field.h
+- Comment InstructionBlock.h
+
+ENHANCEMENTS
 - create some debugging utilities (like print statements for user functions and stuff like that)
-- need some non-extern stuff
-- clean up the run function. Can I make it so that I don't need to pass in each thing separately
 - create const char create_type functions (see NWMatchIT input function)
-- fix compilation warnings
-- need to actually deallocate memory at some point
-- be consistent with user and extern (change to user)
 - try to reduce the number of loads and stores that happen just because I pass things around as AllocaInst (for example, in the compute_num_output_elements)
-- When I call underlying size, do I really want to be calling sizeof? It seems weird to call underlying size on a bunch of pointers
-when all you really need to do is allocate space for the pointers.
+- need some non-extern stuff
+
+CLEANUP
+- clean up the run function. Can I make it so that I don't need to pass in each thing separately?
+- fix compilation warnings
+- be consistent with user and extern (change to user)
+- Pipeline
+- Stage
+- MFunction
+- be consistent with parameter and argument.
+
+CRITICAL PATH
+- put in audio example
+- need to actually deallocate memory at some point
 - create output ComparisonStage for later parts of a pipeline (not just the first stage) and desperately clean pipeline
 - if only a single element, need to make sure comparison stage is 2, not 1 (which happens if just do squared)
+
+BUGS
+
+QUESTIONS
+- When I call underlying size, do I really want to be calling sizeof? It seems weird to call underlying size on a bunch of pointers
+when all you really need to do is allocate space for the pointers.
+- Best way to handle segmentation? There are many ways to segment--will we restrict people to the subset that we decide?
+- Best way to pass in stuff to the pipeline?
+- Should input be delegated to the user? In other words, maybe my input function just gets the filepaths ready, but then
+the user must create a transform stage that converts the filepaths into the actual usable data. This should be a different
+stage with different field set functions (use allocate and set).
