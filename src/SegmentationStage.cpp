@@ -14,26 +14,16 @@ llvm::Value *SegmentationStage::compute_num_segments(llvm::Value *loop_bound, ll
             llvm::ConstantFP::get(llvm_float, (float)segment_size);
     llvm::Value *overlap_float =
             llvm::ConstantFP::get(llvm_float, overlap);
-    llvm::Value *total_array_size = jit->get_builder().CreateUIToFP(codegen_llvm_mul(jit, as_i32(field_to_segment->get_fixed_size()),
-                                                                                     loop_bound), llvm_float);
     llvm::Value *numerator =
-            jit->get_builder().CreateFSub(total_array_size, jit->get_builder().CreateFMul(segment_size_float,
+            jit->get_builder().CreateFSub(jit->get_builder().CreateUIToFP(as_i32(field_to_segment->get_fixed_size()),
+                                                                          llvm_float), jit->get_builder().CreateFMul(segment_size_float,
                                                                                           overlap_float));
     llvm::Value *denominator =
             jit->get_builder().CreateFSub(segment_size_float, jit->get_builder().CreateFMul(segment_size_float,
                                                                                             overlap_float));
-    llvm::Value *num_segments =
+    llvm::Value *num_segments = codegen_llvm_mul(jit,
             jit->get_builder().CreateFPToSI(codegen_llvm_ceil(jit, jit->get_builder().CreateFDiv(numerator, denominator)),
-                                            llvm_int32);
-//    llvm::BasicBlock *fix_segments = llvm::BasicBlock::Create(llvm::getGlobalContext(), "fix_segments", insert_into); // branch here when continue on
-//    llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy_continue", insert_into);
-//    llvm::Value *cmp = jit->get_builder().CreateICmpSLE(num_segments, as_i32(0)); // check if number of segments <= 0 (can happen if actual data size less than the seg size)
-//    jit->get_builder().CreateCondBr(cmp, fix_segments, dummy);
-//    jit->get_builder().SetInsertPoint(fix_segments);
-
-//    num_segments = as_i32(1); // give it one segment, then user has to pad it
-//    jit->get_builder().CreateBr(dummy);
-//    jit->get_builder().SetInsertPoint(dummy);
+                                            llvm_int32), loop_bound);
     return num_segments;
 }
 
