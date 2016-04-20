@@ -61,7 +61,7 @@ llvm::Function *MFunc::get_extern() const {
     return extern_function;
 }
 
-llvm::Function *MFunc::get_extern_wrapper() const {
+llvm::Function *MFunc::get_llvm_stage() const {
     return extern_wrapper_function;
 }
 
@@ -69,7 +69,7 @@ std::vector<MType *> MFunc::get_extern_param_types() const {
     return user_function_param_types;
 }
 
-std::vector<MType *> MFunc::get_extern_wrapper_param_types() const {
+std::vector<MType *> MFunc::get_stage_param_types() const {
     return stage_param_types;
 }
 

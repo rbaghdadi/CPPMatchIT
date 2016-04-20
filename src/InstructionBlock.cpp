@@ -41,8 +41,8 @@ llvm::AllocaInst *StageArgLoader::get_data_array_size() {
     return args_alloc[args_alloc.size() - 2]; // 2nd to last element
 }
 
-llvm::AllocaInst *StageArgLoader::get_num_data_structs() {
-    return args_alloc[1]; // 2nd element is the number of input SetElements
+llvm::AllocaInst *StageArgLoader::get_num_input_elements() {
+    return args_alloc[1]; // 2nd element is the number of input Elements
 }
 
 void StageArgLoader::add_arg_alloc(llvm::AllocaInst *alloc) {
@@ -141,24 +141,8 @@ void Preallocator::set_num_elements_to_alloc(llvm::AllocaInst *num_elements_to_a
     this->num_elements_to_alloc = num_elements_to_alloc;
 }
 
-void Preallocator::set_fixed_size(int fixed_size) {
-    this->fixed_size = fixed_size;
-}
-
-void Preallocator::set_data_array_size(llvm::Value *data_array_size) {
-    this->data_array_size = data_array_size;
-}
-
-void Preallocator::set_base_type(BaseField *base_type) {
-    this->base_field = base_type;
-}
-
-void Preallocator::set_input_data(llvm::AllocaInst *input_data) {
-    this->input_data = input_data;
-}
-
-void Preallocator::set_preallocate_outer_only(bool preallocate_outer_only) {
-    this->preallocate_outer_only = preallocate_outer_only;
+void Preallocator::set_base_field(BaseField *base_field) {
+    this->base_field = base_field;
 }
 
 // no, this keeps getting overwritten
@@ -169,7 +153,6 @@ llvm::AllocaInst *Preallocator::get_preallocated_space() {
 void Preallocator::codegen(JIT *jit, bool no_insert) {
     assert(num_elements_to_alloc);
     assert(base_field);
-    assert(fixed_size != 0);
     llvm::Value *size_per_element =
             codegen_llvm_mul(jit, as_i32(base_field->get_fixed_size()),
                                       as_i32(base_field->get_data_mtype()->underlying_size()));

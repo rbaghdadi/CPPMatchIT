@@ -17,8 +17,8 @@ std::vector<llvm::AllocaInst *> ComparisonStage::preallocate() {
 }
 
 llvm::AllocaInst *ComparisonStage::compute_num_output_elements() {
-    llvm::Value *n2 = codegen_llvm_mul(jit, codegen_llvm_load(jit, stage_arg_loader->get_num_data_structs(), 4),
-                                       codegen_llvm_load(jit, stage_arg_loader->get_num_data_structs(), 4));
+    llvm::Value *n2 = codegen_llvm_mul(jit, codegen_llvm_load(jit, stage_arg_loader->get_num_input_elements(), 4),
+                                       codegen_llvm_load(jit, stage_arg_loader->get_num_input_elements(), 4));
     llvm::AllocaInst *n2_outputs = codegen_llvm_alloca(jit, n2->getType(), 4);
     codegen_llvm_store(jit, n2, n2_outputs, 4);
     return n2_outputs;
@@ -29,9 +29,9 @@ void ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst *> prealloc
     inner = new ForLoop(jit, mfunction);
     inner->init_codegen();
     jit->get_builder().CreateBr(inner->get_counter_bb());
-    inner->codegen_counters(stage_arg_loader->get_num_data_structs());
+    inner->codegen_counters(stage_arg_loader->get_num_input_elements());
     jit->get_builder().CreateBr(loop->get_condition_bb());
-    llvm::BasicBlock *reset = llvm::BasicBlock::Create(llvm::getGlobalContext(), "reset", mfunction->get_extern_wrapper());
+    llvm::BasicBlock *reset = llvm::BasicBlock::Create(llvm::getGlobalContext(), "reset", mfunction->get_llvm_stage());
     loop->codegen_condition();
     jit->get_builder().CreateCondBr(loop->get_condition()->get_loop_comparison(),
                                     reset, stage_end);

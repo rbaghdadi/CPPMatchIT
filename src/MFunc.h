@@ -116,7 +116,7 @@ public:
     /**
      * Get the llvm function for the wrapper around the extern function.
      */
-    llvm::Function *get_extern_wrapper() const;
+    llvm::Function *get_llvm_stage() const;
 
     /**
      * Get the parameter types to the extern function.
@@ -126,7 +126,7 @@ public:
     /**
      * Get the parameter types to the extern function.
      */
-    std::vector<MType *> get_extern_wrapper_param_types() const;
+    std::vector<MType *> get_stage_param_types() const;
 
 
     /**

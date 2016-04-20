@@ -9,24 +9,8 @@
  * BaseField
  */
 
-int BaseField::get_dim1() {
-    return dim1;
-}
-
-int BaseField::get_dim2() {
-    return dim2;
-}
-
 MType *BaseField::get_data_mtype() {
     return data_mtype;
-}
-
-int BaseField::get_and_increment_ctr() {
-    return element_ctr++;
-}
-
-int BaseField::get_cur_length() {
-    return cur_length;
 }
 
 int BaseField::get_fixed_size() {
@@ -40,7 +24,7 @@ int BaseField::get_fixed_size() {
 }
 
 int BaseField::get_data_idx() {
-    return 6;
+    return 5;
 }
 
 /*

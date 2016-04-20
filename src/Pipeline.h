@@ -15,20 +15,25 @@ class Pipeline {
 
 private:
 
+    /**
+     * The individual stages that make up this pipeline.
+     */
     std::vector<Stage *> stages;
 
 public:
 
     ~Pipeline() {}
 
+    /**
+     * Add a new stage to the pipeline.
+     */
     void register_stage(Stage *stage);
 
-    // a simple all at once execution for right now
-//    void simple_execute(JIT *jit, const void **data);
-
+    /**
+     * Generate LLVM code for the pipeline
+     */
     void codegen(JIT *jit);
 
 };
-
 
 #endif //MATCHIT_PIPELINE_H

@@ -35,7 +35,7 @@ std::vector<BaseField *> Stage::get_input_relation_field_types() {
     return input_relation_field_types;
 }
 
-std::vector<BaseField *> Stage::get_output_relation_field_types() {
+std::vector<BaseField *> Stage::get_output_field_types() {
     return output_relation_field_types;
 }
 
@@ -127,20 +127,20 @@ void Stage::codegen() {
         init_codegen();
 
         // Load the inputs to the stage
-        stage_arg_loader->insert(mfunction->get_extern_wrapper());
+        stage_arg_loader->insert(mfunction->get_llvm_stage());
         stage_arg_loader->codegen(jit);
-        llvm::AllocaInst *loop_bound_alloc = stage_arg_loader->get_num_data_structs();
+        llvm::AllocaInst *loop_bound_alloc = stage_arg_loader->get_num_input_elements();
 
         // Create the object that will load the current inputs for the extern function
-        user_function_arg_loader->insert(mfunction->get_extern_wrapper());
+        user_function_arg_loader->insert(mfunction->get_llvm_stage());
 
         // Create the object that will call the extern function
-        call->insert(mfunction->get_extern_wrapper());
+        call->insert(mfunction->get_llvm_stage());
         call->set_extern_function(mfunction->get_extern());
 
         // This block is for cleanup and exiting the stage.
         llvm::BasicBlock *stage_end = llvm::BasicBlock::Create(llvm::getGlobalContext(), "stage_end",
-                                                               mfunction->get_extern_wrapper());
+                                                               mfunction->get_llvm_stage());
 
         // Create the for loop that will run the stage inputs through the extern function
         loop->init_codegen();
@@ -264,7 +264,7 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
     // Note: For FilterStage/SegmentationStage, since we don't know how many inputs will actually be kept in the output, just
     // preallocate enough space to store all of the inputs.
     std::vector<llvm::AllocaInst *> preallocated_space;
-    preallocator->insert(mfunction->get_extern_wrapper());
+    preallocator->insert(mfunction->get_llvm_stage());
     jit->get_builder().CreateBr(preallocator->get_basic_block());
     jit->get_builder().SetInsertPoint(preallocator->get_basic_block());
     // fields in the output setelements
@@ -272,9 +272,8 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
     // preallocate space in each of the individual output fields
     for (std::vector<BaseField *>::iterator iter = output_relation_field_types.begin(); // preallocate will show up numerous times now because we have multiple output fields
          iter != output_relation_field_types.end(); iter++) {
-        preallocator->set_base_type(*iter);
+        preallocator->set_base_field(*iter);
         preallocator->set_num_elements_to_alloc(compute_num_output_elements());
-        preallocator->set_fixed_size((*iter)->get_fixed_size());
         preallocator->codegen(jit, true);
         preallocated_space.push_back(preallocator->get_preallocated_space());
     }

@@ -95,7 +95,7 @@ void ForLoopIncrement::codegen(JIT *jit, bool no_insert) {
  */
 
 void ForLoop::init_codegen() {
-    init_codegen(mfunction->get_extern_wrapper());
+    init_codegen(mfunction->get_llvm_stage());
 }
 
 void ForLoop::init_codegen(llvm::Function *function) {

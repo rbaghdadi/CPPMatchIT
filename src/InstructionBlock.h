@@ -76,7 +76,7 @@ public:
 
     llvm::AllocaInst *get_data_array_size();
 
-    llvm::AllocaInst *get_num_data_structs();
+    llvm::AllocaInst *get_num_input_elements();
 
     void add_arg_alloc(llvm::AllocaInst *alloc);
 
@@ -220,33 +220,15 @@ protected:
     /**
      * The number of output structs being returned. Will be one-to-one for most stages
      * except for SegmentationStage since that expands the data.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     llvm::AllocaInst *num_elements_to_alloc;
 
     /**
-     * The fixed size of all data arrays output from this block.
-     * Required when running fixed preallocator codegen_old.
-     */
-    int fixed_size = 0;
-
-    /**
      * The type to preallocate space for.
-     * Required when running codegen_old.
-     */
-    BaseField *base_field;
-
-    /**
-     * The number of data elements that space needs to be allocated for.
      * Required when running codegen.
      */
-    llvm::Value *data_array_size;
-
-    /**
-     * The input data to the stage.
-     * Required when running matched preallocator codegen_old.
-     */
-    llvm::AllocaInst *input_data;
+    BaseField *base_field;
 
     /**
      * If true, only allocate space for the outer struct and not the inner data elements.
@@ -256,7 +238,7 @@ protected:
 
     /**
      * The preallocated space.
-     * Generated during codegen_old.
+     * Generated during codegen. Every time codegen is called, this will be overwritten.
      */
     llvm::AllocaInst *preallocated_space;
 
@@ -268,15 +250,7 @@ public:
 
     void set_num_elements_to_alloc(llvm::AllocaInst *num_elements_to_alloc);
 
-    void set_fixed_size(int fixed_size);
-
-    void set_data_array_size(llvm::Value *data_array_size);
-
-    void set_base_type(BaseField *base_type);
-
-    void set_input_data(llvm::AllocaInst *input_data);
-
-    void set_preallocate_outer_only(bool preallocate_outer_only);
+    void set_base_field(BaseField *base_field);
 
     llvm::AllocaInst *get_preallocated_space();
 

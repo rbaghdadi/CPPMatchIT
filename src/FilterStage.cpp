@@ -13,7 +13,7 @@ void FilterStage::handle_extern_output(std::vector<llvm::AllocaInst *> prealloca
     llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_extern_call_result_alloc(), 1);
     llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
     llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
-                                                       mfunction->get_extern_wrapper());
+                                                       mfunction->get_llvm_stage());
     jit->get_builder().CreateCondBr(cmp, loop->get_increment_bb(), dummy);
     // keep it
     jit->get_builder().SetInsertPoint(dummy);
@@ -44,7 +44,7 @@ void FilterStage::handle_extern_output(std::vector<llvm::AllocaInst *> prealloca
 std::vector<llvm::AllocaInst *> FilterStage::preallocate() {
     // The preallocated space for the outputs of this stage.
     std::vector<llvm::AllocaInst *> preallocated_space;
-    preallocator->insert(mfunction->get_extern_wrapper());
+    preallocator->insert(mfunction->get_llvm_stage());
     jit->get_builder().CreateBr(preallocator->get_basic_block());
     jit->get_builder().SetInsertPoint(preallocator->get_basic_block());
 //    llvm::AllocaInst *allocated_space = codegen_llvm_alloca(jit, llvm_int8Ptr, 8); //base_field->get_data_mtype()->codegen_type(), 8);

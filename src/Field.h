@@ -14,30 +14,30 @@ protected:
     int max_malloc;
     int dim1;
     int dim2;
-    int element_ctr;
     MType *data_mtype; // type of the data stored in this BaseField
     void *data = nullptr;
 
 public:
 
     BaseField(int dim1, int dim2, MType *data_mtype) : cur_length(0), max_malloc(0), dim1(dim1), dim2(dim2),
-                                                       element_ctr(0), data_mtype(data_mtype) { }
+                                                       data_mtype(data_mtype) { }
 
-    int get_dim1();
-
-    int get_dim2();
-
-    int get_dummy_field();
-
+    /**
+     * Get the MType associated with this BaseField.
+     */
     MType *get_data_mtype();
 
-    int get_and_increment_ctr();
-
-    int get_cur_length();
-
+    /**
+     * Get the index of the data field of BaseField. For example, if there are 6 fields, cur_length, max_malloc, dim1,
+     * dim2, data_mtype, and data, the index is 5. This is used in the LLVM part where it stores the pointer to allocated
+     * space in the data array (index is needed by getElementPtr).
+     */
     static int get_data_idx();
 
-    // size for a single entry in a field (i.e. for a single Element)
+    /**
+     * Get the size of a single entry in a field.
+     * For a scalar, this is 1. For an array, it's dim1. For a matrix, it's dim1 * dim2.
+     */
     int get_fixed_size();
 
     template <typename T>
@@ -210,11 +210,13 @@ public:
 
 };
 
+/**
+ * Create the MType for a BaseField
+ */
 template <>
 struct create_type<BaseField> {
     operator MStructType*() { // implicit conversion
         std::vector<MType *> mtypes;
-        mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
         mtypes.push_back(MScalarType::get_int_type());
@@ -244,12 +246,18 @@ public:
 
 // TODO there's nothing here to enforce that you should use a field corresponding to this Element. You could basically pass in any field.
 class Element {
+    /**
+     * An element id. This is used as an index into the data array in BaseField.
+     */
     int id;
 
 public:
 
     Element(int id) : id(id) {  }
 
+    /**
+     * Return the id of this element.
+     */
     int get_element_id() const;
 
     /**
@@ -405,8 +413,6 @@ public:
         field->template matrix_allocate_and_set_array<T>(id, row_offset, vals);
     }
 
-
-
 };
 
 template <>
@@ -418,23 +424,44 @@ struct create_type<Element> {
     }
 };
 
+/**
+ * A collection of Field types.
+ */
 class Fields {
 
+    /**
+     * The field types in this collection.
+     */
     std::vector<BaseField *> fields;
 
 public:
 
+    /**
+     * Add a new field.
+     */
     void add(BaseField *field);
 
+    /**
+     * Get the MTypes that correspond to the fields.
+     */
     std::vector<MType *> get_mtypes();
 
+    /**
+     * Get the Field types in this collection.
+     */
     std::vector<BaseField *> get_fields();
 
 };
 
-void init_element(JIT *jit);
-
+/**
+ * A function available to the jit which creates Element types for output from stages.
+ */
 extern "C" Element **create_elements(int num_to_create);
+
+/**
+ * Add the create_elements function to the jit
+ */
+void init_element(JIT *jit);
 
 
 #endif //MATCHIT_FIELD_H
