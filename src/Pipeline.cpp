@@ -101,37 +101,26 @@ void Pipeline::codegen(JIT *jit) {
     llvm::Value *inputs_to_next_stage; // inputs to the next stage are output Elements of the first stage (or inputs, in the case of a filter)
 
     // the type of stage determines the number of Elements passed in
-    if (stage->is_filter()) { // no output elements, just input
-//        for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
-//            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
-//            codegen_llvm_store(jit, iter, alloc, 8);
-//            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-//            if (iter->getType() == llvm_element_type || iter->getType() == llvm_int32) {
-//                llvm_stage_params.push_back(load);
-//            } else {
-//                break;
-//            }
-//        }
+    if (stage->is_filter()) { // pointers to output elements
+        std::vector<llvm::Value *> create_elements_args;
         llvm_stage_params = get_all_element_params(jit, pipeline, llvm_element_type);
-        inputs_to_next_stage = llvm_stage_params[0]; // FilterStage has no outputs, it just passes through an input if it's kept
+        llvm::Value *num_elements_to_create = llvm_stage_params[1];
+        create_elements_args.push_back(num_elements_to_create);
+        create_elements_args.push_back(as_i1(true)); // don't create new Element objects, just the pointers to them
+        llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
+                                                              create_elements_args);
+        llvm_stage_params.push_back(elements);
+        llvm_stage_params.push_back(num_elements_to_create);
+        inputs_to_next_stage = elements; // FilterStage has no "new" outputs, it just passes through an input if it's kept
     } else if (stage->is_segmentation()) { // input and outputs
-//        for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
-//            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
-//            codegen_llvm_store(jit, iter, alloc, 8);
-//            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-//            if (iter->getType() == llvm_element_type || iter->getType() == llvm_int32) {
-//                llvm_stage_params.push_back(load);
-//            } else {
-//                break;
-//            }
-//        }
         llvm_stage_params = get_all_element_params(jit, pipeline, llvm_element_type);
         // create output Elements
         std::vector<llvm::Value *> create_elements_args;
         llvm::LoadInst *num_elements_to_create = codegen_llvm_load(jit, ((SegmentationStage *) stage)->compute_num_output_elements(), 4);
         create_elements_args.push_back(num_elements_to_create);
+        create_elements_args.push_back(as_i1(false));
         llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
-                                                                 create_elements_args);
+                                                              create_elements_args);
         inputs_to_next_stage = elements;
         llvm_stage_params.push_back(elements);
         llvm_stage_params.push_back(num_elements_to_create);
@@ -148,6 +137,7 @@ void Pipeline::codegen(JIT *jit) {
             std::vector<llvm::Value *> create_elements_args;
             llvm::Value *num_elements_to_create = llvm_stage_params[1];
             create_elements_args.push_back(codegen_llvm_mul(jit, num_elements_to_create, num_elements_to_create));
+            create_elements_args.push_back(as_i1(false));
             llvm::Value *elements = jit->get_builder().CreateCall(
                     jit->get_module()->getFunction("create_elements"),
                     create_elements_args);
@@ -157,58 +147,14 @@ void Pipeline::codegen(JIT *jit) {
         } else { // no output, just forward the input
             inputs_to_next_stage = llvm_stage_params[0];
         }
-//
-//        int iter_ctr = 0;
-//        std::vector<llvm::Value *> duplicates;
-//        for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
-//            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
-//            codegen_llvm_store(jit, iter, alloc, 8);
-//            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-//            if (iter->getType() == llvm_element_type || iter->getType() == llvm_int32) {
-//                if (iter_ctr < 2) {
-//                    duplicates.push_back(load); // this is either the input SetElements or the number of input SetElements. Either way, for comparison, it needs to be replicated.
-//                }
-//                llvm_stage_params.push_back(load);
-//            } else {
-//                // duplicate the inputs
-//                for (std::vector<llvm::Value *>::iterator dup = duplicates.begin(); dup != duplicates.end(); dup++) {
-//                    llvm_stage_params.push_back(*dup);
-//                }
-//                break;
-//            }
-//            iter_ctr++;
-//        }
-//        // if there are outputs in this ComparisonStage, create the SetElements for them
-//        if (!output_fields.empty()) {
-//            std::vector<llvm::Value *> create_setelements_args;
-//            llvm::Value *num_of_output_setelements = llvm_stage_params[1];
-//            create_setelements_args.push_back(codegen_llvm_mul(jit, num_of_output_setelements, num_of_output_setelements));
-//            llvm::Value *setelements = jit->get_builder().CreateCall(
-//                    jit->get_module()->getFunction("create_elements"),
-//                    create_setelements_args);
-//            inputs_to_next_stage = setelements;
-//            llvm_stage_params.push_back(setelements);
-//            llvm_stage_params.push_back(num_of_output_setelements);
-//        } else {
-//            inputs_to_next_stage = llvm_stage_params[0];
-//        }
     } else { // some other stage
         llvm_stage_params = get_all_element_params(jit, pipeline, llvm_element_type);
-//        for (llvm::Function::arg_iterator iter = pipeline->arg_begin(); iter != pipeline->arg_end(); iter++) {
-//            llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
-//            codegen_llvm_store(jit, iter, alloc, 8);
-//            llvm::LoadInst *load = codegen_llvm_load(jit, alloc, 8);
-//            if (iter->getType() == llvm_element_type || iter->getType() == llvm_int32) {
-//                llvm_stage_params.push_back(load);
-//            } else {
-//                break;
-//            }
-//        }
         std::vector<llvm::Value *> create_elements_args;
         llvm::Value *num_elements_to_create = llvm_stage_params[1];
         create_elements_args.push_back(num_elements_to_create);
+        create_elements_args.push_back(as_i1(false));
         llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
-                                                                 create_elements_args);
+                                                              create_elements_args);
         inputs_to_next_stage = elements;
         llvm_stage_params.push_back(elements);
         llvm_stage_params.push_back(num_elements_to_create);
@@ -236,30 +182,19 @@ void Pipeline::codegen(JIT *jit) {
         llvm_stage_params.push_back(inputs_to_next_stage);
         llvm_stage_params.push_back(num_outputs);
         // make the new output elements
-        // TODO modify here to allow outputs for comparison stage
         if (stage->is_comparison()) { // duplicate the input setelements
             llvm_stage_params.push_back(inputs_to_next_stage);
             llvm_stage_params.push_back(num_outputs);
-            // check if this comparison has an output
-//            if (!output_fields.empty()) {
-//                std::vector<llvm::Value *> create_elements_args;
-//                llvm::Value *num_elements_to_create = llvm_stage_params[1];
-//                create_elements_args.push_back(codegen_llvm_mul(jit, num_elements_to_create, num_elements_to_create));
-//                llvm::Value *elements = jit->get_builder().CreateCall(
-//                        jit->get_module()->getFunction("create_elements"),
-//                        create_elements_args);
-//                inputs_to_next_stage = elements;
-//                llvm_stage_params.push_back(elements);
-//                llvm_stage_params.push_back(num_elements_to_create);
-//            } // else, the inputs_to_next_stage just stay the same
         }
-        if (!stage->is_filter() && !output_fields.empty()) { // filter has no outputs
+        if (!stage->is_filter() && !output_fields.empty()) { // filter doesn't create new outputs
             std::vector<llvm::Value *> create_element_args;
             if (!stage->is_segmentation()) {
                 create_element_args.push_back(num_outputs);
+                create_element_args.push_back(as_i1(false));
             } else {
-                num_outputs = ((SegmentationStage *) stage)->compute_num_segments(num_outputs);
+                num_outputs = ((SegmentationStage *) stage)->compute_num_segments(num_outputs, pipeline);
                 create_element_args.push_back(num_outputs);
+                create_element_args.push_back(as_i1(false));
             }
             llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"), create_element_args);
             inputs_to_next_stage = elements;
@@ -269,14 +204,15 @@ void Pipeline::codegen(JIT *jit) {
                 llvm_stage_params.push_back(fields[i]);
             }
             field_idx += num_stage_output_fields;
+        } else if (stage->is_filter()) {
+            std::vector<llvm::Value *> create_element_args;
+            create_element_args.push_back(num_outputs);
+            create_element_args.push_back(as_i1(true));
+            llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"), create_element_args);
+            inputs_to_next_stage = elements;
+            llvm_stage_params.push_back(elements);
+            llvm_stage_params.push_back(num_outputs);
         }
-        // create the output Elements and add the fields that correspond to this stage (if necessary)
-//        if (!output_fields.empty()) {
-//            for (int i = field_idx; i < field_idx + num_stage_output_fields; i++) {
-//                llvm_stage_params.push_back(fields[i]);
-//            }
-//            field_idx += num_stage_output_fields;
-//        }
         // call the current stage
         num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());

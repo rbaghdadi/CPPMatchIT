@@ -35,7 +35,7 @@ public:
      *       (segment size) - ((segment size) * overlap)
      *
      */
-    llvm::Value *compute_num_segments(llvm::Value *loop_bound);
+    llvm::Value *compute_num_segments(llvm::Value *loop_bound, llvm::Function *insert_into);
 
     void handle_extern_output(llvm::AllocaInst *output_data_array_size) { }
 

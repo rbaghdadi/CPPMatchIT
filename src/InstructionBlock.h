@@ -56,7 +56,7 @@ private:
 
     /**
      * The local allocated space for all the inputs to the stage functions.
-     * Generated when codegen_old is called.
+     * Generated when codegen is called.
      */
     std::vector<llvm::AllocaInst *> args_alloc;
 

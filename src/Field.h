@@ -456,7 +456,7 @@ public:
 /**
  * A function available to the jit which creates Element types for output from stages.
  */
-extern "C" Element **create_elements(int num_to_create);
+extern "C" Element **create_elements(int num_to_create, bool alloc_pointers_only);
 
 /**
  * Add the create_elements function to the jit

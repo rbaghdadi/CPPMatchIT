@@ -37,7 +37,8 @@ int Element::get_element_id() const {
 
 void init_element(JIT *jit) {
     std::vector<llvm::Type *> element_args;
-    element_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    element_args.push_back(Codegen::llvm_int32);//llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    element_args.push_back(Codegen::llvm_int1);
     MType *setelement_mtype = create_type<Element>();
     llvm::FunctionType *element_ft = llvm::FunctionType::get(
             llvm::PointerType::get(llvm::PointerType::get(setelement_mtype->codegen_type(), 0), 0),
@@ -45,10 +46,12 @@ void init_element(JIT *jit) {
     jit->get_module()->getOrInsertFunction("create_elements", element_ft);
 }
 
-extern "C" Element **create_elements(int num_to_create) {
+extern "C" Element **create_elements(int num_to_create, bool alloc_pointers_only) {
     Element **elements = (Element**)malloc(sizeof(Element*) * num_to_create);
-    for (int i = 0; i < num_to_create; i++) {
-        elements[i] = new Element(i);
+    if (!alloc_pointers_only) {
+        for (int i = 0; i < num_to_create; i++) {
+            elements[i] = new Element(i);
+        }
     }
     return elements;
 }

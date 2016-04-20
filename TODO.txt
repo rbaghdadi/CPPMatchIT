@@ -7,6 +7,7 @@ ENHANCEMENTS
 - create const char create_type functions (see NWMatchIT input function)
 - try to reduce the number of loads and stores that happen just because I pass things around as AllocaInst (for example, in the compute_num_output_elements)
 - need some non-extern stuff
+- When go to variable size, the number of segments to return can be negative based on the actual data size. This needs to be checked for
 
 CLEANUP
 - clean up the run function. Can I make it so that I don't need to pass in each thing separately?
@@ -24,6 +25,7 @@ CRITICAL PATH
 - if only a single element, need to make sure comparison stage is 2, not 1 (which happens if just do squared)
 
 BUGS
+- Filter: it's not actually passing through stuff
 
 QUESTIONS
 - When I call underlying size, do I really want to be calling sizeof? It seems weird to call underlying size on a bunch of pointers

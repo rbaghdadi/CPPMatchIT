@@ -65,6 +65,7 @@ void Stage::init_stage() {
         }
     }
 
+    // inputs to the stage
     std::vector<MType *> stage_param_types;
     stage_param_types.push_back(set_element_ptr_ptr_type); // the input Element objects
     stage_param_types.push_back(MScalarType::get_int_type()); // the number of input Element objects'
@@ -77,7 +78,7 @@ void Stage::init_stage() {
             stage_param_types.push_back(set_element_ptr_ptr_type); // the output Element objects
             stage_param_types.push_back(MScalarType::get_int_type()); // the number of output Element objects
         }
-    } else if (!is_filter()) {
+    } else { //if (!is_filter()) {
         stage_param_types.push_back(set_element_ptr_ptr_type); // the output Element objects
         stage_param_types.push_back(MScalarType::get_int_type()); // the number of output Element objects
     }
@@ -171,7 +172,6 @@ void Stage::codegen() {
         // Create the main loop
         codegen_main_loop(preallocated_space, stage_end);
 
-
         // Finish up the stage and create the final stage output.
         jit->get_builder().SetInsertPoint(stage_end);
         llvm::AllocaInst *final_stage_output = finish_stage(0);
@@ -187,7 +187,6 @@ void Stage::codegen() {
 }
 
 // components for processing data through the user function
-// TODO doesn't have a return statement
 void Stage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
                                            llvm::BasicBlock *stage_end) {
     jit->get_builder().CreateBr(loop->get_condition_bb());
@@ -197,6 +196,7 @@ void Stage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space
     // Create the loop index increment
     loop->codegen_loop_idx_increment();
     jit->get_builder().CreateBr(loop->get_condition_bb());
+
     // Process the data through the user function in the loop body
     // Get the current input to the user function
     // TODO hacky

@@ -151,7 +151,9 @@ llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
         llvm::LoadInst *arg_loaded = codegen_llvm_load(jit, *iter, 8);
         loaded_args.push_back(arg_loaded);
     }
+
     llvm::CallInst *extern_call_result = jit->get_builder().CreateCall(extern_function, loaded_args);
+
     if (extern_call_result->getType()->isVoidTy()) {
         return nullptr;
     } else {

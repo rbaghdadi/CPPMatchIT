@@ -35,3 +35,4 @@ Solutions:
 Solutions:
     a) Passing a nullptr to some llvm thing
     b) Not mallocing the correct amount of space in llvm
+    c) Passing a field value into the runMacro instead of a field pointer
