@@ -156,7 +156,7 @@ void Stage::codegen() {
             field_data_idxs.push_back(as_i32(0));
             field_data_idxs.push_back(as_i32(BaseField::get_data_idx())); // the last member of BaseField is the data array
             // store the preallocated space in the field data arrays
-            for (int i = 0; i < preallocated_space.size(); i++) {
+            for (size_t i = 0; i < preallocated_space.size(); i++) {
                 // the fields are the last stage args, so pull out those and overwrite their data and size fields
                 llvm::AllocaInst *field_alloca = stage_arg_loader->get_args_alloc()[
                         stage_arg_loader->get_args_alloc().size() + i - preallocated_space.size()];

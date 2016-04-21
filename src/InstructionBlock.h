@@ -60,8 +60,6 @@ private:
      */
     std::vector<llvm::AllocaInst *> args_alloc;
 
-    llvm::AllocaInst *secondary_alloc; // used by Filter to store its outputs
-
 public:
 
     StageArgLoader() {

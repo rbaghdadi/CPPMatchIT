@@ -14,13 +14,17 @@ class FilterStage : public Stage {
 
 private:
 
+    // Only here to enforce that the user's function signature is correct. And for debugging.
     bool (*filter)(const Element * const);
 
 public:
 
     FilterStage(bool (*filter)(const Element * const), std::string filter_name, JIT *jit, Fields *input_relation) :
             Stage(jit, "FilterStage", filter_name, input_relation, new Fields(), MScalarType::get_bool_type()),
-            filter(filter) { }
+            filter(filter) {
+        // trick compiler into thinking this is used
+        (void)(this->filter);
+    }
 
     ~FilterStage() {}
 

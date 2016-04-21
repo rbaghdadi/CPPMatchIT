@@ -162,7 +162,7 @@ void Pipeline::codegen(JIT *jit) {
 
     // add the fields that correspond to the first stage (if necessary)
     int field_idx = 0;
-    for (int i = 0; i < output_fields.size(); i++) {
+    for (size_t i = 0; i < output_fields.size(); i++) {
         llvm_stage_params.push_back(fields[field_idx++]);
     }
 
@@ -195,7 +195,7 @@ void Pipeline::codegen(JIT *jit) {
                 inputs_to_next_stage = elements;
                 llvm_stage_params.push_back(elements);
                 llvm_stage_params.push_back(num_elements_to_create);
-                for (int i = field_idx; i < field_idx + num_stage_output_fields; i++) {
+                for (size_t i = field_idx; i < field_idx + num_stage_output_fields; i++) {
                     llvm_stage_params.push_back(fields[i]);
                 }
                 field_idx += num_stage_output_fields;
@@ -216,7 +216,7 @@ void Pipeline::codegen(JIT *jit) {
             inputs_to_next_stage = elements;
             llvm_stage_params.push_back(elements);
             llvm_stage_params.push_back(num_outputs);
-            for (int i = field_idx; i < field_idx + num_stage_output_fields; i++) {
+            for (size_t i = field_idx; i < field_idx + num_stage_output_fields; i++) {
                 llvm_stage_params.push_back(fields[i]);
             }
             field_idx += num_stage_output_fields;

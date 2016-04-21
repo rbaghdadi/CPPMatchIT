@@ -10,6 +10,7 @@
 class SegmentationStage : public Stage {
 private:
 
+    // Only here to enforce that the user's function signature is correct. And for debugging.
     unsigned int (*segment)(const Element * const, Element ** const);
     unsigned int segment_size;
     float overlap;
@@ -23,7 +24,10 @@ public:
                       unsigned int segment_size, float overlap, BaseField *field_to_segment) :
             Stage(jit, "SegmentationStage", segmentation_name, input_relation, output_relation,
                   MScalarType::get_int_type()), segment(segment), segment_size(segment_size), overlap(overlap),
-            field_to_segment(field_to_segment) { }
+            field_to_segment(field_to_segment) {
+        // trick compiler into thinking this is used
+        (void)(this->segment);
+    }
 
     bool is_segmentation();
 
