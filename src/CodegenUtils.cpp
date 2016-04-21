@@ -48,32 +48,31 @@ llvm::Value *codegen_llvm_gep(JIT *jit, llvm::Value *gep_this, std::vector<llvm:
 // load up the input data
 // give the inputs arguments names so we can actually use them
 // the last argument is the size of the array of data being fed in. It is NOT user created
-std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function *function) {
-    llvm::Function *wrapper = function;
+std::vector<llvm::AllocaInst *> load_stage_input_params(JIT *jit, llvm::Function *stage) {
     unsigned ctr = 0;
-    std::vector<llvm::AllocaInst *> alloc_args;
-    for (llvm::Function::arg_iterator iter = wrapper->arg_begin(); iter != wrapper->arg_end(); iter++) {
+    std::vector<llvm::AllocaInst *> params;
+    for (llvm::Function::arg_iterator iter = stage->arg_begin(); iter != stage->arg_end(); iter++) {
         iter->setName("x_" + std::to_string(ctr++));
-        llvm::AllocaInst *alloc = codegen_llvm_alloca(jit, iter->getType(), 8);
-        codegen_llvm_store(jit, iter, alloc, 8);
-        alloc_args.push_back(alloc);
+        llvm::AllocaInst *param = codegen_llvm_alloca(jit, iter->getType(), 8);
+        codegen_llvm_store(jit, iter, param, 8);
+        params.push_back(param);
     }
-    return alloc_args;
+    return params;
 }
 
 // load a single input argument from the stage inputs
-std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
-                                                             std::vector<llvm::AllocaInst *> stage_input_arg_alloc,
-                                                             llvm::AllocaInst *preallocated_output_space,
-                                                             std::vector<llvm::AllocaInst *> loop_idx,
-                                                             bool is_segmentation_stage, bool is_filter_stage,
-                                                             bool has_output_param, llvm::AllocaInst *output_idx) {
+std::vector<llvm::AllocaInst *> load_user_function_input_param(JIT *jit,
+                                                               std::vector<llvm::AllocaInst *> stage_input_param_alloc,
+                                                               llvm::AllocaInst *preallocated_output_space,
+                                                               std::vector<llvm::AllocaInst *> loop_idx,
+                                                               bool is_segmentation_stage, bool is_filter_stage,
+                                                               bool has_output_param, llvm::AllocaInst *output_idx) {
     std::vector<llvm::AllocaInst *> arg_types;
     // get all of the SetElements
-    llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[0], 8); // TODO why don't I just pass in everything so I can index these as 0 and 2. Seems a little more natural
+    llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_param_alloc[0], 8); // TODO why don't I just pass in everything so I can index these as 0 and 2. Seems a little more natural
     llvm::LoadInst *output_set_elements;
     if (!is_filter_stage) {
-        output_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[stage_input_arg_alloc.size() - 1], 8);
+        output_set_elements = codegen_llvm_load(jit, stage_input_param_alloc[stage_input_param_alloc.size() - 1], 8);
     }
 
     // extract the input/output Element corresponding to this loop iteration
@@ -94,7 +93,7 @@ std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
         element_idxs.push_back(loop_idx_load);
 
         // input Element
-        llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_arg_alloc[1], 8);
+        llvm::LoadInst *input_set_elements = codegen_llvm_load(jit, stage_input_param_alloc[1], 8);
         llvm::Value *input_set_element_gep = codegen_llvm_gep(jit, input_set_elements, element_idxs);
         llvm::LoadInst *input_set_element_load = codegen_llvm_load(jit, input_set_element_gep, 8);
         llvm::AllocaInst *input_set_element_alloc = codegen_llvm_alloca(jit, input_set_element_load->getType(), 8);
@@ -142,24 +141,24 @@ llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_al
     return jit->get_builder().CreateICmpSLT(load_idx, load_bound);
 }
 
-// create a call to an extern function
-llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
-                                     std::vector<llvm::AllocaInst *> extern_arg_allocs) {
-    std::vector<llvm::Value *> loaded_args;
-    for (std::vector<llvm::AllocaInst *>::iterator iter = extern_arg_allocs.begin();
-         iter != extern_arg_allocs.end(); iter++) {
-        llvm::LoadInst *arg_loaded = codegen_llvm_load(jit, *iter, 8);
-        loaded_args.push_back(arg_loaded);
+// create a call to a user function
+llvm::AllocaInst *create_user_function_call(JIT *jit, llvm::Function *user_function,
+                                            std::vector<llvm::AllocaInst *> user_function_param_allocs) {
+    std::vector<llvm::Value *> loaded_params;
+    for (std::vector<llvm::AllocaInst *>::iterator iter = user_function_param_allocs.begin();
+         iter != user_function_param_allocs.end(); iter++) {
+        llvm::LoadInst *param = codegen_llvm_load(jit, *iter, 8);
+        loaded_params.push_back(param);
     }
 
-    llvm::CallInst *extern_call_result = jit->get_builder().CreateCall(extern_function, loaded_args);
+    llvm::CallInst *user_function_call_result = jit->get_builder().CreateCall(user_function, loaded_params);
 
-    if (extern_call_result->getType()->isVoidTy()) {
+    if (user_function_call_result->getType()->isVoidTy()) {
         return nullptr;
     } else {
-        llvm::AllocaInst *extern_call_alloc = codegen_llvm_alloca(jit, extern_call_result->getType(), 8);
-        codegen_llvm_store(jit, extern_call_result, extern_call_alloc, 8);
-        return extern_call_alloc;
+        llvm::AllocaInst *user_function_call_alloc = codegen_llvm_alloca(jit, user_function_call_result->getType(), 8);
+        codegen_llvm_store(jit, user_function_call_result, user_function_call_alloc, 8);
+        return user_function_call_alloc;
     }
 }
 

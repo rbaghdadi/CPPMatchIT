@@ -46,7 +46,7 @@ public:
     /**
      * Like filter, only keep outputs that return true.
      */
-    void handle_extern_output();
+    void handle_user_function_output();
 
 };
 

@@ -132,18 +132,18 @@ void Stage::codegen() {
         stage_arg_loader->codegen(jit);
         llvm::AllocaInst *loop_bound_alloc = stage_arg_loader->get_num_input_elements();
 
-        // Create the object that will load the current inputs for the extern function
+        // Create the object that will load the current inputs for the user function
         user_function_arg_loader->insert(mfunction->get_llvm_stage());
 
-        // Create the object that will call the extern function
+        // Create the object that will call the user function
         call->insert(mfunction->get_llvm_stage());
-        call->set_extern_function(mfunction->get_extern());
+        call->set_user_function(mfunction->get_llvm_user_function());
 
         // This block is for cleanup and exiting the stage.
         llvm::BasicBlock *stage_end = llvm::BasicBlock::Create(llvm::getGlobalContext(), "stage_end",
                                                                mfunction->get_llvm_stage());
 
-        // Create the for loop that will run the stage inputs through the extern function
+        // Create the for loop that will run the stage inputs through the user function
         loop->init_codegen();
         jit->get_builder().CreateBr(loop->get_counter_bb());
         loop->codegen_counters(loop_bound_alloc);
@@ -217,10 +217,10 @@ void Stage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space
     user_function_arg_loader->codegen(jit);
     jit->get_builder().CreateBr(call->get_basic_block());
 
-    // Call the extern function
-    call->set_extern_arg_allocs(user_function_arg_loader->get_user_function_input_allocs());
+    // Call the user function
+    call->set_user_function_arg_allocs(user_function_arg_loader->get_user_function_input_allocs());
     call->codegen(jit);
-    handle_extern_output();
+    handle_user_function_output();
     jit->get_builder().CreateBr(loop->get_increment_bb());
 }
 
@@ -242,8 +242,8 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
     return data;
 }
 
-// stages that have an extern output (like filter) can do their own thing
-void Stage::handle_extern_output() {
+// stages that have a user function output (like filter) can do their own thing
+void Stage::handle_user_function_output() {
     loop->codegen_return_idx_increment(nullptr);
 }
 
@@ -278,4 +278,34 @@ std::vector<llvm::AllocaInst *> Stage::preallocate() {
         preallocated_space.push_back(preallocator->get_preallocated_space());
     }
     return preallocated_space;
+}
+
+void Stage::filter_user_function_output() {
+    // check if this output should be kept
+    llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_user_function_call_result_alloc(), 1);
+    llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
+    llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
+                                                       mfunction->get_llvm_stage());
+    jit->get_builder().CreateCondBr(cmp, loop->get_increment_bb(), dummy);
+
+    // keep it
+    jit->get_builder().SetInsertPoint(dummy);
+    llvm::Type *cast_to = (new MPointerType(new MPointerType((MStructType*)create_type<Element>())))->codegen_type();
+    llvm::Value *output_load = jit->get_builder().CreateBitCast(codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2]/*[2] is the output Element param*/, 8), cast_to);
+    llvm::AllocaInst *tmp_alloc = codegen_llvm_alloca(jit, output_load->getType(), 8);
+    codegen_llvm_store(jit, output_load, tmp_alloc, 8);
+    llvm::LoadInst *ret_idx_load = codegen_llvm_load(jit, loop->get_return_idx(), 4);
+    std::vector<llvm::Value *> output_struct_idxs;
+    output_struct_idxs.push_back(ret_idx_load);
+    llvm::Value *output_gep = codegen_llvm_gep(jit, output_load, output_struct_idxs);
+
+    // get the input
+    llvm::LoadInst *input_load = codegen_llvm_load(jit, user_function_arg_loader->get_user_function_input_allocs()[0], 8);
+
+    // copy the input pointer to the output pointer
+    codegen_llvm_store(jit, input_load, output_gep, 8);
+
+    // increment return idx
+    llvm::Value *ret_idx_inc = codegen_llvm_add(jit, ret_idx_load, Codegen::as_i32(1));
+    codegen_llvm_store(jit, ret_idx_inc, loop->get_return_idx(), 4);
 }

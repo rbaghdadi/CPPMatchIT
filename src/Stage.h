@@ -38,10 +38,10 @@ protected:
 
 public:
 
-    // input_type: this is the type I in the subclasses. It's the user type that is going to be fed into the extern function
+    // input_type: this is the type I in the subclasses. It's the user type that is going to be fed into the user function
     // output_type: this is the type O in the subclasses. It's the user type of the data that will be output from this stage
     // (not including the additional counters and such that I manually add on)
-    // user_function_return_type: this is the output type of the extern call. It will usually be mvoid_type, but in the case of
+    // user_function_return_type: this is the output type of the user function call. It will usually be mvoid_type, but in the case of
     // something like filter, it will be mbool_type
 
     Stage(JIT *jit, std::string stage_name, std::string user_function_name, Fields *input_relation,
@@ -85,7 +85,7 @@ public:
     void set_function(MFunc *mfunction);
 
     /**
-     * Create the LLVM function prototypes for the stage wrapper and the extern function
+     * Create the LLVM function prototypes for the stage wrapper and the user function
      */
     virtual void init_codegen();
 
@@ -95,10 +95,10 @@ public:
     virtual void codegen();
 
     /**
-     * Stages should override this is if the stage outputs something from the extern function that needs
+     * Stages should override this is if the stage outputs something from the user function that needs
      * to be specially handled (such as the boolean output from the FilterStage).
      */
-    virtual void handle_extern_output();
+    virtual void handle_user_function_output();
 
     virtual bool is_filter();
 
@@ -119,7 +119,7 @@ public:
     virtual std::vector<llvm::AllocaInst *> preallocate();
 
     /**
-     * The number of output structs returned across all the extern calls.
+     * The number of output structs returned across all the user function calls.
      * Will usually just be the loop bound value.
      */
     virtual llvm::AllocaInst *compute_num_output_elements();
@@ -140,6 +140,12 @@ public:
 
     virtual void codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
                                    llvm::BasicBlock *stage_end);
+
+    /**
+     * ComparisonStage and FilterStage only pass along results if the user function returns true. This is called from
+     * their overriden versions of handle_user_function_output. Can be used by anything in the future that needs filtering too.
+     */
+    void filter_user_function_output();
 
 };
 

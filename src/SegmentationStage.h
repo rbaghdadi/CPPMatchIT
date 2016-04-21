@@ -37,11 +37,9 @@ public:
      */
     llvm::Value *compute_num_segments(llvm::Value *loop_bound, llvm::Function *insert_into);
 
-    void handle_extern_output(llvm::AllocaInst *output_data_array_size) { }
-
     llvm::AllocaInst *compute_num_output_elements();
 
-    void handle_extern_output();
+    void handle_user_function_output();
 
 };
 

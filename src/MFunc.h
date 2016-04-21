@@ -16,37 +16,32 @@ class MFunc {
 private:
 
     /**
-     * Name of the extern function.
+     * Name of the user function.
      */
-    std::string extern_name;
+    std::string user_function_name;
 
     /**
-     * Name of the wrapper function around the extern function.
+     * Name of the stage function that wraps the user function.
      */
-    std::string extern_wrapper_name;
+    std::string stage_name;
 
     /**
-     * The type of block that this function belongs to (i.e. FilterStage, TransformStage, etc)
+     * The user function.
      */
-    std::string associated_block;
+    llvm::Function *user_function;
 
     /**
-     * The extern function.
+     * The function that wraps a user function.
      */
-    llvm::Function *extern_function;
+    llvm::Function *stage_function;
 
     /**
-     * The wrapper around extern_func.
-     */
-    llvm::Function *extern_wrapper_function;
-
-    /**
-     * Return type of the extern function.
+     * Return type of the user function.
      */
     MType *user_function_return_type;
 
     /**
-     * Return type of the individual elements returned by our wrapper function.
+     * Return type of the individual elements returned by our stage.
      * Currently, it does not include the int that gets added on to count
      * the number of elements in the output array.
      * The stage itself returns a pointer to this type because we return an array of these.
@@ -54,12 +49,12 @@ private:
     MType *stage_return_type;
 
     /**
-     * Types of the parameters to the extern function.
+     * Types of the parameters to the user function.
      */
     std::vector<MType *> user_function_param_types;
 
     /**
-     * Types of the parameters to the extern function.
+     * Types of the parameters to the user function.
      */
     std::vector<MType *> stage_param_types;
 
@@ -72,26 +67,26 @@ public:
 
     MFunc(std::string name, std::string associated_block, MType *user_function_return_type, MType *stage_return_type,
           std::vector<MType *> user_function_param_types, std::vector<MType *> stage_param_types, JIT *jit) :
-            extern_name(name), extern_wrapper_name("__execute_" + name), associated_block(associated_block),
+            user_function_name(name), stage_name("__execute_" + name),
             user_function_return_type(user_function_return_type), stage_return_type(stage_return_type),
             user_function_param_types(user_function_param_types), stage_param_types(stage_param_types), jit(jit) { }
 
     ~MFunc() {}
 
     /**
-    * Build the LLVM prototype for extern_func.
+    * Build the LLVM prototype for user function.
     */
     void codegen_user_function_proto();
 
     /**
-     * Build the LLVM prototype for extern_wrapper.
+     * Build the LLVM prototype for stage.
      */
     void codegen_stage_proto();
 
     /**
-     * Check that extern_wrapper is "ok" in LLVM's sense.
+     * Check that stage is "ok" in LLVM's sense.
      */
-    void verify_wrapper();
+    void verify_stage();
 
     /**
      * Print out components of this MFunc
@@ -99,50 +94,44 @@ public:
     void dump();
 
     /**
-     * Get the name of the extern function.
+     * Get the name of the user function.
      */
-    const std::string &get_extern_name() const;
+    const std::string &get_user_function_name() const;
 
     /**
-     * Get the name of the wrapper around the extern function.
+     * Get the name of the stage.
      */
-    const std::string &get_extern_wrapper_name() const;
+    const std::string &get_stage_name() const;
 
     /**
-     * Get the llvm function for the extern function.
+     * Get the llvm function for the user function.
      */
-    llvm::Function *get_extern() const;
+    llvm::Function *get_llvm_user_function() const;
 
     /**
-     * Get the llvm function for the wrapper around the extern function.
+     * Get the llvm function for the stage.
      */
     llvm::Function *get_llvm_stage() const;
 
     /**
-     * Get the parameter types to the extern function.
+     * Get the parameter types to the user function.
      */
-    std::vector<MType *> get_extern_param_types() const;
+    std::vector<MType *> get_user_function_param_types() const;
 
     /**
-     * Get the parameter types to the extern function.
+     * Get the parameter types to the stage.
      */
     std::vector<MType *> get_stage_param_types() const;
 
+    /**
+     * Get the return type of the user function.
+     */
+    MType *get_user_function_return_type() const;
 
     /**
-     * Get the return type of the extern function.
+     * Get the return type of the stage.
      */
-    MType *get_extern_return_type() const;
-
-    /**
-     * Get the return type of the wrapper around the extern function.
-     */
-    MType *get_extern_wrapper_return_type() const;
-
-    /**
-     * Get the block associated with this MFunc.
-     */
-    const std::string get_associated_block() const;
+    MType *get_stage_return_type() const;
 
 };
 

@@ -12,7 +12,7 @@
 
 /*
  * Wrappers for LLVM BasicBlock types that will make up the foundation
- * of the extern wrapper functions when doing codegen_old.
+ * of the stage functions when doing codegen.
  */
 
 /**
@@ -46,7 +46,7 @@ public:
 };
 
 /**
- * Give names to the arguments input to a wrapper function,
+ * Give names to the arguments input to a stage.
  * create AllocaInst values for them, and load them.
  * There will always be 3 inputs: the data, the number of values in all the data arrays, and the number of data structs
  */
@@ -85,15 +85,15 @@ public:
 };
 
 /**
- * Load a single extern_input_arg_alloc from a single input array corresponding to the current loop index.
- * This extern_input_arg_alloc will be an input into whatever extern function is being used.
+ * Load a single user_function_input_arg_alloc from a single input array corresponding to the current loop index.
+ * This user_function_input_arg_alloc will be an input into whatever user function is being used.
  */
 class UserFunctionArgLoader : public InstructionBlock {
 
 private:
 
     /**
-     * The allocated space for the whole argument passed into the stage wrapper function.
+     * The allocated space for the whole argument passed into the stage function.
      * This comes from StageArgLoader.
      * Required when running codegen.
      */
@@ -106,14 +106,14 @@ private:
     llvm::AllocaInst *preallocated_output_space;
 
     /**
-     * Does this extern take an output. Will be false for filter.
+     * Does this user function take an output. Will be false for filter.
      * Required when running codegen.
      */
     bool has_output_param = true;
 
     /**
-     * The loop indices for the arguments pulled from the stage wrapper function. In the ComparisonStage,
-     * there are two input streams passed into the wrapper, so there will be two corresponding loop_idxs.
+     * The loop indices for the arguments pulled from the stage  unction. In the ComparisonStage,
+     * there are two input streams passed into the stage, so there will be two corresponding loop_idxs.
      * Required when running codegen.
      */
     std::vector<llvm::AllocaInst *> loop_idx_alloc;
@@ -134,10 +134,10 @@ private:
     bool is_filter_stage = false;
 
     /**
-     * The allocated space for the input elements for the extern function.
+     * The allocated space for the input elements for the user function.
      * Generated when codegen is called.
      */
-    std::vector<llvm::AllocaInst *> extern_input_arg_alloc;
+    std::vector<llvm::AllocaInst *> user_function_input_arg_alloc;
 
 public:
 
@@ -177,22 +177,22 @@ class UserFunctionCall : public InstructionBlock {
 private:
 
     /**
-     * Arguments for this extern call (generated in UserFunctionArgLoader).
+     * Arguments for this user call (generated in UserFunctionArgLoader).
      * Required when running codegen.
      */
-    std::vector<llvm::AllocaInst *> extern_arg_allocs;
+    std::vector<llvm::AllocaInst *> user_function_arg_allocs;
 
     /**
-     * The extern function to call.
+     * The user function to call.
      * Required when running codegen.
      */
-    llvm::Function *extern_function;
+    llvm::Function *user_function;
 
     /**
-     * The result of running the extern function.
+     * The result of running the user function.
      * Generated when running codegen.
      */
-    llvm::AllocaInst *extern_call_result_alloc;
+    llvm::AllocaInst *user_function_call_result_alloc;
 
 public:
 
@@ -202,11 +202,11 @@ public:
 
     ~UserFunctionCall() { }
 
-    llvm::AllocaInst *get_extern_call_result_alloc();
+    llvm::AllocaInst *get_user_function_call_result_alloc();
 
-    void set_extern_function(llvm::Function *extern_function);
+    void set_user_function(llvm::Function *user_function);
 
-    void set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_arg_allocs);
+    void set_user_function_arg_allocs(std::vector<llvm::AllocaInst *> user_function_args);
 
     void codegen(JIT *jit, bool no_insert = false);
 

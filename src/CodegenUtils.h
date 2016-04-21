@@ -136,17 +136,17 @@ llvm::Value *codegen_llvm_gep(JIT *jit, llvm::Value *gep_this, std::vector<llvm:
  * Stage codegen stuff
  */
 
-std::vector<llvm::AllocaInst *> load_wrapper_input_args(JIT *jit, llvm::Function *function);
+std::vector<llvm::AllocaInst *> load_stage_input_params(JIT *jit, llvm::Function *stage);
 
-std::vector<llvm::AllocaInst *> load_user_function_input_arg(JIT *jit,
-                                                             std::vector<llvm::AllocaInst *> stage_input_arg_alloc,
-                                                             llvm::AllocaInst *preallocated_output_space,
-                                                             std::vector<llvm::AllocaInst *> loop_idx,
-                                                             bool is_segmentation_stage, bool is_filter_stage,
-                                                             bool has_output_param, llvm::AllocaInst *output_idx);
+std::vector<llvm::AllocaInst *> load_user_function_input_param(JIT *jit,
+                                                               std::vector<llvm::AllocaInst *> stage_input_param_alloc,
+                                                               llvm::AllocaInst *preallocated_output_space,
+                                                               std::vector<llvm::AllocaInst *> loop_idx,
+                                                               bool is_segmentation_stage, bool is_filter_stage,
+                                                               bool has_output_param, llvm::AllocaInst *output_idx);
 
-llvm::AllocaInst *create_extern_call(JIT *jit, llvm::Function *extern_function,
-                                     std::vector<llvm::AllocaInst *> extern_arg_allocs);
+llvm::AllocaInst *create_user_function_call(JIT *jit, llvm::Function *user_function,
+                                            std::vector<llvm::AllocaInst *> user_function_param_allocs);
 
 llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound);
 

@@ -52,7 +52,7 @@ void StageArgLoader::add_arg_alloc(llvm::AllocaInst *alloc) {
 void StageArgLoader::codegen(JIT *jit, bool no_insert) {
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    args_alloc = Codegen::load_wrapper_input_args(jit, function);
+    args_alloc = Codegen::load_stage_input_params(jit, function);
     codegen_done = true;
 }
 
@@ -61,15 +61,15 @@ void StageArgLoader::codegen(JIT *jit, bool no_insert) {
  */
 
 std::vector<llvm::AllocaInst *> UserFunctionArgLoader::get_user_function_input_allocs() {
-    return extern_input_arg_alloc;
+    return user_function_input_arg_alloc;
 }
 
 llvm::AllocaInst *UserFunctionArgLoader::get_preallocated_output_space() {
     return preallocated_output_space;
 }
 
-void UserFunctionArgLoader::set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> wrapper_input_arg_alloc) {
-    this->stage_input_arg_alloc = wrapper_input_arg_alloc;
+void UserFunctionArgLoader::set_stage_input_arg_alloc(std::vector<llvm::AllocaInst *> stage_input_arg_alloc) {
+    this->stage_input_arg_alloc = stage_input_arg_alloc;
 }
 
 void UserFunctionArgLoader::set_no_output_param() {
@@ -99,10 +99,11 @@ void UserFunctionArgLoader::set_output_idx_alloc(llvm::AllocaInst *output_idx_al
 void UserFunctionArgLoader::codegen(JIT *jit, bool no_insert) {
     assert(!codegen_done);
     jit->get_builder().SetInsertPoint(bb);
-    extern_input_arg_alloc = Codegen::load_user_function_input_arg(jit, stage_input_arg_alloc,
-                                                                   preallocated_output_space, loop_idx_alloc,
-                                                                   is_segmentation_stage,
-                                                                   is_filter_stage, has_output_param, output_idx_alloc);
+    user_function_input_arg_alloc = Codegen::load_user_function_input_param(jit, stage_input_arg_alloc,
+                                                                            preallocated_output_space, loop_idx_alloc,
+                                                                            is_segmentation_stage,
+                                                                            is_filter_stage, has_output_param,
+                                                                            output_idx_alloc);
     codegen_done = true;
 }
 
@@ -110,26 +111,26 @@ void UserFunctionArgLoader::codegen(JIT *jit, bool no_insert) {
  * UserFunctionCall
  */
 
-llvm::AllocaInst *UserFunctionCall::get_extern_call_result_alloc() {
-    return extern_call_result_alloc;
+llvm::AllocaInst *UserFunctionCall::get_user_function_call_result_alloc() {
+    return user_function_call_result_alloc;
 }
 
-void UserFunctionCall::set_extern_arg_allocs(std::vector<llvm::AllocaInst *> extern_args) {
-    this->extern_arg_allocs = extern_args;
+void UserFunctionCall::set_user_function_arg_allocs(std::vector<llvm::AllocaInst *> user_function_args) {
+    this->user_function_arg_allocs = user_function_args;
 }
 
-void UserFunctionCall::set_extern_function(llvm::Function *extern_function) {
-    this->extern_function = extern_function;
+void UserFunctionCall::set_user_function(llvm::Function *user_function) {
+    this->user_function = user_function;
 }
 
 void UserFunctionCall::codegen(JIT *jit, bool no_insert) {
-    assert(!extern_arg_allocs.empty());
-    assert(extern_function);
+    assert(!user_function_arg_allocs.empty());
+    assert(user_function);
     assert(!codegen_done);
     if (!no_insert) {
         jit->get_builder().SetInsertPoint(bb);
     }
-    extern_call_result_alloc = Codegen::create_extern_call(jit, extern_function, extern_arg_allocs);
+    user_function_call_result_alloc = Codegen::create_user_function_call(jit, user_function, user_function_arg_allocs);
     codegen_done = true;
 }
 

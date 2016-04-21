@@ -26,7 +26,7 @@ public:
 
     bool is_filter();
 
-    void handle_extern_output();
+    void handle_user_function_output();
 
     std::vector<llvm::AllocaInst *> preallocate();
 

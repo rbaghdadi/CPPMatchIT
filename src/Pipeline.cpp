@@ -235,5 +235,5 @@ void Pipeline::codegen(JIT *jit) {
     }
 
     jit->get_builder().CreateRet(nullptr);
-    mfunction_stage->verify_wrapper();
+    mfunction_stage->verify_stage();
 }
