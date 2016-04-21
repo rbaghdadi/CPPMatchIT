@@ -22,47 +22,10 @@ const unsigned int seg_size = 75000;
 const float overlap = 0.00;
 const int dim = 45539;
 
-// Initial file->audio inputs
-Field<char, 200> filepath;
-// Filter inputs
-Field<char, 200> filter_filepath;
-Field<float, 1500000> audio;
-Field<int> audio_length; // This is needed since we don't have variable size arrays. It's the actual length of the audio
-// segmentation
-Field<char, 200> segment_filepath;
-Field<float, seg_size> audio_segment;
-Field<int> segment_offset;
-// transformation
-Field<char, 200> fft_filepath;
-Field<float, fft_size> fft;
-// comparison
-Field<char, 200> ifft_filepath1;
-Field<char, 200> ifft_filepath2;
-Field<float, dim> clipped;
-
-/**
- * TransformationStage. Reads in audio.
- */
-extern "C" void read_audio(const Element * const in, Element * const out) {
-    char *fp = in->get(&filepath);
-    std::cerr << "reading in " << fp << " with length : ";
-    FILE *file = fopen(fp, "rb");
-    fseek(file, 0L, SEEK_END);
-    int length = ftell(file) / sizeof(float);
-    std::cerr << length << std::endl;
-    fseek(file, 0L, SEEK_SET);
-    float *data = (float*)malloc_32(sizeof(float) * length);
-    fread(data, sizeof(float), length, file);
-    fclose(file);
-    out->set(&filter_filepath, fp);
-    out->set(&audio, data);
-    out->set(&audio_length, length);
-    free(data);
-}
-
 /**
  * FilterStage. Remove all files that end in txt
  */
+Field<char, 200> filter_filepath;
 extern "C" bool filter(const Element * const input) {
     char *file = input->get(&filter_filepath);
     bool keep = strstr(file, "txt") == nullptr; // if == nullptr, keep it because it does NOT end in txt (can't FFT a txt file...)
@@ -75,11 +38,37 @@ extern "C" bool filter(const Element * const input) {
 }
 
 /**
+ * TransformationStage. Reads in audio.
+ */
+Field<char, 200> audio_filepath;
+Field<float, 1500000> audio;
+Field<int> audio_length; // This is needed since we don't have variable size arrays. It's the actual length of the audio
+extern "C" void read_audio(const Element * const in, Element * const out) {
+    char *fp = in->get(&filter_filepath);
+    std::cerr << "reading in " << fp << " with length : ";
+    FILE *file = fopen(fp, "rb");
+    fseek(file, 0L, SEEK_END);
+    int length = ftell(file) / sizeof(float);
+    std::cerr << length << std::endl;
+    fseek(file, 0L, SEEK_SET);
+    float *data = (float*)malloc_32(sizeof(float) * length);
+    fread(data, sizeof(float), length, file);
+    fclose(file);
+    out->set(&audio_filepath, fp);
+    out->set(&audio, data);
+    out->set(&audio_length, length);
+    free(data);
+}
+
+/**
  * SegmentationStage. Segment the audio into fixed size chunks.
  */
+Field<char, 200> segment_filepath;
+Field<float, seg_size> segment_audio;
+Field<int> segment_offset;
 extern "C" unsigned int segment(const Element * const audio_in, Element ** const segmented_audio) {
     int seg_ctr = 0;
-    std::cerr << "segmenting file: " << audio_in->get(&filter_filepath);
+    std::cerr << "segmenting file: " << audio_in->get(&audio_filepath);
     int length = audio_in->get(&audio_length);
     int num_segments = ceil((length - (seg_size*overlap)) / (seg_size - seg_size * overlap));
     std::cerr << " into " << num_segments << " segments." << std::endl;
@@ -106,13 +95,13 @@ extern "C" unsigned int segment(const Element * const audio_in, Element ** const
             for (int j = last_idx; j < last_idx + pad_amt; j++) {
                 padded[ctr++] = audio_in->get(&audio, next_start - 1);
             }
-            segmented_audio[seg_ctr]->set(&audio_segment, padded);
+            segmented_audio[seg_ctr]->set(&segment_audio, padded);
             segmented_audio[seg_ctr]->set(&segment_offset, start);
-            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&filter_filepath));
+            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&audio_filepath));
         } else {
-            segmented_audio[seg_ctr]->set(&audio_segment, &(audio_floats[start]));
+            segmented_audio[seg_ctr]->set(&segment_audio, &(audio_floats[start]));
             segmented_audio[seg_ctr]->set(&segment_offset, start);
-            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&filter_filepath));
+            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&audio_filepath));
         }
         seg_ctr++;
     }
@@ -122,9 +111,11 @@ extern "C" unsigned int segment(const Element * const audio_in, Element ** const
 /**
  * TransformStage. Compute the FFT of the chunks.
  */
+Field<char, 200> fft_filepath;
+Field<float, fft_size> fft;
 extern "C" void compute_fft(const Element * const input, Element * const output) {
     std::cerr << "computing FFT for " << input->get(&segment_filepath) << " that starts at offset " << input->get(&segment_offset) << std::endl;
-    fftwf_plan plan = fftwf_plan_r2r_1d(fft_size, input->get(&audio_segment), output->get(&fft), FFTW_R2HC, FFTW_ESTIMATE);
+    fftwf_plan plan = fftwf_plan_r2r_1d(fft_size, input->get(&segment_audio), output->get(&fft), FFTW_R2HC, FFTW_ESTIMATE);
     // TODO is there a way to make these reusable in my setup? You save some overhead if you don't have to recreate them all the time
     // same with the one in correlation
     fftwf_execute(plan);
@@ -135,6 +126,9 @@ extern "C" void compute_fft(const Element * const input, Element * const output)
 /**
  * ComparisonStage. Correlate the FFTs by multiplying and then applying the inverse FFT.
  */
+Field<char, 200> ifft_filepath1;
+Field<char, 200> ifft_filepath2;
+Field<float, dim> clipped;
 extern "C" bool correlate(const Element * const fft1, const Element * const fft2, Element * const correlation) {
     correlation->set(&ifft_filepath1, fft1->get(&fft_filepath));
     correlation->set(&ifft_filepath2, fft2->get(&fft_filepath));
@@ -186,9 +180,9 @@ std::vector<Element *> init_filepaths() {
     Element *e1 = new Element(0);
     Element *e2 = new Element(1);
     Element *e3 = new Element(2);
-    e1->allocate_and_set(&filepath, &fp1[0]);
-    e2->allocate_and_set(&filepath, &fp2[0]);
-    e3->allocate_and_set(&filepath, &fp3[0]);
+    e1->allocate_and_set(&filter_filepath, &fp1[0]);
+    e2->allocate_and_set(&filter_filepath, &fp2[0]);
+    e3->allocate_and_set(&filter_filepath, &fp3[0]);
     elements.push_back(e1);
     elements.push_back(e2);
     elements.push_back(e3);
@@ -199,17 +193,17 @@ int main() {
 
     JIT *jit = init();
 
-    Fields input_fields;
-    input_fields.add(&filepath);
-
     Fields filter_fields;
     filter_fields.add(&filter_filepath);
-    filter_fields.add(&audio);
-    filter_fields.add(&audio_length);
+
+    Fields read_audio_fields;
+    read_audio_fields.add(&audio_filepath);
+    read_audio_fields.add(&audio);
+    read_audio_fields.add(&audio_length);
 
     Fields segment_fields;
     segment_fields.add(&segment_filepath);
-    segment_fields.add(&audio_segment);
+    segment_fields.add(&segment_audio);
     segment_fields.add(&segment_offset);
 
     Fields fft_fields;
@@ -223,16 +217,16 @@ int main() {
 
     std::vector<Element *> elements = init_filepaths();
 
-    FilterStage filt = create_filter_stage(jit, filter, "filter", &filter_fields); // TODO reorder these fields
-    TransformStage reader = create_transform_stage(jit, read_audio, "read_audio", &input_fields, &filter_fields);
-    SegmentationStage segmentor = create_segmentation_stage(jit, segment, "segment", &filter_fields, &segment_fields,
+    FilterStage filt = create_filter_stage(jit, filter, "filter", &filter_fields);
+    TransformStage reader = create_transform_stage(jit, read_audio, "read_audio", &filter_fields, &read_audio_fields);
+    SegmentationStage segmentor = create_segmentation_stage(jit, segment, "segment", &read_audio_fields, &segment_fields,
                                                             &audio, seg_size, overlap);
     TransformStage fft_xform = create_transform_stage(jit, compute_fft, "compute_fft", &segment_fields, &fft_fields);
     ComparisonStage ifft_xform = create_comparison_stage(jit, correlate, "correlate", &fft_fields, &ifft_fields);
 
     Pipeline pipeline;
-    pipeline.register_stage(&reader);
     pipeline.register_stage(&filt);
+    pipeline.register_stage(&reader);
     pipeline.register_stage(&segmentor);
     pipeline.register_stage(&fft_xform);
     pipeline.register_stage(&ifft_xform);
@@ -240,7 +234,7 @@ int main() {
     jit->dump();
     jit->add_module();
 
-    run(jit, elements, &filter_filepath, &audio, &audio_length, &segment_filepath, &audio_segment, &segment_offset,
+    run(jit, elements, &audio_filepath, &audio, &audio_length, &segment_filepath, &segment_audio, &segment_offset,
         &fft_filepath, &fft, &ifft_filepath1, &ifft_filepath2, &clipped);
 
     return 0;
