@@ -74,5 +74,20 @@ void ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst *> prealloc
 }
 
 void ComparisonStage::handle_user_function_output() {
-    filter_user_function_output();
+//    if (compareBIO != nullptr) { // has an output
+        // check if this output should be kept
+        llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_user_function_call_result_alloc(), 1);
+        llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
+        llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
+                                                           mfunction->get_llvm_stage());
+        jit->get_builder().CreateCondBr(cmp, inner->get_increment_bb(), dummy);
+
+        // keep it and increment the return idx
+        jit->get_builder().SetInsertPoint(dummy);
+        llvm::LoadInst *ret_idx_load = codegen_llvm_load(jit, loop->get_return_idx(), 4);
+        llvm::Value *ret_idx_inc = codegen_llvm_add(jit, ret_idx_load, Codegen::as_i32(1));
+        codegen_llvm_store(jit, ret_idx_inc, loop->get_return_idx(), 4);
+//    } else { // no output, don't do anything for now
+//        Stage::handle_user_function_output();
+//    }
 }

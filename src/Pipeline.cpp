@@ -169,6 +169,7 @@ void Pipeline::codegen(JIT *jit) {
     // call the first stage
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     llvm::Value *num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
+    codegen_fprintf_int(jit, num_outputs);
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
     // chain the other stages together
@@ -187,8 +188,8 @@ void Pipeline::codegen(JIT *jit) {
             llvm_stage_params.push_back(num_outputs);
             if (!output_fields.empty()) {
                 std::vector<llvm::Value *> create_elements_args;
-                llvm::Value *num_elements_to_create = llvm_stage_params[1];
-                create_elements_args.push_back(codegen_llvm_mul(jit, num_elements_to_create, num_elements_to_create));
+                llvm::Value *num_elements_to_create = codegen_llvm_mul(jit, llvm_stage_params[1], llvm_stage_params[1]);
+                create_elements_args.push_back(num_elements_to_create);
                 create_elements_args.push_back(as_i1(false));
                 llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
                                                                       create_elements_args);
@@ -231,6 +232,7 @@ void Pipeline::codegen(JIT *jit) {
         }
         // call the current stage
         num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
+        codegen_fprintf_int(jit, num_outputs);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     }
 

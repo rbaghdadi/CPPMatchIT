@@ -141,12 +141,6 @@ public:
     virtual void codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
                                    llvm::BasicBlock *stage_end);
 
-    /**
-     * ComparisonStage and FilterStage only pass along results if the user function returns true. This is called from
-     * their overriden versions of handle_user_function_output. Can be used by anything in the future that needs filtering too.
-     */
-    void filter_user_function_output();
-
 };
 
 #endif //MATCHIT_STAGE_H

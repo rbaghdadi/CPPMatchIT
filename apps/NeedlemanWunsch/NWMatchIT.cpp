@@ -173,14 +173,14 @@ int main() {
     alignment_matrix_inputs.add(&sequence_name);
     alignment_matrix_inputs.add(&sequence_length);
 
-    Fields alignment_matrix_relation;
-    alignment_matrix_relation.add(&alignment_matrix);
-    alignment_matrix_relation.add(&sequence1_name);
-    alignment_matrix_relation.add(&sequence2_name);
-    alignment_matrix_relation.add(&sequence1);
-    alignment_matrix_relation.add(&sequence2);
-    alignment_matrix_relation.add(&sequence1_length);
-    alignment_matrix_relation.add(&sequence2_length);
+    Fields alignment_matrix_outputs;
+    alignment_matrix_outputs.add(&alignment_matrix);
+    alignment_matrix_outputs.add(&sequence1_name);
+    alignment_matrix_outputs.add(&sequence2_name);
+    alignment_matrix_outputs.add(&sequence1);
+    alignment_matrix_outputs.add(&sequence2);
+    alignment_matrix_outputs.add(&sequence1_length);
+    alignment_matrix_outputs.add(&sequence2_length);
 
     Fields traceback_relation;
     traceback_relation.add(&traceback);
@@ -188,10 +188,10 @@ int main() {
     std::vector<Element *> in_elements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
 
     ComparisonStage compare = create_comparison_stage(jit, compute_alignment_matrix, "compute_alignment_matrix",
-                                                      &alignment_matrix_inputs, &alignment_matrix_relation);
+                                                      &alignment_matrix_inputs, &alignment_matrix_outputs);
 
     TransformStage traceback_stage = create_transform_stage(jit, compute_traceback_alignment, "compute_traceback_alignment",
-                                                            &alignment_matrix_relation, &traceback_relation);
+                                                            &alignment_matrix_outputs, &traceback_relation);
 
     Pipeline pipeline;
     pipeline.register_stage(&compare);
@@ -200,8 +200,10 @@ int main() {
     jit->dump();
     jit->add_module();
 
-    run(jit, in_elements, &alignment_matrix, &sequence1_name, &sequence2_name, &sequence1, &sequence2,
-        &sequence1_length, &sequence2_length, &traceback);
+    for (int i = 0; i < 20; i++) {
+        run(jit, in_elements, &alignment_matrix, &sequence1_name, &sequence2_name, &sequence1, &sequence2,
+            &sequence1_length, &sequence2_length, &traceback);
+    }
 
     return 0;
 }

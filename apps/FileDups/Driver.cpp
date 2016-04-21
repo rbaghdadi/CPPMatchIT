@@ -102,7 +102,9 @@ int main() {
     jit->add_module();
 
     // add the output fields here (add all across the stages)
-    run(jit, in_elements, &filepath_out, &md5_out);
+    for (int i = 0; i < 20; i++) {
+        run(jit, in_elements, &filepath_out, &md5_out);
+    }
 
     return 0;
 }
