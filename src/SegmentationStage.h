@@ -41,7 +41,7 @@ public:
 
     llvm::AllocaInst *compute_num_output_elements();
 
-    void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
+    void handle_extern_output();
 
 };
 

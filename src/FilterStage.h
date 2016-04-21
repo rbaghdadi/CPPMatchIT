@@ -26,7 +26,7 @@ public:
 
     bool is_filter();
 
-    void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
+    void handle_extern_output();
 
     std::vector<llvm::AllocaInst *> preallocate();
 

@@ -220,7 +220,7 @@ void Stage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space
     // Call the extern function
     call->set_extern_arg_allocs(user_function_arg_loader->get_user_function_input_allocs());
     call->codegen(jit);
-    handle_extern_output(preallocated_space);
+    handle_extern_output();
     jit->get_builder().CreateBr(loop->get_increment_bb());
 }
 
@@ -243,7 +243,7 @@ std::vector<llvm::AllocaInst *> Stage::get_user_function_arg_loader_data() {
 }
 
 // stages that have an extern output (like filter) can do their own thing
-void Stage::handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space) {
+void Stage::handle_extern_output() {
     loop->codegen_return_idx_increment(nullptr);
 }
 

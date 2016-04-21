@@ -98,7 +98,7 @@ public:
      * Stages should override this is if the stage outputs something from the extern function that needs
      * to be specially handled (such as the boolean output from the FilterStage).
      */
-    virtual void handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space);
+    virtual void handle_extern_output();
 
     virtual bool is_filter();
 

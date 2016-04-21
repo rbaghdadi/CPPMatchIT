@@ -29,7 +29,7 @@ protected:
 
     /**
      * The MFunc associated with this InstructionBlock.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     bool codegen_done = false;
 
@@ -95,26 +95,26 @@ private:
     /**
      * The allocated space for the whole argument passed into the stage wrapper function.
      * This comes from StageArgLoader.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     std::vector<llvm::AllocaInst *> stage_input_arg_alloc;
 
     /**
      * The preallocated output space.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     llvm::AllocaInst *preallocated_output_space;
 
     /**
      * Does this extern take an output. Will be false for filter.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     bool has_output_param = true;
 
     /**
      * The loop indices for the arguments pulled from the stage wrapper function. In the ComparisonStage,
      * there are two input streams passed into the wrapper, so there will be two corresponding loop_idxs.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     std::vector<llvm::AllocaInst *> loop_idx_alloc;
 
@@ -135,7 +135,7 @@ private:
 
     /**
      * The allocated space for the input elements for the extern function.
-     * Generated when codegen_old is called.
+     * Generated when codegen is called.
      */
     std::vector<llvm::AllocaInst *> extern_input_arg_alloc;
 
@@ -178,19 +178,19 @@ private:
 
     /**
      * Arguments for this extern call (generated in UserFunctionArgLoader).
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     std::vector<llvm::AllocaInst *> extern_arg_allocs;
 
     /**
      * The extern function to call.
-     * Required when running codegen_old.
+     * Required when running codegen.
      */
     llvm::Function *extern_function;
 
     /**
      * The result of running the extern function.
-     * Generated when running codegen_old.
+     * Generated when running codegen.
      */
     llvm::AllocaInst *extern_call_result_alloc;
 

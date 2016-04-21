@@ -9,7 +9,7 @@ bool FilterStage::is_filter() {
 }
 
 // pass along Element if should be kept, otherwise, don't do anything with it
-void FilterStage::handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space) {
+void FilterStage::handle_extern_output() {
     // check if this output should be kept
     llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_extern_call_result_alloc(), 1);
     llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
@@ -19,7 +19,7 @@ void FilterStage::handle_extern_output(std::vector<llvm::AllocaInst *> prealloca
     // keep it
     jit->get_builder().SetInsertPoint(dummy);
     llvm::Type *cast_to = (new MPointerType(new MPointerType((MStructType*)create_type<Element>())))->codegen_type();
-    llvm::Value *output_load = jit->get_builder().CreateBitCast(codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2]/*[2] is the output Element param*/, 8), cast_to); // preallocated_space[0] has the output element space
+    llvm::Value *output_load = jit->get_builder().CreateBitCast(codegen_llvm_load(jit, stage_arg_loader->get_args_alloc()[2]/*[2] is the output Element param*/, 8), cast_to);
     llvm::AllocaInst *tmp_alloc = codegen_llvm_alloca(jit, output_load->getType(), 8);
     codegen_llvm_store(jit, output_load, tmp_alloc, 8);
     llvm::LoadInst *ret_idx_load = codegen_llvm_load(jit, loop->get_return_idx(), 4);

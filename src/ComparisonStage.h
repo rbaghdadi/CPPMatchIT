@@ -43,6 +43,11 @@ public:
      */
     llvm::AllocaInst *compute_num_output_elements();
 
+    /**
+     * Like filter, only keep outputs that return true.
+     */
+    void handle_extern_output();
+
 };
 
 #endif //MATCHIT_COMPARISONBLOCK_H

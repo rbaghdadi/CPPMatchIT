@@ -34,7 +34,7 @@ llvm::AllocaInst *SegmentationStage::compute_num_output_elements() {
     return num_alloca;
 }
 
-void SegmentationStage::handle_extern_output(std::vector<llvm::AllocaInst *> preallocated_space) {
+void SegmentationStage::handle_extern_output() {
     llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_extern_call_result_alloc(), 4);
     loop->codegen_return_idx_increment(call_result_load);
 }
