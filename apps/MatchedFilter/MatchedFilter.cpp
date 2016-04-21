@@ -18,7 +18,7 @@
 #include "../../src/Utils.h"
 
 const unsigned int fft_size = 65536;
-const unsigned int seg_size = 20000;
+const unsigned int seg_size = 75000;
 const float overlap = 0.00;
 const int dim = 45539;
 
@@ -26,7 +26,7 @@ const int dim = 45539;
 Field<char, 200> filepath;
 // Filter inputs
 Field<char, 200> filter_filepath;
-Field<float, 25000> audio; // 2000000
+Field<float, 1500000> audio;
 Field<int> audio_length; // This is needed since we don't have variable size arrays. It's the actual length of the audio
 // segmentation
 Field<char, 200> segment_filepath;
@@ -36,7 +36,8 @@ Field<int> segment_offset;
 Field<char, 200> fft_filepath;
 Field<float, fft_size> fft;
 // comparison
-Field<char, 200> ifft_filepath;
+Field<char, 200> ifft_filepath1;
+Field<char, 200> ifft_filepath2;
 Field<float, dim> clipped;
 
 /**
@@ -78,37 +79,43 @@ extern "C" bool filter(const Element * const input) {
  */
 extern "C" unsigned int segment(const Element * const audio_in, Element ** const segmented_audio) {
     int seg_ctr = 0;
-    std::cerr << "segmenting file: " << audio_in->get(&filter_filepath) << std::endl;
-//    int length = audio_in->get(&audio_length);
-//    int num_segments = ceil((length - (seg_size*overlap)) / (seg_size - seg_size * overlap));
-//    float *audio_floats = audio_in->get(&audio);
-//    if (num_segments <= 0) { // too little data for even a single segment, so just pad it outwards
-//        num_segments = 1;
-//    }
-//    for (int i = 0; i < num_segments; i++) {
-//        int start = i * seg_size * overlap;
-//        if ((start + seg_size) > length) { // need to pad outwards
-//            float padded[seg_size];
-//            int pad_amt = (start + seg_size) - length;
-//            // get the data that doesn't need padding
-//            int last_idx = 0;
-//            for (int j = start; j < length; j++) {
-//                padded[j - start] = audio_in->get(&audio, j);
-//                last_idx = j;
-//            }
-//            // get the padding
-//            int next_start = length;
-//            for (int j = last_idx; j < last_idx + pad_amt; j++) {
-//                padded[j] = audio_in->get(&audio, next_start - 1);
-//            }
-//            segmented_audio[seg_ctr]->set(&audio_segment, padded);
-//            segmented_audio[seg_ctr]->set(&segment_offset, start);
-//        } else {
-//            segmented_audio[seg_ctr]->set(&audio_segment, &(audio_floats[start]));
-//            segmented_audio[seg_ctr]->set(&segment_offset, start);
-//        }
-//        seg_ctr++;
-//    }
+    std::cerr << "segmenting file: " << audio_in->get(&filter_filepath);
+    int length = audio_in->get(&audio_length);
+    int num_segments = ceil((length - (seg_size*overlap)) / (seg_size - seg_size * overlap));
+    std::cerr << " into " << num_segments << " segments." << std::endl;
+    float *audio_floats = audio_in->get(&audio);
+    if (num_segments <= 0) { // too little data for even a single segment, so just pad it outwards
+        num_segments = 1;
+    }
+    for (int i = 0; i < num_segments; i++) {
+        // segsize = 24, overlap = 75%
+        // start = 0, start = 6 (1*24*0.25), start = 12, start = 18 (3*24*0.25)
+        int start = i * seg_size * (1 - overlap);
+        if ((start + seg_size) > length) { // need to pad outwards
+            float padded[seg_size];
+            int pad_amt = (start + seg_size) - length;
+            // get the data that doesn't need padding
+            int last_idx = 0;
+            for (int j = start; j < length; j++) {
+                padded[j - start] = audio_in->get(&audio, j);
+                last_idx = j;
+            }
+            // get the padding
+            int next_start = length;
+            int ctr = 0;
+            for (int j = last_idx; j < last_idx + pad_amt; j++) {
+                padded[ctr++] = audio_in->get(&audio, next_start - 1);
+            }
+            segmented_audio[seg_ctr]->set(&audio_segment, padded);
+            segmented_audio[seg_ctr]->set(&segment_offset, start);
+            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&filter_filepath));
+        } else {
+            segmented_audio[seg_ctr]->set(&audio_segment, &(audio_floats[start]));
+            segmented_audio[seg_ctr]->set(&segment_offset, start);
+            segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&filter_filepath));
+        }
+        seg_ctr++;
+    }
     return seg_ctr;
 }
 
@@ -116,17 +123,22 @@ extern "C" unsigned int segment(const Element * const audio_in, Element ** const
  * TransformStage. Compute the FFT of the chunks.
  */
 extern "C" void compute_fft(const Element * const input, Element * const output) {
-    fftwf_plan plan = fftwf_plan_r2r_1d(fft_size, input->get(&audio), output->get(&fft), FFTW_R2HC, FFTW_ESTIMATE);
+    std::cerr << "computing FFT for " << input->get(&segment_filepath) << " that starts at offset " << input->get(&segment_offset) << std::endl;
+    fftwf_plan plan = fftwf_plan_r2r_1d(fft_size, input->get(&audio_segment), output->get(&fft), FFTW_R2HC, FFTW_ESTIMATE);
     // TODO is there a way to make these reusable in my setup? You save some overhead if you don't have to recreate them all the time
     // same with the one in correlation
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
+    output->set(&fft_filepath, input->get(&segment_filepath));
 }
 
 /**
  * ComparisonStage. Correlate the FFTs by multiplying and then applying the inverse FFT.
  */
 extern "C" bool correlate(const Element * const fft1, const Element * const fft2, Element * const correlation) {
+    correlation->set(&ifft_filepath1, fft1->get(&fft_filepath));
+    correlation->set(&ifft_filepath2, fft2->get(&fft_filepath));
+    std::cerr << "correlating " << correlation->get(&ifft_filepath1) << " and " << correlation->get(&ifft_filepath2) << std::endl;
     float *fft1_fft = fft1->get(&fft);
     float *fft2_fft = fft2->get(&fft);
     float buff[fft_size];
@@ -168,7 +180,7 @@ extern "C" bool correlate(const Element * const fft1, const Element * const fft2
  */
 std::vector<Element *> init_filepaths() {
     std::string fp1 = "/Users/JRay/Desktop/scratch/addrOf.txt";
-    std::string fp2 = "/Users/JRay/Documents/Research/MatchedFilter/test_sigs/referent.wav.sw";
+    std::string fp2 = "/Users/JRay/Documents/Research/MatchedFilter/test_sigs/test2x2.wav.sw";
     std::string fp3 = "/Users/JRay/Documents/Research/MatchedFilter/test_sigs/referent.wav.sw";
     std::vector<Element *> elements;
     Element *e1 = new Element(0);
@@ -205,7 +217,8 @@ int main() {
     fft_fields.add(&fft);
 
     Fields ifft_fields;
-    ifft_fields.add(&ifft_filepath);
+    ifft_fields.add(&ifft_filepath1);
+    ifft_fields.add(&ifft_filepath2);
     ifft_fields.add(&clipped);
 
     std::vector<Element *> elements = init_filepaths();
@@ -221,14 +234,14 @@ int main() {
     pipeline.register_stage(&reader);
     pipeline.register_stage(&filt);
     pipeline.register_stage(&segmentor);
-//    pipeline.register_stage(&fft_xform);
-//    pipeline.register_stage(&ifft_xform);
+    pipeline.register_stage(&fft_xform);
+    pipeline.register_stage(&ifft_xform);
     pipeline.codegen(jit);
     jit->dump();
     jit->add_module();
 
     run(jit, elements, &filter_filepath, &audio, &audio_length, &segment_filepath, &audio_segment, &segment_offset,
-        &fft_filepath, &fft, &ifft_filepath, &clipped);
+        &fft_filepath, &fft, &ifft_filepath1, &ifft_filepath2, &clipped);
 
     return 0;
 }
