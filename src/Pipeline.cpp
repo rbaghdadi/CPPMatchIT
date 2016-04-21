@@ -185,8 +185,24 @@ void Pipeline::codegen(JIT *jit) {
         if (stage->is_comparison()) { // duplicate the input setelements
             llvm_stage_params.push_back(inputs_to_next_stage);
             llvm_stage_params.push_back(num_outputs);
-        }
-        if (!stage->is_filter() && !output_fields.empty()) { // filter doesn't create new outputs
+            if (!output_fields.empty()) {
+                std::vector<llvm::Value *> create_elements_args;
+                llvm::Value *num_elements_to_create = llvm_stage_params[1];
+                create_elements_args.push_back(codegen_llvm_mul(jit, num_elements_to_create, num_elements_to_create));
+                create_elements_args.push_back(as_i1(false));
+                llvm::Value *elements = jit->get_builder().CreateCall(jit->get_module()->getFunction("create_elements"),
+                                                                      create_elements_args);
+                inputs_to_next_stage = elements;
+                llvm_stage_params.push_back(elements);
+                llvm_stage_params.push_back(num_elements_to_create);
+                for (int i = field_idx; i < field_idx + num_stage_output_fields; i++) {
+                    llvm_stage_params.push_back(fields[i]);
+                }
+                field_idx += num_stage_output_fields;
+            } else { // no output, just forward the input
+                inputs_to_next_stage = llvm_stage_params[0];
+            }
+        } else if (!stage->is_filter() && !output_fields.empty()) { // filter doesn't create new outputs
             std::vector<llvm::Value *> create_element_args;
             if (!stage->is_segmentation()) {
                 create_element_args.push_back(num_outputs);

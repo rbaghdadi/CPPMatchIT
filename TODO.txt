@@ -1,3 +1,6 @@
+LEFT OFF
+- Got the
+
 DOCUMENTATION
 - Finish commenting Field.h
 - Comment InstructionBlock.h
@@ -23,9 +26,10 @@ CRITICAL PATH
 - need to actually deallocate memory at some point
 - create output ComparisonStage for later parts of a pipeline (not just the first stage) and desperately clean pipeline
 - if only a single element, need to make sure comparison stage is 2, not 1 (which happens if just do squared)
+- Segmentation can quickly destroy things b/c of the amount of memory it generates
+- Need a mapreduce block
 
 BUGS
-- Filter: it's not actually passing through stuff
 
 QUESTIONS
 - When I call underlying size, do I really want to be calling sizeof? It seems weird to call underlying size on a bunch of pointers
