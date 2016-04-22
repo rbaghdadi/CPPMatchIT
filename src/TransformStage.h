@@ -13,7 +13,7 @@ class TransformStage : public Stage {
 private:
 
     // Only here to enforce that the user's function signature is correct. And for debugging.
-    void (*transform)(const Element * const, Element * const);
+    void (*transform)(const Element * const, Element * const) = nullptr;
 
 public:
 

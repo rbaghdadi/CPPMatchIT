@@ -12,11 +12,11 @@ private:
 
     // This version lets you set an output object. If returns false, the output object is removed
     // Only here to enforce that the user's function signature is correct. And for debugging.
-    bool (*compareBIO)(const Element * const, const Element * const, Element * const);
+    bool (*compareBIO)(const Element * const, const Element * const, Element * const) = nullptr;
 
     // This version only lets you say these match or they don't
     // Only here to enforce that the user's function signature is correct. And for debugging.
-    bool (*compareBI)(const Element * const, const Element * const);
+    bool (*compareBI)(const Element * const, const Element * const) = nullptr;
 
     ForLoop *inner;
 

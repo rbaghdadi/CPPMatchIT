@@ -1,34 +1,36 @@
 //
-// Created by Jessica Ray on 4/20/16.
+// Created by Jessica Ray on 4/22/16.
 //
 
-#include <stdlib.h>
-#include <vector>
-#include <iostream>
-#include <openssl/md5.h>
-#include <llvm/IR/Type.h>
 #include <fftw3.h>
 #include "../../src/ComparisonStage.h"
-#include "../../src/Init.h"
-#include "../../src/JIT.h"
-#include "../../src/Field.h"
+#include "../../src/FilterStage.h"
 #include "../../src/Pipeline.h"
+#include "../../src/SegmentationStage.h"
 #include "../../src/StageFactory.h"
 #include "../../src/TransformStage.h"
-#include "../../src/Utils.h"
+#include "./MF.h"
 
-const int fft_size = 65536;
-const int seg_size = 75000;
-const float overlap = 0.00;
-const int dim = 45539;
+namespace MF {
 
-/**
- * FilterStage. Remove all files that end in txt
- */
 Field<char, 200> filter_filepath;
-extern "C" bool filter(const Element * const input) {
+Field<char, 200> audio_filepath;
+Field<float, 1500000> audio;
+Field<int> audio_length;
+Field<char, 200> segment_filepath;
+Field<float, seg_size> segment_audio;
+Field<int> segment_offset;
+Field<char, 200> fft_filepath;
+Field<float, fft_size> fft;
+Field<int> fft_offset;
+Field<char, 200> ifft_filepath1;
+Field<char, 200> ifft_filepath2;
+Field<float, dim> clipped;
+
+extern "C" bool filter(const Element *const input) {
     char *file = input->get(&filter_filepath);
-    bool keep = strstr(file, "txt") == nullptr; // if == nullptr, keep it because it does NOT end in txt (can't FFT a txt file...)
+    bool keep = strstr(file, "txt") ==
+                nullptr; // if == nullptr, keep it because it does NOT end in txt (can't FFT a txt file...)
     if (keep) {
         std::cerr << "Keeping file: " << file << std::endl;
     } else {
@@ -37,12 +39,6 @@ extern "C" bool filter(const Element * const input) {
     return keep;
 }
 
-/**
- * TransformationStage. Reads in audio.
- */
-Field<char, 200> audio_filepath;
-Field<float, 1500000> audio;
-Field<int> audio_length; // This is needed since we don't have variable size arrays. It's the actual length of the audio
 extern "C" void read_audio(const Element * const in, Element * const out) {
     char *fp = in->get(&filter_filepath);
     std::cerr << "reading in " << fp << " with length : ";
@@ -60,12 +56,6 @@ extern "C" void read_audio(const Element * const in, Element * const out) {
     free(data);
 }
 
-/**
- * SegmentationStage. Segment the audio into fixed size chunks.
- */
-Field<char, 200> segment_filepath;
-Field<float, seg_size> segment_audio;
-Field<int> segment_offset;
 extern "C" unsigned int segment(const Element * const audio_in, Element ** const segmented_audio) {
     int seg_ctr = 0;
     std::cerr << "segmenting file: " << audio_in->get(&audio_filepath);
@@ -108,12 +98,6 @@ extern "C" unsigned int segment(const Element * const audio_in, Element ** const
     return seg_ctr;
 }
 
-/**
- * TransformStage. Compute the FFT of the chunks.
- */
-Field<char, 200> fft_filepath;
-Field<float, fft_size> fft;
-Field<int> fft_offset;
 extern "C" void compute_fft(const Element * const input, Element * const output) {
     fftwf_plan plan = fftwf_plan_r2r_1d(fft_size, input->get(&segment_audio), output->get(&fft), FFTW_R2HC, FFTW_ESTIMATE);
     // TODO is there a way to make these reusable in my setup? You save some overhead if you don't have to recreate them all the time
@@ -125,19 +109,6 @@ extern "C" void compute_fft(const Element * const input, Element * const output)
     std::cerr << "computing FFT for " << output->get(&fft_filepath) << " that starts at offset " << output->get(&fft_offset) << std::endl;
 }
 
-/**
- * ComparisonStage. Correlate the FFTs by multiplying and then applying the inverse FFT.
- */
-Field<char, 200> ifft_filepath1;
-Field<char, 200> ifft_filepath2;
-Field<float, dim> clipped;
-// http://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
-// In Doug's original code, the pipeline reverses the referent, takes the FFT of that, and then does this computation with
-// FFTs of the signal (not reversed). I can't really do the reversal here because I would need to do that in the compute_fft stage,
-// and then keep track of which signals are reversed and such so that I don't compare 2 reversed signals. But,
-// the link above shows that I can do the reversal after taking the FFT by taking the complex conjugate. This means I can just do that
-// to one of the signals in the compute_ifft function. I don't think it matters which one, so just pick fft1.
-// TODO I'm not actually doing this yet
 extern "C" bool compute_ifft(const Element * const fft1, const Element * const fft2, Element * const ifft_out) {
     if (strcmp(fft1->get(&fft_filepath), fft2->get(&fft_filepath)) == 0) { // only compare if these aren't from the same file
         return false;
@@ -180,7 +151,6 @@ extern "C" bool compute_ifft(const Element * const fft1, const Element * const f
     return true;
 }
 
-// for reduction
 extern "C" int map(const Element * const ifft_result) {
     char *fp1 = ifft_result->get(&ifft_filepath1);
     char *fp2 = ifft_result->get(&ifft_filepath2);
@@ -220,14 +190,6 @@ extern "C" int map(const Element * const ifft_result) {
     }
 }
 
-// reduction
-extern "C" void recombine(const Element ** const ifft_results) {
-    // TODO I don't know how this is supposed to work
-}
-
-/**
- * Create input Elements with filepaths.
- */
 std::vector<Element *> init_filepaths() {
     std::string fp1 = "/Users/JRay/Desktop/scratch/addrOf.txt";
     std::string fp2 = "/Users/JRay/Documents/Research/MatchedFilter/test_sigs/test2x2.wav.sw";
@@ -245,10 +207,7 @@ std::vector<Element *> init_filepaths() {
     return elements;
 }
 
-int main() {
-
-    JIT *jit = init();
-
+void setup(JIT *jit) {
     Fields filter_fields;
     filter_fields.add(&filter_filepath);
 
@@ -272,8 +231,6 @@ int main() {
     ifft_fields.add(&ifft_filepath2);
     ifft_fields.add(&clipped);
 
-    std::vector<Element *> elements = init_filepaths();
-
     FilterStage filt = create_filter_stage(jit, filter, "filter", &filter_fields);
     TransformStage reader = create_transform_stage(jit, read_audio, "read_audio", &filter_fields, &read_audio_fields);
     SegmentationStage segmentor = create_segmentation_stage(jit, segment, "segment", &read_audio_fields, &segment_fields,
@@ -288,13 +245,14 @@ int main() {
     pipeline.register_stage(&fft_xform);
     pipeline.register_stage(&ifft_xform);
     pipeline.codegen(jit);
+}
+
+void start(JIT *jit) {
+    std::vector<Element *> elements = init_filepaths();
     jit->dump();
     jit->add_module();
+    run(jit, elements, &audio_filepath, &audio, &audio_length, &segment_filepath, &segment_audio, &segment_offset,
+        &fft_filepath, &fft, &fft_offset, &ifft_filepath1, &ifft_filepath2, &clipped);
+}
 
-    for (int i = 0; i < 20; i++) {
-        run(jit, elements, &audio_filepath, &audio, &audio_length, &segment_filepath, &segment_audio, &segment_offset,
-            &fft_filepath, &fft, &fft_offset, &ifft_filepath1, &ifft_filepath2, &clipped);
-    }
-
-    return 0;
 }

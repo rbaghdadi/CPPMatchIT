@@ -11,7 +11,7 @@ class SegmentationStage : public Stage {
 private:
 
     // Only here to enforce that the user's function signature is correct. And for debugging.
-    unsigned int (*segment)(const Element * const, Element ** const);
+    unsigned int (*segment)(const Element * const, Element ** const) = nullptr;
     unsigned int segment_size;
     float overlap;
     BaseField *field_to_segment;

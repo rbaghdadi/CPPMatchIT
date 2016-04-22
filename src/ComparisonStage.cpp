@@ -25,7 +25,7 @@ llvm::AllocaInst *ComparisonStage::compute_num_output_elements() {
 }
 
 void ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst *> preallocated_space,
-                                                     llvm::BasicBlock *stage_end) {
+                                        llvm::BasicBlock *stage_end) {
     inner = new ForLoop(jit, mfunction);
     inner->init_codegen();
     jit->get_builder().CreateBr(inner->get_counter_bb());
@@ -73,21 +73,23 @@ void ComparisonStage::codegen_main_loop(std::vector<llvm::AllocaInst *> prealloc
     jit->get_builder().CreateBr(inner->get_increment_bb());
 }
 
+// For a comparison without outputs, the return idx is used to say how many true comparisons resulted. It's not really useful other than
+// as a statistic, but I'm keeping it just to match what normally happens with a stage.
+// For a comparison with outputs, the return idx is used to both say how many outputs resulted, but also pick which output element should
+// be passed into the user function. If an output was passed in, but the user function returned false, then that same output should be
+// passed into the next call to the user function. This keeps the actual "kept" comparisons adjacent to each other in the output list.
+// Then, all the following stage has to do is pick off the first X outputs (where X is the returned value from comparison) and that stage
+// will have all the comparisons that returned true.
 void ComparisonStage::handle_user_function_output() {
-//    if (compareBIO != nullptr) { // has an output
-        // check if this output should be kept
-        llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_user_function_call_result_alloc(), 1);
-        llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
-        llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
-                                                           mfunction->get_llvm_stage());
-        jit->get_builder().CreateCondBr(cmp, inner->get_increment_bb(), dummy);
+    llvm::LoadInst *call_result_load = codegen_llvm_load(jit, call->get_user_function_call_result_alloc(), 1);
+    llvm::Value *cmp = jit->get_builder().CreateICmpEQ(call_result_load, as_i1(0)); // compare to false
+    llvm::BasicBlock *dummy = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dummy",
+                                                       mfunction->get_llvm_stage());
+    jit->get_builder().CreateCondBr(cmp, inner->get_increment_bb(), dummy);
 
-        // keep it and increment the return idx
-        jit->get_builder().SetInsertPoint(dummy);
-        llvm::LoadInst *ret_idx_load = codegen_llvm_load(jit, loop->get_return_idx(), 4);
-        llvm::Value *ret_idx_inc = codegen_llvm_add(jit, ret_idx_load, Codegen::as_i32(1));
-        codegen_llvm_store(jit, ret_idx_inc, loop->get_return_idx(), 4);
-//    } else { // no output, don't do anything for now
-//        Stage::handle_user_function_output();
-//    }
+    // keep it and increment the return idx
+    jit->get_builder().SetInsertPoint(dummy);
+    llvm::LoadInst *ret_idx_load = codegen_llvm_load(jit, loop->get_return_idx(), 4);
+    llvm::Value *ret_idx_inc = codegen_llvm_add(jit, ret_idx_load, Codegen::as_i32(1));
+    codegen_llvm_store(jit, ret_idx_inc, loop->get_return_idx(), 4);
 }

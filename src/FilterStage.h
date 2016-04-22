@@ -15,7 +15,7 @@ class FilterStage : public Stage {
 private:
 
     // Only here to enforce that the user's function signature is correct. And for debugging.
-    bool (*filter)(const Element * const);
+    bool (*filter)(const Element * const) = nullptr;
 
 public:
 

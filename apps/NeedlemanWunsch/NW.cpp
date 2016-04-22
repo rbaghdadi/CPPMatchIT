@@ -1,139 +1,242 @@
 //
-// Created by Jessica Ray on 4/5/16.
+// Created by Jessica Ray on 4/22/16.
 //
 
-#include <assert.h>
 #include <fstream>
-#include <iostream>
-#include <string>
-#include <vector>
-#include "./NWUtils.h"
+#include "../../src/ComparisonStage.h"
+#include "../../src/Pipeline.h"
+#include "../../src/StageFactory.h"
+#include "../../src/TransformStage.h"
+#include "./NW.h"
 
-// Needleman-Wunsch alignment without use of MatchIT
+namespace NW {
 
-/**
- * Compute the scores of a single row in the alignment matrix.
- * Also fills in the first column of the row.
- * Traceback = running alignment. Fill in the (starting_row_index - 1)th entry (-1 because the first row is just gap penalties)
- * The first row is computed in compute_first_row()
- */
-void compute_row(char row_base, char *top_sequence, int *upper_row_scores, int *cur_row_scores, int row_size,
-                 int starting_row_idx) {
-    // compute 3 possible scores and take the max
-    // Score 1 (northwest, match): M(i-1,j-1) + S(base_i, base_j)
-    // Score 2 (west, deletion): M(i-1,j) + G
-    // Score 3 (north, insertion): M(i,j-1) + G
-    // initialize the first column
-    cur_row_scores[0] = starting_row_idx * gap_penalty;
-    for (int col = 1; col < row_size; col++) {
-        int northwest_score = upper_row_scores[col-1] + similarity[row_base][top_sequence[col-1]];
-        int north_score = upper_row_scores[col] + gap_penalty;
-        int west_score = cur_row_scores[col-1] + gap_penalty;
-        int scores[3] = {northwest_score, north_score, west_score};
-        Direction max_idx = max_scores_idx(scores);
-        cur_row_scores[col] = scores[max_idx];
-//        std::cerr << scores[max_idx] << std::endl;
+// inputs to compute_alignment_matrix
+Field<char,max_filepath_size> filter_filepath;
+Field<char,max_seq_size> sequence;
+Field<char,max_sequence_name> sequence_name;
+Field<int> sequence_length;
+
+// outputs of compute_alignment_matrix
+Field<int,max_seq_size+1,max_seq_size+1> alignment_matrix;
+Field<char,max_sequence_name> sequence1_name;
+Field<char,max_seq_size> sequence1;
+Field<int> sequence1_length;
+Field<char,max_sequence_name> sequence2_name;
+Field<char,max_seq_size> sequence2;
+Field<int> sequence2_length;
+
+// outputs of compute_traceback_alignment
+Field<char, traceback_length> traceback;
+
+char similarity[4][4] = {{10, -1, -3, -4},
+{-1, 7, -5, -3},
+{-3, -5, 9, 0},
+{-4, -3, 0, 8}};
+
+int gap_penalty = -5;
+
+inline char to_digit_base(char letter_base) {
+    switch (letter_base) {
+        case 'A':
+            return 0;
+        case 'G':
+            return 1;
+        case 'C':
+            return 2;
+        case 'T':
+            return 3;
     }
 }
 
-/**
- * Fill in first row
- */
-void compute_first_row(int *first_row, int row_size) {
-    for (int col = 0; col < row_size; col++) {
-        first_row[col] = col * gap_penalty;
+inline char to_letter_base(char digit_base) {
+    switch (digit_base) {
+        case 0:
+            return 'A';
+        case 1:
+            return 'G';
+        case 2:
+            return 'C';
+        case 3:
+            return 'T';
+        case '-':
+            return '-';
+        case '\n':
+            return '\n';
     }
 }
 
-char *compute_traceback_alignment(int **alignment_matrix, Sequence *top_sequence, Sequence *left_sequence) {
-    int i = left_sequence->sequence_length;
-    int j = top_sequence->sequence_length;
-    int max_length = top_sequence->sequence_length > left_sequence->sequence_length ? top_sequence->sequence_length : left_sequence->sequence_length;
-    char top_alignment[2*max_length+1];
-    char left_alignment[2*max_length];
+inline Direction max_scores_idx(int *scores) {
+    if (scores[NORTHWEST] >= scores[NORTH] && scores[NORTHWEST] >= scores[WEST]) {
+        return NORTHWEST;
+    } else if (scores[NORTH] >= scores[NORTHWEST] && scores[NORTH] >= scores[WEST]) {
+        return NORTH;
+    } else {
+        return WEST;
+    }
+}
+
+std::vector<Element *> read_fasta2(std::string fasta_file) {
+    std::vector<Element *> elements;
+    std::string line;
+    std::ifstream fasta(fasta_file);
+    assert(fasta && "FASTA file does not exist!");
+    int cur_seq = 0;
+    if (fasta.is_open()) {
+        while (getline(fasta, line)) {
+            if (line.c_str()[0] == '>') {
+                Element *next = new Element(cur_seq);
+                // set the filepath
+                next->allocate_and_set(&filter_filepath, &fasta_file[0]);
+                // set the sequence name
+                std::vector<std::string> tokens = split(line, ' ');
+                std::cerr << "reading " << tokens[1] << " from file " << fasta_file << std::endl;
+                next->allocate_and_set(&sequence_name, &(tokens[1][0]));//c_name);
+                elements.push_back(next);
+            } else {
+                // set the sequence
+                const char *tokens = line.c_str();
+                Element *cur = elements[cur_seq++];
+                cur->allocate(&sequence);
+                for (int i = 0; i < line.size(); i++) {
+                    cur->set(&sequence, i, to_digit_base(tokens[i]));
+                }
+                cur->set(&sequence, line.size(), '\0');
+                cur->allocate(&sequence_length);
+                cur->set(&sequence_length, (int)line.size());
+            }
+        }
+    }
+    fasta.close();
+    return elements;
+}
+
+extern "C" bool compute_alignment_matrix(const Element * const sequence1_in, const Element * const sequence2_in, Element * const out) {
+    std::cerr << "computing the alignment matrix for " << sequence1_in->get(&sequence_name) << " and " << sequence2_in->get(&sequence_name) << std::endl;
+    out->set(&sequence1_name, sequence1_in->get(&sequence_name));
+    out->set(&sequence2_name, sequence2_in->get(&sequence_name));
+    out->set(&sequence1, sequence1_in->get(&sequence));
+    out->set(&sequence2, sequence2_in->get(&sequence));
+    out->set(&sequence1_length, sequence1_in->get(&sequence_length));
+    out->set(&sequence2_length, sequence2_in->get(&sequence_length));
+    // + 1 below all of these because there is an extra column and row for the gap penalties
+    for (int col = 0; col < sequence1_in->get(&sequence_length) + 1; col++) {
+        out->set(&alignment_matrix, 0, col, col * gap_penalty);
+    }
+    // iterate down through the rows of the alignment matrix
+    for (int i = 1; i < sequence2_in->get(&sequence_length) + 1; i++) {
+        int *cur_row = out->get(&alignment_matrix, i); // current row computing the score for
+        int *upper_row = out->get(&alignment_matrix, i - 1); // previous row computed
+        char *top_seq = sequence1_in->get(&sequence); // sequence on the horizontal of the alignment matrix
+        char row_base = sequence2_in->get(&sequence)[i-1]; // the genome base of this row
+        cur_row[0] = i * gap_penalty;
+        for (int col = 1; col < sequence1_in->get(&sequence_length) + 1; col++) {
+            int northwest_score = upper_row[col-1] + similarity[row_base][top_seq[col-1]];
+            int north_score = upper_row[col] + gap_penalty;
+            int west_score = cur_row[col-1] + gap_penalty;
+            int scores[3] = {northwest_score, north_score, west_score};
+            Direction max_idx = max_scores_idx(scores);
+            cur_row[col] = scores[max_idx];
+        }
+    }
+    return true; // keep everything since the traceback alignment will be computed next
+}
+
+extern "C" void compute_traceback_alignment(const Element * const in, Element * const out) {
+    std::cerr << "Computing traceback for sequences: " << in->get(&sequence1_name) << " and " <<
+    in->get(&sequence2_name) << std::endl;
+    int i = in->get(&sequence2_length);
+    int j = in->get(&sequence1_length);
+    int max_length = in->get(&sequence1_length) > in->get(&sequence2_length) ? in->get(&sequence1_length) : in->get(&sequence2_length);
+    char top_alignment[2 * max_length];
+    char left_alignment[2 * max_length];
     int top_idx = 0;
     int left_idx = 0;
     while (i > 0 || j > 0) {
-        std::cerr <<  alignment_matrix[i][j] << std::endl;
         if (i == 0 && j == 0) {
-            top_alignment[top_idx++] = to_letter_base(top_sequence->sequence[j]);
-            left_alignment[left_idx++] = to_letter_base(left_sequence->sequence[i]);
+            top_alignment[top_idx++] = to_letter_base(in->get(&sequence1, j));
+            left_alignment[left_idx++] = to_letter_base(in->get(&sequence2, i));
             i--;
             j--;
         } else if (i > 0 && j > 0 &&
-                   alignment_matrix[i][j] == (alignment_matrix[i-1][j-1] + similarity[left_sequence->sequence[i-1]][top_sequence->sequence[j-1]])) {
-            // they match
-            top_alignment[top_idx++] = to_letter_base(top_sequence->sequence[j-1]);
-            left_alignment[left_idx++] = to_letter_base(left_sequence->sequence[i-1]);
+                   in->get(&alignment_matrix, i, j) == (in->get(&alignment_matrix, i-1,j-1) +
+                                                        similarity[in->get(&sequence2, i - 1)][in->get(&sequence1, j - 1)])) {
+            // top and left align with each other
+            top_alignment[top_idx++] = to_letter_base(in->get(&sequence1, j - 1));
+            left_alignment[left_idx++] = to_letter_base(in->get(&sequence2, i - 1));
             i--;
             j--;
-        } else if (i > 0 && alignment_matrix[i][j] == alignment_matrix[i-1][j] + gap_penalty) {
+        } else if (i > 0 && in->get(&alignment_matrix, i, j) == in->get(&alignment_matrix, i - 1, j) + gap_penalty) {
             // left aligns with a gap
             top_alignment[top_idx++] = '-';
-            left_alignment[left_idx++] = to_letter_base(left_sequence->sequence[i-1]);
+            left_alignment[left_idx++] = to_letter_base(in->get(&sequence2, i - 1));
             i--;
         } else {
             // top aligns with a gap
-            top_alignment[top_idx++] = to_letter_base(top_sequence->sequence[j-1]);
+            top_alignment[top_idx++] = to_letter_base(in->get(&sequence1, j - 1));
             left_alignment[left_idx++] = '-';
             j--;
         }
     }
-    top_alignment[top_idx] = '\n';
-    top_alignment[top_idx+1] = '\0';
-    left_alignment[left_idx] = '\0';
-    char *alignment = (char*)malloc(sizeof(char) * (top_idx + left_idx + 1));
-    strcat(alignment, top_alignment);
-    strcat(alignment, left_alignment);
-    return alignment;
+    // combine the tracebacks for both sequences
+    char alignment[traceback_length];
+    int m = 0;
+    for (int n = top_idx - 1; n >= 0; n--) {
+        alignment[m++] = top_alignment[n];
+    }
+    alignment[top_idx] = '\n';
+    m = top_idx + 1;
+    for (int n = left_idx - 1; n >= 0; n--) {
+        alignment[m++] = left_alignment[n];
+    }
+    out->set(&traceback, alignment);
+
+    // print out the alignment
+    for (int n = 0; n < top_idx + left_idx + 1; n++) {
+        std::cerr << alignment[n];
+    }
+    std::cerr << std::endl;
 }
 
-int main() {
 
-    std::vector<Sequence *> sequences = read_fasta("/Users/JRay/Documents/Research/datasets/genome/sequences.fasta");
+void setup(JIT *jit) {
+    Fields alignment_matrix_inputs;
+    alignment_matrix_inputs.add(&filter_filepath);
+    alignment_matrix_inputs.add(&sequence);
+    alignment_matrix_inputs.add(&sequence_name);
+    alignment_matrix_inputs.add(&sequence_length);
 
-    Sequence *top = sequences[0];
-    Sequence *left = sequences[1];
+    Fields alignment_matrix_outputs;
+    alignment_matrix_outputs.add(&alignment_matrix);
+    alignment_matrix_outputs.add(&sequence1_name);
+    alignment_matrix_outputs.add(&sequence2_name);
+    alignment_matrix_outputs.add(&sequence1);
+    alignment_matrix_outputs.add(&sequence2);
+    alignment_matrix_outputs.add(&sequence1_length);
+    alignment_matrix_outputs.add(&sequence2_length);
 
-    std::cerr << "top sequence is " << top->name << " with length " << top->sequence_length << std::endl;
-    std::cerr << "left sequence is " << left->name << " with length " << left->sequence_length << std::endl;
+    Fields traceback_relation;
+    traceback_relation.add(&traceback);
 
-    // initialize the alignment matrix
-    int **alignment_matrix = (int**)malloc(sizeof(int*) * (left->sequence_length + 1)); // + 1 for the gap penalties in each row
-    for (int i = 0; i < left->sequence_length+1; i++) {
-        alignment_matrix[i] = (int*)malloc(sizeof(int) * (top->sequence_length + 1));
-    }
+    ComparisonStage compare = create_comparison_stage(jit, compute_alignment_matrix, "compute_alignment_matrix",
+                                                      &alignment_matrix_inputs, &alignment_matrix_outputs);
 
-    // build the matrix
-    compute_first_row(alignment_matrix[0], top->sequence_length+1);
+    TransformStage traceback_stage = create_transform_stage(jit, compute_traceback_alignment, "compute_traceback_alignment",
+                                                            &alignment_matrix_outputs, &traceback_relation);
 
-    // iterate down through the rows
-    for (int i = 1; i < left->sequence_length+1; i++) {
-        int *cur_row = alignment_matrix[i];
-        int *upper_row = alignment_matrix[i - 1];
-        char *top_seq = top->sequence;
-        char row_base = left->sequence[i-1]; // the genome base of this row
-        compute_row(row_base, top_seq, upper_row, cur_row, top->sequence_length + 1, i);
-    }
+    Pipeline pipeline;
+    pipeline.register_stage(&compare);
+    pipeline.register_stage(&traceback_stage);
+    pipeline.codegen(jit);
+}
 
-    char *final_traceback = compute_traceback_alignment(alignment_matrix, top, left);
-    char cur_char = final_traceback[0];
-    int idx = 0;
-    while (cur_char != '\0') { // count how many chars there are
-        idx++;
-        cur_char = final_traceback[idx++];
-    }
-    // print out the traceback
-    for (int j = idx-2; j > -1; j--) {
-//        std::cerr << final_traceback[j];
-    }
+void start(JIT *jit) {
+    std::vector<Element *> in_elements = read_fasta2("/Users/JRay/Documents/Research/datasets/genome/sequences.2.fasta");
+    jit->dump();
+    jit->add_module();
+    run(jit, in_elements, &alignment_matrix, &sequence1_name, &sequence2_name, &sequence1, &sequence2,
+        &sequence1_length, &sequence2_length, &traceback);
+}
 
-    std::cerr << std::endl;
-    for (int i = 0; i < 6; i++) {
-        for (int j = 0; j < 6; j++) {
-            std::cerr << alignment_matrix[i][j] << " ";
-        }
-    }
 
-    return 0;
 }

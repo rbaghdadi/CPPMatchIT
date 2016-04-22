@@ -1,13 +1,12 @@
 //
-// Created by Jessica Ray on 4/4/16.
+// Created by Jessica Ray on 4/6/16.
 //
 
-
-#include "../../src/JIT.h"
+#include <fstream>
 #include "../../src/Init.h"
-#include "./FileDups.h"
+#include "./NW.h"
 
-using namespace FileDups;
+using namespace NW;
 
 int main() {
 
