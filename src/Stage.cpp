@@ -174,7 +174,7 @@ void Stage::codegen() {
 
         // Finish up the stage and create the final stage output.
         jit->get_builder().SetInsertPoint(stage_end);
-        llvm::AllocaInst *final_stage_output = finish_stage(0);
+        llvm::AllocaInst *final_stage_output = finish_stage();
 
         // exit
         if (final_stage_output) {
@@ -251,7 +251,7 @@ llvm::Value *Stage::compute_preallocation_data_array_size(unsigned int fixed_siz
     return codegen_llvm_mul(jit, codegen_llvm_load(jit, loop->get_loop_bound(), 4), as_i32(fixed_size));
 }
 
-llvm::AllocaInst *Stage::finish_stage(unsigned int fixed_size) {
+llvm::AllocaInst *Stage::finish_stage() {
     return loop->get_return_idx();
 }
 

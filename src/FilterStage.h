@@ -34,6 +34,8 @@ public:
 
     std::vector<llvm::AllocaInst *> preallocate();
 
+    llvm::AllocaInst *finish_stage();
+
 };
 
 #endif //MATCHIT_FILTERBLOCK_H

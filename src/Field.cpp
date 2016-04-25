@@ -2,8 +2,8 @@
 // Created by Jessica Ray on 3/10/16.
 //
 
-#include "./Field.h"
 #include "./CodegenUtils.h"
+#include "./Field.h"
 
 /*
  * BaseField
@@ -37,7 +37,7 @@ int Element::get_element_id() const {
 
 void init_element(JIT *jit) {
     std::vector<llvm::Type *> element_args;
-    element_args.push_back(Codegen::llvm_int32);//llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    element_args.push_back(Codegen::llvm_int32);
     element_args.push_back(Codegen::llvm_int1);
     MType *setelement_mtype = create_type<Element>();
     llvm::FunctionType *element_ft = llvm::FunctionType::get(
@@ -47,7 +47,10 @@ void init_element(JIT *jit) {
 }
 
 extern "C" Element **create_elements(int num_to_create, bool alloc_pointers_only) {
-    Element **elements = (Element**)malloc(sizeof(Element*) * num_to_create);
+#ifdef PRINT_MALLOC
+    std::cerr << "creating elements" << std::endl;
+#endif
+    Element **elements = (Element**)mmalloc(sizeof(Element*) * num_to_create);
     if (!alloc_pointers_only) {
         for (int i = 0; i < num_to_create; i++) {
             elements[i] = new Element(i);

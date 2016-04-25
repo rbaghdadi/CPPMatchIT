@@ -112,9 +112,9 @@ public:
     void scalar_allocate_only(int element_idx) {
         if (element_idx+1 > max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc_32(sizeof(T) + sizeof(T) * element_idx);
+                data = mmalloc(sizeof(T) + sizeof(T) * element_idx);
             } else {
-                data = realloc_32(data, sizeof(T) + sizeof(T) * element_idx);
+                data = mrealloc(data, sizeof(T) + sizeof(T) * element_idx);
             }
             max_malloc = element_idx + 1;
         }
@@ -128,9 +128,9 @@ public:
         int starting_idx = element_idx * dim1;
         if (starting_idx + dim1 > max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc_32(sizeof(T) * (starting_idx + dim1));
+                data = mmalloc(sizeof(T) * (starting_idx + dim1));
             } else {
-                data = realloc_32(data, sizeof(T) * (starting_idx + dim1));
+                data = mrealloc(data, sizeof(T) * (starting_idx + dim1));
             }
             max_malloc = starting_idx + dim1;
         }
@@ -144,9 +144,9 @@ public:
         int starting_idx = element_idx * dim1 * dim2;
         if (starting_idx + dim1 * dim2 > max_malloc) {
             if (!data) { // hasn't been mallocd yet
-                data = malloc_32(sizeof(T) * (starting_idx + dim1 * dim2));
+                data = mmalloc(sizeof(T) * (starting_idx + dim1 * dim2));
             } else {
-                data = realloc_32(data, sizeof(T) * (starting_idx + dim1 * dim2));
+                data = mrealloc(data, sizeof(T) * (starting_idx + dim1 * dim2));
             }
             max_malloc = starting_idx + dim1 * dim2;
         }

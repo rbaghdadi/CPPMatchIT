@@ -132,7 +132,7 @@ public:
     /**
      * Do the final malloc for the output struct, save the outputs to it, return from the stage
      */
-    virtual llvm::AllocaInst *finish_stage(unsigned int fixed_size);
+    virtual llvm::AllocaInst *finish_stage();
 
     virtual std::vector<llvm::AllocaInst *> get_user_function_arg_loader_idxs();
 

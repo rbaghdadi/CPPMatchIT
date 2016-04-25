@@ -36,23 +36,22 @@ extern "C" void c_fprintf_float(float f);
 /**
  * Call C malloc with an i32 llvm type
  */
-extern "C" void *malloc_32(size_t size);
-
-
-/**
- * Call C malloc with an i64 llvm type
- */
-extern "C" void *malloc_64(size_t size);
+extern "C" void *mmalloc(size_t size);
 
 /**
  * Call C realloc with an i32 llvm type
  */
-extern "C" void *realloc_32(void *structure, size_t size);
+extern "C" void *mrealloc(void *structure, size_t size);
 
 /**
- * Call C realloc with an i64 llvm type
+ * Call C free.
  */
-extern "C" void *realloc_64(void *structure, size_t size);
+extern "C" void mfree(void *structure);
+
+/**
+ * Call C++ delete.
+ */
+extern "C" void mdelete(void *structure);
 
 /**
  * Register the functions into llvm that are underlying the above wrappers.

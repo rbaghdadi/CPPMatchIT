@@ -172,6 +172,14 @@ void Pipeline::codegen(JIT *jit) {
     codegen_fprintf_int(jit, num_outputs);
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
+    if (stage->is_filter() || (stage->is_comparison() && !output_fields.empty())) {
+        //     Clear out the space allocated for output Element objects that wasn't used because of the input Element objects that were dropped.
+        llvm::Value *realloc_size = codegen_llvm_mul(jit, num_outputs, as_i32(sizeof(Element *)));
+        llvm::LoadInst *loaded_arg = codegen_llvm_load(jit, inputs_to_next_stage, 8);
+        llvm::Value *reallocated = codegen_mrealloc_and_cast(jit, loaded_arg, realloc_size, loaded_arg->getType()); // shrink size
+        codegen_llvm_store(jit, reallocated, inputs_to_next_stage, 8); // overrwrite the current pointer that was there
+    }
+
     // chain the other stages together
     for (std::vector<Stage *>::iterator iter = stages.begin() + 1; iter != stages.end(); iter++) {
         llvm_stage_params.clear();
@@ -234,6 +242,13 @@ void Pipeline::codegen(JIT *jit) {
         num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
         codegen_fprintf_int(jit, num_outputs);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
+        if (stage->is_filter() || (stage->is_comparison() && !output_fields.empty())) {
+            //     Clear out the space allocated for output Element objects that wasn't used because of the input Element objects that were dropped.
+            llvm::Value *realloc_size = codegen_llvm_mul(jit, num_outputs, as_i32(sizeof(Element *)));
+            llvm::LoadInst *loaded_arg = codegen_llvm_load(jit, inputs_to_next_stage, 8);
+            llvm::Value *reallocated = codegen_mrealloc_and_cast(jit, loaded_arg, realloc_size, loaded_arg->getType()); // shrink size
+            codegen_llvm_store(jit, reallocated, inputs_to_next_stage, 8); // overrwrite the current pointer that was there
+        }
     }
 
     jit->get_builder().CreateRet(nullptr);

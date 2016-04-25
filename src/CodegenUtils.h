@@ -20,31 +20,23 @@ namespace Codegen {
  * C memory wrappers
  */
 
-llvm::Value *codegen_c_malloc32(JIT *jit, size_t size);
+llvm::Value *codegen_mmalloc(JIT *jit, size_t size);
 
-llvm::Value *codegen_c_malloc32(JIT *jit, llvm::Value *size);
+llvm::Value *codegen_mmalloc(JIT *jit, llvm::Value *size);
 
-llvm::Value *codegen_c_malloc64(JIT *jit, size_t size);
+llvm::Value *codegen_mmalloc_and_cast(JIT *jit, size_t size, llvm::Type *cast_to);
 
-llvm::Value *codegen_c_malloc64(JIT *jit, llvm::Value *size);
+llvm::Value *codegen_mmalloc_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to);
 
-llvm::Value *codegen_c_malloc32_and_cast(JIT *jit, size_t size, llvm::Type *cast_to);
+llvm::Value *codegen_mrealloc(JIT *jit, llvm::Function *mrealloc, llvm::LoadInst *structure, llvm::Value *size);
 
-llvm::Value *codegen_c_malloc32_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to);
+llvm::Value *codegen_mrealloc(JIT *jit, llvm::LoadInst *structure, llvm::Value *size);
 
-llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, size_t size, llvm::Type *cast_to);
+llvm::Value *codegen_mrealloc_and_cast(JIT *jit, llvm::LoadInst *structure, llvm::Value *size, llvm::Type *cast_to);
 
-llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to);
+void codegen_mfree(JIT *jit, llvm::LoadInst *structure);
 
-llvm::Value *codegen_realloc(JIT *jit, llvm::Function *c_realloc, llvm::LoadInst *loaded_structure, llvm::Value *size);
-
-llvm::Value *codegen_c_realloc32(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size);
-
-llvm::Value *codegen_c_realloc64(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size);
-
-llvm::Value *codegen_c_realloc32_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to);
-
-llvm::Value *codegen_c_realloc64_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to);
+void codegen_mdelete(JIT *jit, llvm::LoadInst *structure);
 
 void codegen_llvm_memcpy(JIT *jit, llvm::Value *dest, llvm::Value *src, llvm::Value *bytes_to_copy);
 
@@ -149,9 +141,6 @@ llvm::AllocaInst *create_user_function_call(JIT *jit, llvm::Function *user_funct
                                             std::vector<llvm::AllocaInst *> user_function_param_allocs);
 
 llvm::Value *create_loop_condition_check(JIT *jit, llvm::AllocaInst *loop_idx_alloc, llvm::AllocaInst *max_loop_bound);
-
-
-
 
 }
 

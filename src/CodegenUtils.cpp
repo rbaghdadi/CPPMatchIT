@@ -162,15 +162,12 @@ llvm::AllocaInst *create_user_function_call(JIT *jit, llvm::Function *user_funct
     }
 }
 
-// TODO remove
-llvm::LoadInst *get_marray_size_field(JIT *jit, llvm::AllocaInst *marray_alloc) {
-    std::vector<llvm::Value *> size_field_gep_idxs;
-    size_field_gep_idxs.push_back(as_i32(0)); // step through the pointer to MArray
-    size_field_gep_idxs.push_back(as_i32(1)); // the size field
-    llvm::Value *size_field_gep = jit->get_builder().CreateInBoundsGEP(marray_alloc, size_field_gep_idxs);
-    llvm::LoadInst *size_field_load = jit->get_builder().CreateLoad(size_field_gep);
-    size_field_load->setAlignment(8);
-    return size_field_load;
+llvm::Value *codegen_llvm_ceil(JIT *jit, llvm::Value *ceil_me) {
+    llvm::Function *llvm_ceil = jit->get_module()->getFunction("llvm.ceil.f32");
+    assert(llvm_ceil);
+    std::vector<llvm::Value *> ceil_args;
+    ceil_args.push_back(ceil_me);
+    return jit->get_builder().CreateCall(llvm_ceil, ceil_args);
 }
 
 void codegen_llvm_memcpy(JIT *jit, llvm::Value *dest, llvm::Value *src, llvm::Value *bytes_to_copy) {
@@ -218,92 +215,63 @@ void codegen_fprintf_float(JIT *jit, float the_int) {
     jit->get_builder().CreateCall(c_fprintf, print_args);
 }
 
-llvm::Value *codegen_c_malloc32(JIT *jit, size_t size) {
-    llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_32");
-    assert(c_malloc);
-    std::vector<llvm::Value *> malloc_args;
-    malloc_args.push_back(llvm::ConstantInt::get(llvm_int32, size));
-    llvm::Value *malloc_field = jit->get_builder().CreateCall(c_malloc, malloc_args);
-    return malloc_field;
+llvm::Value *codegen_mmalloc(JIT *jit, size_t size) {
+    llvm::Function *mmalloc = jit->get_module()->getFunction("mmalloc");
+    assert(mmalloc);
+    std::vector<llvm::Value *> mmalloc_args;
+    mmalloc_args.push_back(llvm::ConstantInt::get(llvm_int32, size));
+    return jit->get_builder().CreateCall(mmalloc, mmalloc_args);
 }
 
-llvm::Value *codegen_c_malloc64(JIT *jit, size_t size) {
-    llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_64");
-    assert(c_malloc);
-    std::vector<llvm::Value *> malloc_args;
-    malloc_args.push_back(llvm::ConstantInt::get(llvm_int64, size));
-    llvm::Value *malloc_field = jit->get_builder().CreateCall(c_malloc, malloc_args);
-    return malloc_field;
+llvm::Value *codegen_mmalloc(JIT *jit, llvm::Value *size) {
+    llvm::Function *mmalloc = jit->get_module()->getFunction("mmalloc");
+    assert(mmalloc);
+    std::vector<llvm::Value *> mmalloc_args;
+    mmalloc_args.push_back(size);
+    return jit->get_builder().CreateCall(mmalloc, mmalloc_args);
 }
 
-llvm::Value *codegen_c_malloc32(JIT *jit, llvm::Value *size) {
-    llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_32");
-    assert(c_malloc);
-    std::vector<llvm::Value *> malloc_args;
-    malloc_args.push_back(size);
-    llvm::Value *malloc_field = jit->get_builder().CreateCall(c_malloc, malloc_args);
-    return malloc_field;
+void codegen_mfree(JIT *jit, llvm::LoadInst *structure) {
+    llvm::Function *mfree = jit->get_module()->getFunction("mfree");
+    assert(mfree);
+    std::vector<llvm::Value *> mfree_args;
+    mfree_args.push_back(jit->get_builder().CreateBitCast(structure, llvm_int8Ptr));
+    jit->get_builder().CreateCall(mfree, mfree_args);
 }
 
-llvm::Value *codegen_c_malloc64(JIT *jit, llvm::Value *size) {
-    llvm::Function *c_malloc = jit->get_module()->getFunction("malloc_64");
-    assert(c_malloc);
-    std::vector<llvm::Value *> malloc_args;
-    malloc_args.push_back(size);
-    llvm::Value *malloc_field = jit->get_builder().CreateCall(c_malloc, malloc_args);
-    return malloc_field;
+void codegen_mdelete(JIT *jit, llvm::LoadInst *structure) {
+    llvm::Function *mdelete = jit->get_module()->getFunction("mdelete");
+    assert(mdelete);
+    std::vector<llvm::Value *> mdelete_args;
+    mdelete_args.push_back(jit->get_builder().CreateBitCast(structure, llvm_int8Ptr));
+    jit->get_builder().CreateCall(mdelete, mdelete_args);
 }
 
-llvm::Value *codegen_llvm_ceil(JIT *jit, llvm::Value *ceil_me) {
-    llvm::Function *llvm_ceil = jit->get_module()->getFunction("llvm.ceil.f32");
-    assert(llvm_ceil);
-    std::vector<llvm::Value *> ceil_args;
-    ceil_args.push_back(ceil_me);
-    return jit->get_builder().CreateCall(llvm_ceil, ceil_args);
+llvm::Value *codegen_mmalloc_and_cast(JIT *jit, size_t size, llvm::Type *cast_to) {
+    return jit->get_builder().CreateBitCast(codegen_mmalloc(jit, size), cast_to);
 }
 
-llvm::Value *codegen_c_malloc32_and_cast(JIT *jit, size_t size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_malloc32(jit, size), cast_to);
-}
-
-llvm::Value *codegen_c_malloc32_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_malloc32(jit, size), cast_to);
-}
-
-llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, size_t size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_malloc64(jit, size), cast_to);
-}
-
-llvm::Value *codegen_c_malloc64_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_malloc64(jit, size), cast_to);
+llvm::Value *codegen_mmalloc_and_cast(JIT *jit, llvm::Value *size, llvm::Type *cast_to) {
+    return jit->get_builder().CreateBitCast(codegen_mmalloc(jit, size), cast_to);
 }
 
 // loaded_structure is the original data that was malloc'd
-llvm::Value *codegen_c_realloc32(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size) {
-    llvm::Function *c_realloc = jit->get_module()->getFunction("realloc_32");
-    return codegen_realloc(jit, c_realloc, loaded_structure, size);
+llvm::Value *codegen_mrealloc(JIT *jit, llvm::LoadInst *structure, llvm::Value *size) {
+    llvm::Function *mrealloc = jit->get_module()->getFunction("mrealloc");
+    return codegen_mrealloc(jit, mrealloc, structure, size);
 }
 
-llvm::Value *codegen_c_realloc64(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size) {
-    llvm::Function *c_realloc = jit->get_module()->getFunction("realloc_64");
-    return codegen_realloc(jit, c_realloc, loaded_structure, size);
+llvm::Value *codegen_mrealloc(JIT *jit, llvm::Function *mrealloc, llvm::LoadInst *structure, llvm::Value *size) {
+    assert(mrealloc);
+    std::vector<llvm::Value *> mrealloc_args;
+    mrealloc_args.push_back(jit->get_builder().CreateBitCast(structure, llvm_int8Ptr));
+    mrealloc_args.push_back(size);
+    return jit->get_builder().CreateCall(mrealloc, mrealloc_args);
 }
 
-llvm::Value *codegen_realloc(JIT *jit, llvm::Function *c_realloc, llvm::LoadInst *loaded_structure, llvm::Value *size) {
-    assert(c_realloc);
-    std::vector<llvm::Value *> realloc_args;
-    realloc_args.push_back(jit->get_builder().CreateBitCast(loaded_structure, llvm_int8Ptr));
-    realloc_args.push_back(size);
-    llvm::Value *realloc_field = jit->get_builder().CreateCall(c_realloc, realloc_args);
-    return realloc_field;
-}
-
-llvm::Value *codegen_c_realloc32_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_realloc32(jit, loaded_structure, size), cast_to);
-}
-
-llvm::Value *codegen_c_realloc64_and_cast(JIT *jit, llvm::LoadInst *loaded_structure, llvm::Value *size, llvm::Type *cast_to) {
-    return jit->get_builder().CreateBitCast(codegen_c_realloc64(jit, loaded_structure, size), cast_to);
+llvm::Value *codegen_mrealloc_and_cast(JIT *jit, llvm::LoadInst *structure, llvm::Value *size,
+                                       llvm::Type *cast_to) {
+    return jit->get_builder().CreateBitCast(codegen_mrealloc(jit, structure, size), cast_to);
 }
 
 llvm::AllocaInst *codegen_llvm_alloca(JIT *jit, llvm::Type *type, unsigned int alignment, std::string name) {
@@ -335,6 +303,5 @@ llvm::Value *codegen_llvm_mul(JIT *jit, llvm::Value *left, llvm::Value *right) {
 llvm::Value *codegen_llvm_add(JIT *jit, llvm::Value *left, llvm::Value *right) {
     return jit->get_builder().CreateAdd(left, right);
 }
-
 
 }

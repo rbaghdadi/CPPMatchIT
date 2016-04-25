@@ -17,26 +17,32 @@ extern "C" void c_fprintf_float(float f) {
     fprintf(stderr, "%f\n", f);
 }
 
-extern "C" void *malloc_32(size_t size) {
+extern "C" void *mmalloc(size_t size) {
 #ifdef PRINT_MALLOC
     std::cerr << "Mallocing " << size << " bytes" << std::endl;
 #endif
     return malloc(size);
 }
 
-extern "C" void *malloc_64(size_t size) {
-    return malloc(size);
-}
-
-extern "C" void *realloc_32(void *structure, size_t size) {
+extern "C" void *mrealloc(void *structure, size_t size) {
 #ifdef PRINT_MALLOC
     std::cerr << "Reallocing " << size << " bytes" << std::endl;
 #endif
     return realloc(structure, size);
 }
 
-extern "C" void *realloc_64(void *structure, size_t size) {
-    return realloc(structure, size);
+extern "C" void mfree(void *structure) {
+#ifdef PRINT_MALLOC
+    std::cerr << "Freeing" << std::endl;
+#endif
+    free(structure);
+}
+
+extern "C" void mdelete(void *structure) {
+#ifdef PRINT_MALLOC
+    std::cerr << "Deleting" << std::endl;
+#endif
+    delete structure;
 }
 
 // following split methods are from http://stackoverflow.com/questions/236129/split-a-string-in-c
@@ -79,44 +85,41 @@ void register_utils(JIT *jit) {
     jit->get_module()->getOrInsertFunction("llvm.ceil.f32", llvm_intr_fceil_ft);
 
     /*
-     * malloc32
+     * malloc
      */
-    // llvm is very strict, so we can't use the same malloc call for both 32 and 64 bit data
-    std::vector<llvm::Type *> c_malloc32_args;
-    c_malloc32_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
-    llvm::FunctionType *c_malloc32_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
-                                                                c_malloc32_args, false);
-    jit->get_module()->getOrInsertFunction("malloc_32", c_malloc32_ft);
+    std::vector<llvm::Type *> mmalloc_args;
+    mmalloc_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    llvm::FunctionType *mmalloc_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                mmalloc_args, false);
+    jit->get_module()->getOrInsertFunction("mmalloc", mmalloc_ft);
 
     /*
-     * malloc64
+     * realloc
      */
-    std::vector<llvm::Type *> c_malloc64_args;
-    c_malloc64_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-    llvm::FunctionType *c_malloc64_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
-                                                                c_malloc64_args, false);
-    jit->get_module()->getOrInsertFunction("malloc_64", c_malloc64_ft);
+    std::vector<llvm::Type *> mrealloc_args;
+    mrealloc_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+    mrealloc_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+    llvm::FunctionType *mrealloc_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
+                                                                 mrealloc_args, false);
+    jit->get_module()->getOrInsertFunction("mrealloc", mrealloc_ft);
 
     /*
-     * realloc32
+     * free
      */
-    // llvm is very strict, so we can't use the same realloc call for both 32 and 64 bit data
-    std::vector<llvm::Type *> c_realloc32_args;
-    c_realloc32_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
-    c_realloc32_args.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
-    llvm::FunctionType *c_realloc32_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
-                                                                 c_realloc32_args, false);
-    jit->get_module()->getOrInsertFunction("realloc_32", c_realloc32_ft);
+    std::vector<llvm::Type *> mfree_args;
+    mfree_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+    llvm::FunctionType *mfree_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                              mfree_args, false);
+    jit->get_module()->getOrInsertFunction("mfree", mfree_ft);
 
     /*
-     * realloc64
+     * delete
      */
-    std::vector<llvm::Type *> c_realloc64_args;
-    c_realloc64_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
-    c_realloc64_args.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
-    llvm::FunctionType *c_realloc64_ft = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()),
-                                                                 c_realloc64_args, false);
-    jit->get_module()->getOrInsertFunction("realloc_64", c_realloc64_ft);
+    std::vector<llvm::Type *> mdelete_args;
+    mdelete_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+    llvm::FunctionType *mdelete_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
+                                                           mdelete_args, false);
+    jit->get_module()->getOrInsertFunction("mdelete", mdelete_ft);
 
     /*
      * printf int
