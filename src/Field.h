@@ -261,6 +261,11 @@ public:
     int get_element_id() const;
 
     /**
+     * Set the element id.
+     */
+    void set_element_id(int id);
+
+    /**
      * Get element from scalar Field
      */
     template <typename T>

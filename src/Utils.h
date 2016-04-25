@@ -49,11 +49,6 @@ extern "C" void *mrealloc(void *structure, size_t size);
 extern "C" void mfree(void *structure);
 
 /**
- * Call C++ delete.
- */
-extern "C" void mdelete(void *structure);
-
-/**
  * Register the functions into llvm that are underlying the above wrappers.
  */
 void register_utils(JIT *jit);

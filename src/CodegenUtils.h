@@ -36,8 +36,6 @@ llvm::Value *codegen_mrealloc_and_cast(JIT *jit, llvm::LoadInst *structure, llvm
 
 void codegen_mfree(JIT *jit, llvm::LoadInst *structure);
 
-void codegen_mdelete(JIT *jit, llvm::LoadInst *structure);
-
 void codegen_llvm_memcpy(JIT *jit, llvm::Value *dest, llvm::Value *src, llvm::Value *bytes_to_copy);
 
 /*

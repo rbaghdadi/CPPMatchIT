@@ -239,14 +239,6 @@ void codegen_mfree(JIT *jit, llvm::LoadInst *structure) {
     jit->get_builder().CreateCall(mfree, mfree_args);
 }
 
-void codegen_mdelete(JIT *jit, llvm::LoadInst *structure) {
-    llvm::Function *mdelete = jit->get_module()->getFunction("mdelete");
-    assert(mdelete);
-    std::vector<llvm::Value *> mdelete_args;
-    mdelete_args.push_back(jit->get_builder().CreateBitCast(structure, llvm_int8Ptr));
-    jit->get_builder().CreateCall(mdelete, mdelete_args);
-}
-
 llvm::Value *codegen_mmalloc_and_cast(JIT *jit, size_t size, llvm::Type *cast_to) {
     return jit->get_builder().CreateBitCast(codegen_mmalloc(jit, size), cast_to);
 }

@@ -35,6 +35,10 @@ int Element::get_element_id() const {
     return id;
 }
 
+void Element::set_element_id(int id) {
+    this->id = id;
+}
+
 void init_element(JIT *jit) {
     std::vector<llvm::Type *> element_args;
     element_args.push_back(Codegen::llvm_int32);
@@ -53,7 +57,9 @@ extern "C" Element **create_elements(int num_to_create, bool alloc_pointers_only
     Element **elements = (Element**)mmalloc(sizeof(Element*) * num_to_create);
     if (!alloc_pointers_only) {
         for (int i = 0; i < num_to_create; i++) {
-            elements[i] = new Element(i);
+            Element *new_element = (Element*)mmalloc(sizeof(Element));
+            new_element->set_element_id(i);
+            elements[i] = new_element;
         }
     }
     return elements;

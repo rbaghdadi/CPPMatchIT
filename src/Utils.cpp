@@ -38,13 +38,6 @@ extern "C" void mfree(void *structure) {
     free(structure);
 }
 
-extern "C" void mdelete(void *structure) {
-#ifdef PRINT_MALLOC
-    std::cerr << "Deleting" << std::endl;
-#endif
-    delete structure;
-}
-
 // following split methods are from http://stackoverflow.com/questions/236129/split-a-string-in-c
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
     std::stringstream ss(s);
@@ -111,15 +104,6 @@ void register_utils(JIT *jit) {
     llvm::FunctionType *mfree_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
                                                               mfree_args, false);
     jit->get_module()->getOrInsertFunction("mfree", mfree_ft);
-
-    /*
-     * delete
-     */
-    std::vector<llvm::Type *> mdelete_args;
-    mdelete_args.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
-    llvm::FunctionType *mdelete_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm::getGlobalContext()),
-                                                           mdelete_args, false);
-    jit->get_module()->getOrInsertFunction("mdelete", mdelete_ft);
 
     /*
      * printf int

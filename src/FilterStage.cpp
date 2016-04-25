@@ -20,7 +20,9 @@ void FilterStage::handle_user_function_output() {
 
     // remove it
     jit->get_builder().SetInsertPoint(remove);
-    codegen_mdelete(jit, codegen_llvm_load(jit, user_function_arg_loader->get_user_function_input_allocs()[0], 8));
+//    codegen_mdelete_element(jit,
+//                            codegen_llvm_load(jit, user_function_arg_loader->get_user_function_input_allocs()[0], 8));
+    codegen_mfree(jit, codegen_llvm_load(jit, user_function_arg_loader->get_user_function_input_allocs()[0], 8));
     jit->get_builder().CreateBr(loop->get_increment_bb());
 
     // keep it
