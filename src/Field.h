@@ -98,11 +98,27 @@ public:
     }
 
     /**
+     * Add an array element to an array Field with a specified length.
+     */
+    template <typename T>
+    void set_array(int element_idx, T *array, int length) {
+        memcpy(&((T*)data)[element_idx * dim1], array, length);
+    }
+
+    /**
      * Add an array element to a matrix Field
      */
     template <typename T>
     void set_matrix_row(int element_idx, int row_offset, T *array) {
         memcpy(&((T*)data)[element_idx * dim1 * dim2 + row_offset * dim1], array, dim1);
+    }
+
+    /**
+     * Add an array element to a matrix Field with a specified length.
+     */
+    template <typename T>
+    void set_matrix_row(int element_idx, int row_offset, T *array, int length) {
+        memcpy(&((T*)data)[element_idx * dim1 * dim2 + row_offset * dim1], array, length);
     }
 
     /**
@@ -162,12 +178,21 @@ public:
     }
 
     /**
-     * Allocate space for an array Field (if necessary) and set value
+     * Allocate space for an array Field (if necessary) and set array.
      */
     template <typename T>
     void array_allocate_and_set(int element_idx, T *array) {
         array_allocate_only<T>(element_idx);
         set_array(element_idx, array);
+    }
+
+    /**
+     * Allocate space for an array Field (if necessary) and set array with specified length.
+     */
+    template <typename T>
+    void array_allocate_and_set(int element_idx, T *array, int length) {
+        array_allocate_only<T>(element_idx);
+        set_array(element_idx, array, length);
     }
 
     /**
@@ -182,13 +207,13 @@ public:
     /**
      * Allocate space for a matrix Field (if necessary) and set value
      */
-    template <typename T>
-    void matrix_allocate_and_set(int element_idx, T **matrix) {
-        matrix_allocate_only<T>(element_idx);
-        for (int i = 0; i < dim2; i++) { // iterate down columns
-            set_matrix_row(element_idx, i, matrix[i]);
-        }
-    }
+//    template <typename T>
+//    void matrix_allocate_and_set(int element_idx, T **matrix) {
+//        matrix_allocate_only<T>(element_idx);
+//        for (int i = 0; i < dim2; i++) { // iterate down columns
+//            set_matrix_row(element_idx, i, matrix[i]);
+//        }
+//    }
 
     /**
      * Allocate space for a matrix Field (if necessary) and set a row of the matrix
@@ -197,6 +222,15 @@ public:
     void matrix_allocate_and_set_array(int element_idx, int row_offset, T *array) {
         matrix_allocate_only<T>(element_idx);
         set_matrix_row(element_idx, row_offset, array);
+    }
+
+    /**
+     * Allocate space for a matrix Field (if necessary) and set a row of the matrix with a specified length.
+     */
+    template <typename T>
+    void matrix_allocate_and_set_array(int element_idx, int row_offset, T *array, int length) {
+        matrix_allocate_only<T>(element_idx);
+        set_matrix_row(element_idx, row_offset, array, length);
     }
 
     /**
@@ -334,6 +368,15 @@ public:
     }
 
     /**
+     * Set array in an array Field, but with a specified length, rather than dim.
+     */
+    template <typename T, int dim>
+    void set(Field<T, dim> *field, T *vals, int length) {
+        field->template set_array<T>(id, vals, length);
+    }
+
+
+    /**
      * Set single value in a matrix Field.
      */
     template <typename T, int dim1, int dim2>
@@ -349,10 +392,17 @@ public:
         field->template set_matrix_row<T>(id, row_offset, vals);
     }
 
+    /**
+     * Set row in a matrix Field, but with a specified length, rather than dim.
+     */
+    template <typename T, int dim1, int dim2>
+    void set(Field<T, dim1, dim2> *field, int row_offset, T *vals, int length) {
+        field->template set_matrix_row<T>(id, row_offset, vals, length);
+    }
+
     /*
      * Setters for initialization.
      */
-
 
     /**
      * Allocate space for a scalar Field.
@@ -403,6 +453,14 @@ public:
     }
 
     /**
+     * Alocate space for an array Field and set an array with specified length.
+     */
+    template <typename T, int dim>
+    void allocate_and_set(Field<T, dim> *field, T *vals, int length) {
+        field->template array_allocate_and_set<T>(id, vals, length);
+    }
+
+    /**
      * Allocate space for a matrix Field and set a scalar.
      */
     template <typename T, int dim1, int dim2>
@@ -411,11 +469,19 @@ public:
     }
 
     /**
-    * Allocate space for a matrix Field and set an array.
-    */
+     * Allocate space for a matrix Field and set an array.
+     */
     template <typename T, int dim1, int dim2>
     void allocate_and_set(Field<T, dim1, dim2> *field, int row_offset, T *vals) {
         field->template matrix_allocate_and_set_array<T>(id, row_offset, vals);
+    }
+
+    /**
+     * Allocate space for a matrix Field and set an array with a specified length.
+     */
+    template <typename T, int dim1, int dim2>
+    void allocate_and_set(Field<T, dim1, dim2> *field, int row_offset, T *vals, int length) {
+        field->template matrix_allocate_and_set_array<T>(id, row_offset, vals, length);
     }
 
 };

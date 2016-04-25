@@ -9,10 +9,12 @@
 
 namespace MF {
 
-const int fft_size = 65536;
-const int seg_size = 75000;
-const float overlap = 0.00;
-const int dim = 45539;
+const int fft_size = 88209;
+const int seg_size = 88209;
+const float overlap = 0.5;
+const int dim = 88209;
+const float threshold = 500;
+const float sample_rate = 8000;
 
 /**
  * FilterStage. Remove all files that end in txt
@@ -24,7 +26,7 @@ extern "C" bool filter(const Element * const input);
  * TransformationStage. Reads in audio.
  */
 extern Field<char, 200> audio_filepath;
-extern Field<float, 1500000> audio;
+extern Field<float, 2500000> audio;
 extern Field<int> audio_length; // This is needed since we don't have variable size arrays. It's the actual length of the audio
 extern "C" void read_audio(const Element * const in, Element * const out);
 
@@ -49,6 +51,8 @@ extern "C" void compute_fft(const Element * const input, Element * const output)
  */
 extern Field<char, 200> ifft_filepath1;
 extern Field<char, 200> ifft_filepath2;
+extern Field<int> ifft_offset1;
+extern Field<int> ifft_offset2;
 extern Field<float, dim> clipped;
 // http://dsp.stackexchange.com/questions/736/how-do-i-implement-cross-correlation-to-prove-two-audio-files-are-similar
 // In Doug's original code, the pipeline reverses the referent, takes the FFT of that, and then does this computation with

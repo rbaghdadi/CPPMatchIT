@@ -87,11 +87,11 @@ std::vector<Element *> read_fasta2(std::string fasta_file) {
             if (line.c_str()[0] == '>') {
                 Element *next = new Element(cur_seq);
                 // set the filepath
-                next->allocate_and_set(&filter_filepath, &fasta_file[0]);
+                next->allocate_and_set(&filter_filepath, &fasta_file[0], fasta_file.length() + 1);
                 // set the sequence name
                 std::vector<std::string> tokens = split(line, ' ');
                 std::cerr << "reading " << tokens[1] << " from file " << fasta_file << std::endl;
-                next->allocate_and_set(&sequence_name, &(tokens[1][0]));//c_name);
+                next->allocate_and_set(&sequence_name, &(tokens[1][0]), tokens[1].length() + 1);
                 elements.push_back(next);
             } else {
                 // set the sequence
@@ -113,24 +113,26 @@ std::vector<Element *> read_fasta2(std::string fasta_file) {
 
 extern "C" bool compute_alignment_matrix(const Element * const sequence1_in, const Element * const sequence2_in, Element * const out) {
     std::cerr << "computing the alignment matrix for " << sequence1_in->get(&sequence_name) << " and " << sequence2_in->get(&sequence_name) << std::endl;
-    out->set(&sequence1_name, sequence1_in->get(&sequence_name));
-    out->set(&sequence2_name, sequence2_in->get(&sequence_name));
-    out->set(&sequence1, sequence1_in->get(&sequence));
-    out->set(&sequence2, sequence2_in->get(&sequence));
-    out->set(&sequence1_length, sequence1_in->get(&sequence_length));
-    out->set(&sequence2_length, sequence2_in->get(&sequence_length));
+    out->set(&sequence1_name, sequence1_in->get(&sequence_name), strlen(sequence1_in->get(&sequence_name)) + 1);
+    out->set(&sequence2_name, sequence2_in->get(&sequence_name), strlen(sequence2_in->get(&sequence_name)) + 1);
+    int seq1_length = sequence1_in->get(&sequence_length);
+    int seq2_length = sequence2_in->get(&sequence_length);
+    out->set(&sequence1, sequence1_in->get(&sequence), seq1_length);
+    out->set(&sequence2, sequence2_in->get(&sequence), seq2_length);
+    out->set(&sequence1_length, seq1_length);
+    out->set(&sequence2_length, seq2_length);
     // + 1 below all of these because there is an extra column and row for the gap penalties
     for (int col = 0; col < sequence1_in->get(&sequence_length) + 1; col++) {
         out->set(&alignment_matrix, 0, col, col * gap_penalty);
     }
     // iterate down through the rows of the alignment matrix
-    for (int i = 1; i < sequence2_in->get(&sequence_length) + 1; i++) {
+    for (int i = 1; i < seq2_length + 1; i++) {
         int *cur_row = out->get(&alignment_matrix, i); // current row computing the score for
         int *upper_row = out->get(&alignment_matrix, i - 1); // previous row computed
         char *top_seq = sequence1_in->get(&sequence); // sequence on the horizontal of the alignment matrix
         char row_base = sequence2_in->get(&sequence)[i-1]; // the genome base of this row
         cur_row[0] = i * gap_penalty;
-        for (int col = 1; col < sequence1_in->get(&sequence_length) + 1; col++) {
+        for (int col = 1; col < seq1_length + 1; col++) {
             int northwest_score = upper_row[col-1] + similarity[row_base][top_seq[col-1]];
             int north_score = upper_row[col] + gap_penalty;
             int west_score = cur_row[col-1] + gap_penalty;
@@ -189,7 +191,7 @@ extern "C" void compute_traceback_alignment(const Element * const in, Element * 
     for (int n = left_idx - 1; n >= 0; n--) {
         alignment[m++] = left_alignment[n];
     }
-    out->set(&traceback, alignment);
+    out->set(&traceback, alignment, traceback_length);
 
     // print out the alignment
     for (int n = 0; n < top_idx + left_idx + 1; n++) {

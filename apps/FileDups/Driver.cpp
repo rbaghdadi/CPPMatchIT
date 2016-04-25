@@ -13,7 +13,9 @@ int main() {
 
     JIT *jit = init();
     setup(jit);
-    start(jit);
+    for (int i = 0; i < 10; i++) {
+        start(jit);
+    }
     cleanup(jit);
 
     return 0;

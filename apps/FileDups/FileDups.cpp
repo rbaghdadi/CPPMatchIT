@@ -42,7 +42,7 @@ extern "C" void file_to_md5(const Element * const in, Element * const out) {
     MD5_CTX context;
     MD5_Init(&context);
     MD5_Update(&context, data, length);
-    out->set(&filepath_out, filepath);
+    out->set(&filepath_out, filepath, strlen(filepath) + 1);
     MD5_Final(out->get(&md5_out), &context); // does this instead of calling set
     free(data);
     char md5_str[MD5_DIGEST_LENGTH * 2 + 1];

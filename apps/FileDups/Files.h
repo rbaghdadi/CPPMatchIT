@@ -263,7 +263,7 @@ std::vector<Element *> init(Field<T,dim> *field) {
     int id_ctr = 0;
     for (std::vector<std::string>::iterator iter = files.begin(); iter != files.end(); iter++) {
         Element *e = new Element(id_ctr++);
-        e->allocate_and_set(field, &(*iter)[0]);
+        e->allocate_and_set(field, &(*iter)[0], iter->length() + 1);
         elements.push_back(e);
     }
     return elements;
