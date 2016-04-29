@@ -37,13 +37,15 @@ ComparisonStage create_comparison_stage(JIT *jit, bool (*compareBI)(const Elemen
     return stage;
 }
 
-SegmentationStage create_segmentation_stage(JIT *jit,
-                                            unsigned int (*segment)(const Element *const, Element **const),
-                                            std::string segmentation_name, Fields *input_relation,
-                                            Fields *output_relation, BaseField *field_to_segment,
-                                            unsigned int segment_size, float overlap) {
-    SegmentationStage stage(segment, segmentation_name, jit, input_relation, output_relation, segment_size, overlap,
-                      field_to_segment);
+SegmentationStage create_segmentation_stage(JIT *jit, unsigned int (*segment)(const Element *const, Element **const),
+                                            unsigned int (*compute_num_segments)(const Element *const),
+                                            std::string segmentation_name, std::string compute_num_segments_name,
+                                            Fields *input_relation, Fields *output_relation,
+                                            BaseField *field_to_segment, unsigned int segment_size, float overlap) {
+    SegmentationStage stage(segment, compute_num_segments, segmentation_name,
+                            compute_num_segments_name, jit,
+                            input_relation, output_relation,
+                            segment_size, overlap, field_to_segment);
     stage.init_stage();
     return stage;
 }

@@ -25,10 +25,10 @@ ComparisonStage create_comparison_stage(JIT *jit, bool (*compareBIO)(const Eleme
 ComparisonStage create_comparison_stage(JIT *jit, bool (*compareBI)(const Element * const, const Element * const),
                                         std::string comparison_name, Fields *input_relation);
 
-SegmentationStage create_segmentation_stage(JIT *jit,
-                                            unsigned int (*segment)(const Element *const, Element **const),
-                                            std::string segmentation_name, Fields *input_relation,
-                                            Fields *output_relation, BaseField *field_to_segment,
-                                            unsigned int segment_size, float overlap);
+SegmentationStage create_segmentation_stage(JIT *jit, unsigned int (*segment)(const Element *const, Element **const),
+                                            unsigned int (*compute_num_segments)(const Element *const),
+                                            std::string segmentation_name, std::string compute_num_segments_name,
+                                            Fields *input_relation, Fields *output_relation,
+                                            BaseField *field_to_segment, unsigned int segment_size, float overlap);
 
 #endif //MATCHIT_STAGEFACTORY_H

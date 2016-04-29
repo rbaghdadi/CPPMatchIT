@@ -169,7 +169,6 @@ void Pipeline::codegen(JIT *jit) {
     // call the first stage
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
     llvm::Value *num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
-    codegen_fprintf_int(jit, num_outputs);
     jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
 
     if (stage->is_filter() || (stage->is_comparison() && !output_fields.empty())) {
@@ -217,7 +216,42 @@ void Pipeline::codegen(JIT *jit) {
                 create_element_args.push_back(num_outputs);
                 create_element_args.push_back(as_i1(false));
             } else {
-                num_outputs = ((SegmentationStage *) stage)->compute_num_segments(num_outputs, pipeline);
+//                num_outputs = ((SegmentationStage *) stage)->compute_num_segments_old(num_outputs, pipeline);
+                llvm::AllocaInst *total_num_segments = codegen_llvm_alloca(jit, llvm_int32, 4);
+                codegen_llvm_store(jit, as_i32(0), total_num_segments, 4);
+                ForLoop loop(jit);
+                loop.init_codegen(pipeline);
+                jit->get_builder().CreateBr(loop.get_counter_bb());
+
+                // counter (goes to condition)
+                jit->get_builder().SetInsertPoint(loop.get_counter_bb());
+                llvm::AllocaInst *output_alloc = codegen_llvm_alloca(jit, num_outputs->getType(), 4);
+                codegen_llvm_store(jit, num_outputs, output_alloc, 4);
+                loop.codegen_counters(output_alloc);
+                jit->get_builder().CreateBr(loop.get_condition_bb());
+
+                // condition (goes to seg counter if still in loop, next otherwise)
+                llvm::BasicBlock *count = llvm::BasicBlock::Create(llvm::getGlobalContext(), "seg_count", pipeline);
+                llvm::BasicBlock *next = llvm::BasicBlock::Create(llvm::getGlobalContext(), "next", pipeline);
+                loop.codegen_condition();
+                jit->get_builder().CreateCondBr(loop.get_condition()->get_loop_comparison(),
+                                                count, next);
+                // seg counter. goes to increment
+                jit->get_builder().SetInsertPoint(count);
+                std::vector<llvm::Value *> segment_params;
+                std::vector<llvm::Value *> gep_params;
+                gep_params.push_back(codegen_llvm_load(jit, loop.get_loop_idx(), 4));
+                segment_params.push_back(codegen_llvm_load(jit, codegen_llvm_gep(jit, inputs_to_next_stage, gep_params), 4));
+                llvm::Value *num_segs = jit->get_builder().CreateCall(((SegmentationStage*)stage)->get_compute_num_segments_mfunc(), segment_params);
+                codegen_llvm_store(jit, codegen_llvm_add(jit, codegen_llvm_load(jit, total_num_segments, 4), num_segs), total_num_segments, 4);
+                jit->get_builder().CreateBr(loop.get_increment_bb());
+
+                // increment. goes to condition
+                loop.codegen_loop_idx_increment();
+                jit->get_builder().CreateBr(loop.get_condition_bb());
+                jit->get_builder().SetInsertPoint(next);
+
+                num_outputs = codegen_llvm_load(jit, total_num_segments, 4);
                 create_element_args.push_back(num_outputs);
                 create_element_args.push_back(as_i1(false));
             }
@@ -240,7 +274,6 @@ void Pipeline::codegen(JIT *jit) {
         }
         // call the current stage
         num_outputs = jit->get_builder().CreateCall(mfunction_stage->get_llvm_stage(), llvm_stage_params);
-        codegen_fprintf_int(jit, num_outputs);
         jit->get_builder().CreateCall(jit->get_module()->getFunction("print_sep"), std::vector<llvm::Value *>());
         if (stage->is_filter() || (stage->is_comparison() && !output_fields.empty())) {
             //     Clear out the space allocated for output Element objects that wasn't used because of the input Element objects that were dropped.

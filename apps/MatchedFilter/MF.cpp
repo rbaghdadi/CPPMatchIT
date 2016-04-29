@@ -74,6 +74,7 @@ extern "C" void read_audio(const Element * const in, Element * const out) {
         data[i] = 0.0;
     }
 
+    // +1 in strlen because need null terminator
     out->set(&audio_filepath, fp, strlen(fp)+1);
     out->set(&audio, data, padded_length);
     out->set(&audio_length, padded_length);
@@ -83,7 +84,8 @@ extern "C" void read_audio(const Element * const in, Element * const out) {
 
 extern "C" unsigned int compute_num_segments(const Element * audio_in) {
     int length = audio_in->get(&audio_length);
-    return length / (int)((float)seg_size * overlap);
+    return ceil(((float)length - ((float)seg_size * overlap)) / ((float)seg_size - ((float)seg_size * overlap)));
+//    return length / (int)((float)seg_size * overlap);
 }
 
 extern "C" unsigned int segment(const Element * const audio_in, Element ** const segmented_audio) {
@@ -97,12 +99,14 @@ extern "C" unsigned int segment(const Element * const audio_in, Element ** const
         num_segments = 1;
     }
     // assumes data is correctly padded already
-    for (int i = 0; i < length; i+=(int)((float)seg_size*overlap)) {
+    for (int i = 0; i < length && i + seg_size - 1 <= length; i+=(int)((float)seg_size*overlap)) {
         segmented_audio[seg_ctr]->set(&segment_audio, &(audio_floats[i]), seg_size);
         segmented_audio[seg_ctr]->set(&segment_offset, i);
         segmented_audio[seg_ctr]->set(&segment_filepath, audio_in->get(&audio_filepath), strlen(audio_in->get(&audio_filepath)) + 1);
+        seg_ctr++;
+
     }
-    return seg_ctr;
+    return num_segments;
 }
 
 //extern "C" unsigned int segment(const Element * const audio_in, Element ** const segmented_audio) {
@@ -257,7 +261,7 @@ extern "C" void recombine(const Element ** const elements, int num_elements) {
     // print results
     for (int i = 0; i < final_idx; i++) {
         fprintf(stderr, "%s from %.6f to %.6f, %s from %.6f to %.6f\n",
-        elements[0]->get(&ifft_filepath1), (float)merged_starts1[i] / sample_rate,
+                elements[0]->get(&ifft_filepath1), (float)merged_starts1[i] / sample_rate,
                 ((float)merged_ends1[i] + (float)seg_size) / sample_rate, elements[0]->get(&ifft_filepath2),
                 (float)merged_starts2[i] / sample_rate, ((float)merged_ends2[i] + (float)seg_size) / sample_rate);
     }
@@ -357,17 +361,19 @@ void setup(JIT *jit) {
 
     FilterStage filt = create_filter_stage(jit, filter, "filter", &filter_fields);
     TransformStage reader = create_transform_stage(jit, read_audio, "read_audio", &filter_fields, &read_audio_fields);
-    SegmentationStage segmentor = create_segmentation_stage(jit, segment, "segment", &read_audio_fields, &segment_fields,
+    SegmentationStage segmentor = create_segmentation_stage(jit, segment, compute_num_segments,
+                                                            "segment", "compute_num_segments",
+                                                            &read_audio_fields, &segment_fields,
                                                             &audio, seg_size, overlap);
-//    TransformStage fft_xform = create_transform_stage(jit, compute_fft, "compute_fft", &segment_fields, &fft_fields);
-//    ComparisonStage ifft_xform = create_comparison_stage(jit, compute_ifft, "compute_ifft", &fft_fields, &ifft_fields);
+    TransformStage fft_xform = create_transform_stage(jit, compute_fft, "compute_fft", &segment_fields, &fft_fields);
+    ComparisonStage ifft_xform = create_comparison_stage(jit, compute_ifft, "compute_ifft", &fft_fields, &ifft_fields);
 
     Pipeline pipeline;
     pipeline.register_stage(&filt);
     pipeline.register_stage(&reader);
-//    pipeline.register_stage(&segmentor);
-//    pipeline.register_stage(&fft_xform);
-//    pipeline.register_stage(&ifft_xform);
+    pipeline.register_stage(&segmentor);
+    pipeline.register_stage(&fft_xform);
+    pipeline.register_stage(&ifft_xform);
     pipeline.codegen(jit);
 }
 

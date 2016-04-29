@@ -65,6 +65,7 @@ private:
 
 public:
 
+    // TODO don't associate this with a stage. I want to be able to use this for other functions that aren't stage functions
     MFunc(std::string name, std::string associated_block, MType *user_function_return_type, MType *stage_return_type,
           std::vector<MType *> user_function_param_types, std::vector<MType *> stage_param_types, JIT *jit) :
             user_function_name(name), stage_name("__execute_" + name),
