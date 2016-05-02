@@ -48,7 +48,11 @@ bool MType::is_void_type() {
 }
 
 bool MType::is_scalar_type() {
-    return is_int_type() || is_float_type() || is_double_type() || is_bool_type() || is_void_type() ;
+    return is_int_type() || is_float_type() || is_double_type() || is_bool_type() || is_void_type();
+}
+
+bool MType::is_signed_type() {
+    return mtype_code == mtype_char || mtype_code == mtype_short || mtype_code == mtype_int || mtype_code == mtype_long;
 }
 
 bool MType::is_ptr_type() {
@@ -61,6 +65,26 @@ bool MType::is_struct_type() {
 
 bool MType::is_mtype_marray_type() {
     return mtype_code == mtype_marray;
+}
+
+bool MType::is_mscalar_type() {
+    return false;
+}
+
+bool MType::is_mstruct_type() {
+    return false;
+}
+
+bool MType::is_mpointer_type() {
+    return false;
+}
+
+bool MType::is_marray_type() {
+    return false;
+}
+
+bool MType::is_mmatrix_type() {
+    return false;
 }
 
 /*
@@ -91,6 +115,10 @@ int MScalarType::underlying_size() {
     return bytes;
 }
 
+bool MScalarType::is_mscalar_type() {
+    return true;
+}
+
 /*
  * MPointerType
  */
@@ -106,6 +134,10 @@ void MPointerType::dump() {
 
 int MPointerType::underlying_size() {
     return underlying_types[0]->underlying_size();
+}
+
+bool MPointerType::is_mpointer_type() {
+    return true;
 }
 
 /*
@@ -141,6 +173,10 @@ int MStructType::underlying_size() {
     return total;
 }
 
+bool MStructType::is_mstruct_type() {
+    return true;
+}
+
 /*
  * MArrayType
  */
@@ -165,6 +201,10 @@ llvm::Type *MArrayType::codegen_type() {
 
 int MArrayType::underlying_size() {
     return array_element_type->underlying_size();
+}
+
+bool MArrayType::is_marray_type() {
+    return true;
 }
 
 /*
@@ -195,6 +235,10 @@ llvm::Type *MMatrixType::codegen_type() {
 
 int MMatrixType::underlying_size() {
     return matrix_element_type->underlying_size();
+}
+
+bool MMatrixType::is_mmatrix_type() {
+    return true;
 }
 
 /*

@@ -86,6 +86,18 @@ public:
     bool is_scalar_type();
 
     /**
+     * Is this a signed type
+     */
+    bool is_signed_type();
+
+    /**
+     * Is this a signed type
+     */
+    bool is_unsigned_type() {
+        assert(false && "not an unsigned type");
+    }
+
+    /**
      * Is this an mtype_bool
      */
     bool is_bool_type();
@@ -135,6 +147,16 @@ public:
      */
     virtual int underlying_size() = 0;
 
+    virtual bool is_mscalar_type();
+
+    virtual bool is_mpointer_type();
+
+    virtual bool is_mstruct_type();
+
+    virtual bool is_marray_type();
+
+    virtual bool is_mmatrix_type();
+
 };
 
 /*
@@ -176,6 +198,8 @@ public:
      * Return the number of bytes of this scalar value.
      */
     int underlying_size();
+
+    bool is_mscalar_type();
 
     /**
      * Get preconstructed mtype_bool
@@ -249,6 +273,8 @@ public:
      */
     int underlying_size();
 
+    bool is_mpointer_type();
+
 };
 
 /*
@@ -280,6 +306,8 @@ public:
      * Sum up the number of bytes in each of the underlying types.
      */
     int underlying_size();
+
+    bool is_mstruct_type();
 
 };
 
@@ -348,6 +376,8 @@ public:
      */
     int underlying_size();
 
+    bool is_marray_type();
+
 };
 
 class MMatrixType : public MType {
@@ -395,6 +425,8 @@ public:
      * Return the number of bytes in the matrix element type.
      */
     int underlying_size();
+
+    bool is_mmatrix_type();
 
 };
 

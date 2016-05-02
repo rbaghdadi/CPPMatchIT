@@ -43,16 +43,6 @@ public:
 
     bool is_segmentation();
 
-    /*
-     * Compute using the following formula:
-     *
-     *       (total # data points) - ((segment size) * overlap)
-     * ceil( -------------------------------------------------- )
-     *       (segment size) - ((segment size) * overlap)
-     *
-     */
-//    llvm::Value *compute_num_segments_old(llvm::Value *loop_bound, llvm::Function *insert_into);
-
     llvm::AllocaInst *compute_num_output_elements();
 
     void handle_user_function_output();
