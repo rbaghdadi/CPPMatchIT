@@ -25,6 +25,10 @@ class MSLT;
 class MIRVisitor {
 public:
 
+    MIRVisitor() { }
+
+    virtual ~MIRVisitor() { }
+
     virtual void visit(MVar *mvar) = 0;
     virtual void visit(MBlock *mblock) = 0;
     virtual void visit(MDirectBranch *mdbranch) = 0;
@@ -56,6 +60,8 @@ public:
     IR(std::string name) : name(name) { }
 
     IR(std::string name, void *data) : name(name), data(data) { }
+
+    virtual ~IR() { }
 
     std::string &get_name();
 
@@ -96,6 +102,8 @@ public:
     MVar(MType *mtype, void *data, std::string name, bool is_constant) : IR(name, data), mtype(mtype),
                                                                          is_constant(is_constant) { }
 
+    virtual ~MVar() { }
+
     MType *get_mtype();
 
     void accept(MIRVisitor *visitor);
@@ -113,6 +121,8 @@ public:
     MExpr() { }
 
     MExpr(std::string name) : IR(name) { }
+
+    virtual ~MExpr() { }
 
     virtual void accept(MIRVisitor *visitor) = 0;
 
@@ -138,6 +148,8 @@ public:
     MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool var_args) : IR(name), args(args),
                                                                                                return_type(return_type),
                                                                                                var_args(var_args) { }
+
+    virtual ~MFunction() { }
 
     std::vector<MVar *> get_args();
 
@@ -187,9 +199,12 @@ class MBlock : public IR {
 private:
 
     std::vector<MExpr *> exprs;
+
 public:
 
     MBlock(std::string name) : IR(name) { }
+
+    virtual ~MBlock() { }
 
     void accept(MIRVisitor *visitor);
 
@@ -206,6 +221,8 @@ public:
 
     MBranch(std::string name) : MExpr(name) { }
 
+    virtual ~MBranch() { }
+
     virtual void accept(MIRVisitor *visitor) = 0;
 
 };
@@ -220,6 +237,8 @@ public:
     MDirectBranch(MBlock *branch_to) : branch_to(branch_to) { }
 
     MDirectBranch(std::string name, MBlock *branch_to) : MBranch(name), branch_to(branch_to) { }
+
+    virtual ~MDirectBranch() { }
 
     void accept(MIRVisitor *visitor);
 
@@ -245,6 +264,8 @@ public:
             branch_to_true(branch_to_true),
             branch_to_false(branch_to_false),
             condition(condition) { }
+
+    virtual ~MCondBranch() { }
 
     void accept(MIRVisitor *visitor);
 
@@ -287,6 +308,8 @@ public:
         result = (MVar**)malloc(sizeof(MVar*));
     }
 
+    virtual ~MBinaryOp() { }
+
     MVar *get_left();
 
     MVar *get_right();
@@ -308,6 +331,8 @@ public:
 
     MAdd(MVar **left, MVar **right) : MBinaryOp(left, right) { }
 
+    virtual ~MAdd() { }
+
     void accept(MIRVisitor *visitor);
 
 };
@@ -316,6 +341,8 @@ class MSub : public MBinaryOp {
 public:
 
     MSub(MVar **left, MVar **right) : MBinaryOp(left, right) { }
+
+    virtual ~MSub() { }
 
     void accept(MIRVisitor *visitor);
 
@@ -326,6 +353,8 @@ public:
 
     MMul(MVar **left, MVar **right) : MBinaryOp(left, right) { }
 
+    virtual ~MMul() { }
+
     void accept(MIRVisitor *visitor);
 
 };
@@ -334,6 +363,8 @@ class MDiv : public MBinaryOp {
 public:
 
     MDiv(MVar **left, MVar **right) : MBinaryOp(left, right) { }
+
+    virtual ~MDiv() { }
 
     void accept(MIRVisitor *visitor);
 
@@ -344,6 +375,8 @@ class MSLT : public MBinaryOp {
 public:
 
     MSLT(MVar **left, MVar **right) : MBinaryOp(left, right) { }
+
+    virtual ~MSLT() { }
 
     void accept(MIRVisitor *visitor);
 

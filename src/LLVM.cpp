@@ -67,6 +67,8 @@ llvm::Type *codegen_type(MType *mtype) {
         return codegen_type((MMatrixType *) mtype);
     } else if (mtype->is_mpointer_type()) {
         return codegen_type((MPointerType *) mtype);
+    } else {
+        assert(false && "I don't know that this type is");
     }
 }
 
@@ -88,6 +90,8 @@ llvm::Type *codegen_type(MScalarType *mscalar_type) {
             return lfloat;
         case mtype_double:
             return ldouble;
+        default:
+            assert(false && "non scalar type requested");
     }
 }
 
@@ -97,9 +101,8 @@ llvm::Type *codegen_type(MPointerType *mpointer_type) {
 
 llvm::Type *codegen_type(MStructType *mstruct_type) {
     std::vector<llvm::Type *> struct_field_types;
-    for (std::vector<MType *>::iterator iter = mstruct_type->get_underlying_types().begin();
-         iter != mstruct_type->get_underlying_types().end(); iter++) {
-        struct_field_types.push_back(codegen_type(*iter));
+    for (size_t i = 0; i < mstruct_type->get_underlying_types().size(); i++) {
+        struct_field_types.push_back(codegen_type(mstruct_type->get_underlying_types()[i]));
     }
     llvm::ArrayRef<llvm::Type *> struct_field_types_array(struct_field_types);
     return llvm::StructType::get(llvm::getGlobalContext(), struct_field_types_array);
@@ -141,6 +144,8 @@ llvm::Constant *as_constant(MType *mtype, void *val) {
             return llvm::ConstantFP::get(llvm::Type::getFloatTy(llvm::getGlobalContext()), *((float*)val));
         case mtype_double:
             return llvm::ConstantFP::get(llvm::Type::getDoubleTy(llvm::getGlobalContext()), *((double*)val));
+        default:
+            assert(false && "unhandled constant type");
     }
 }
 
@@ -162,7 +167,6 @@ llvm::Function *LFunction::get_lfunction() {
  */
 
 void LLVMCodeGenerator::visit(MVar *mvar) {
-    std::cerr << mvar->is_constant_val() << std::endl;
     if (mvar->is_constant_val()) { // need to convert the data to an LLVM Constant
         llvm::Constant *constant = as_constant(mvar->get_mtype(), mvar->get_data<void>());
         mvar->set_data(constant); // no longer can directly access the c++ literal
@@ -173,7 +177,7 @@ void LLVMCodeGenerator::visit(MVar *mvar) {
 void LLVMCodeGenerator::visit(MBlock *mblock) {
     // block for this iter has already been codegened by the previous iteration
     jit->get_builder().SetInsertPoint(mblock->get_data<llvm::BasicBlock>());
-    for (int i = 0; i < mblock->get_exprs().size(); i++) {
+    for (size_t i = 0; i < mblock->get_exprs().size(); i++) {
         MExpr *expr = mblock->get_exprs()[i];
         expr->accept(this);
     }
@@ -204,7 +208,7 @@ LFunction *LLVMCodeGenerator::visit(MFunction *mfunction) {
     // codegen prototype
     std::vector<llvm::Type *> arg_types;
     LFunction *lfunction = new LFunction(mfunction);
-    for (int i = 0; i < mfunction->get_args().size(); i++) {
+    for (size_t i = 0; i < mfunction->get_args().size(); i++) {
         arg_types.push_back(codegen_type(mfunction->get_args()[i]));
     }
     llvm::FunctionType *ft = llvm::FunctionType::get(codegen_type(mfunction->get_return_type()), arg_types,
@@ -242,7 +246,7 @@ LFunction *LLVMCodeGenerator::visit(MFunction *mfunction) {
         jit->get_builder().CreateBr(this_block);
     }
 
-    for (int i = 0; i < mfunction->get_body().size(); i++) {
+    for (size_t i = 0; i < mfunction->get_body().size(); i++) {
         MBlock *block = mfunction->get_body()[i];
         std::cerr << "block " << block->get_name() << std::endl;
         block->accept(this);
