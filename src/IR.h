@@ -217,7 +217,6 @@ class MFunctionCall : public MExpr {
 private:
 
     MFunction *mfunction;
-    std::vector<MVar *> args;
 
 public:
 
