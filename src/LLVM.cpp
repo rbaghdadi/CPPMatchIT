@@ -167,11 +167,23 @@ llvm::Function *LFunction::get_lfunction() {
  */
 
 void LLVMCodeGenerator::visit(MVar *mvar) {
-    if (mvar->is_constant_val()) { // need to convert the data to an LLVM Constant
+    if (mvar->is_constant_val() && !mvar->is_done()) { // need to convert the data to an LLVM Constant
         llvm::Constant *constant = as_constant(mvar->get_mtype(), mvar->get_data<void>());
         mvar->set_data(constant); // no longer can directly access the c++ literal
-        mvar->set_constant(false); // dirty hack to make sure we don't re-codegen this llvm::Constant as another llvm::Constant if it used multiple times
+//        mvar->set_constant(false); // hack to make sure we don't re-codegen this llvm::Constant as another llvm::Constant if it used multiple times
+        mvar->set_done();
     } // else, just leave the mvar as is
+}
+
+void LLVMCodeGenerator::visit(MFunctionCall *mfunction_call) {
+    std::vector<llvm::Value *> call_args;
+    std::vector<MVar *> margs = mfunction_call->get_mfunction()->get_args();
+    for (size_t i = 0; i < margs.size(); i++) {
+        margs[i]->accept(this);
+        call_args.push_back(margs[i]->get_data<llvm::Value>());
+    }
+    mfunction_call->get_mfunction()->accept(this);
+    jit->get_builder().CreateCall(mfunction_call->get_mfunction()->get_data<llvm::Function>(), call_args);
 }
 
 void LLVMCodeGenerator::visit(MBlock *mblock) {
@@ -204,55 +216,70 @@ void LLVMCodeGenerator::visit(MCondBranch *mcbranch) {
                                     next_block_false);
 }
 
-LFunction *LLVMCodeGenerator::visit(MFunction *mfunction) {
+void LLVMCodeGenerator::visit(MRetVal *mret_val) {
+    if (mret_val->get_ret_val()) {
+        mret_val->get_ret_val()->accept(this);
+        jit->get_builder().CreateRet(mret_val->get_ret_val()->get_data<llvm::Value>());
+    } else {
+        jit->get_builder().CreateRetVoid();
+    }
+}
+
+void LLVMCodeGenerator::visit(MFunction *mfunction) {
     // codegen prototype
-    std::vector<llvm::Type *> arg_types;
     LFunction *lfunction = new LFunction(mfunction);
-    for (size_t i = 0; i < mfunction->get_args().size(); i++) {
-        arg_types.push_back(codegen_type(mfunction->get_args()[i]));
+    if (!mfunction->is_done()) {
+        std::vector<llvm::Type *> arg_types;
+        for (size_t i = 0; i < mfunction->get_args().size(); i++) {
+            arg_types.push_back(codegen_type(mfunction->get_args()[i]));
+        }
+        llvm::FunctionType *ft = llvm::FunctionType::get(codegen_type(mfunction->get_return_type()), arg_types,
+                                                         mfunction->is_var_args());
+        lfunction->set_lfunction(llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mfunction->get_name(),
+                                                        jit->get_module().get()));
+        mfunction->set_data(lfunction->get_lfunction());
+        jit->get_module()->getOrInsertFunction(mfunction->get_name(), ft);
+        mfunction->set_done();
     }
-    llvm::FunctionType *ft = llvm::FunctionType::get(codegen_type(mfunction->get_return_type()), arg_types,
-                                                     mfunction->is_var_args());
-    lfunction->set_lfunction(llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mfunction->get_name(),
-                                                    jit->get_module().get()));
-    // give names to the function inputs
-    llvm::BasicBlock *entry = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry",
-                                                       lfunction->get_lfunction()); // initial entry point
-    current_function = lfunction->get_lfunction();
-    jit->get_builder().SetInsertPoint(entry);
-    int ctr = 0;
-    for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
-         iter != lfunction->get_lfunction()->arg_end(); iter++) {
-        iter->setName(mfunction->get_args()[ctr++]->get_name());
-    }
-    // codegen the body
-    // but first, convert the MVars in the signature to llvm::Values b/c those will be used by some expr later down the line
-    int arg_ctr = 0;
-    for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
-         iter != lfunction->get_lfunction()->arg_end(); iter++) {
-        MVar *marg = mfunction->get_args()[arg_ctr++];
-        // have to store the args first
-        llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(lint32);
-        jit->get_builder().CreateStore(iter, alloc);
-        marg->set_data(jit->get_builder().CreateLoad(alloc));
+    if (!mfunction->is_prototype_only()) { // if it's a prototype, then it's something like an extern function call so we don't codegen the body
+        // give names to the function inputs
+        llvm::BasicBlock *entry = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry",
+                                                           lfunction->get_lfunction()); // initial entry point
+        current_function = lfunction->get_lfunction();
+        jit->get_builder().SetInsertPoint(entry);
+        int ctr = 0;
+        for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
+             iter != lfunction->get_lfunction()->arg_end(); iter++) {
+            iter->setName(mfunction->get_args()[ctr++]->get_name());
+        }
+        // codegen the body
+        // but first, convert the MVars in the signature to llvm::Values b/c those will be used by some expr later down the line
+        int arg_ctr = 0;
+        for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
+             iter != lfunction->get_lfunction()->arg_end(); iter++) {
+            MVar *marg = mfunction->get_args()[arg_ctr++];
+            // have to store the args first
+            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(lint32);
+            jit->get_builder().CreateStore(iter, alloc);
+            marg->set_data(jit->get_builder().CreateLoad(alloc));
+        }
+
+        // directly branch to the first block
+        if (mfunction->get_body().size() >= 1) {
+            MBlock *block = mfunction->get_body()[0];
+            llvm::BasicBlock *this_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), block->get_name(),
+                                                                    current_function);
+            block->set_data(this_block);
+            jit->get_builder().CreateBr(this_block);
+        }
+
+        for (size_t i = 0; i < mfunction->get_body().size(); i++) {
+            MBlock *block = mfunction->get_body()[i];
+            block->accept(this);
+        }
     }
 
-    // directly branch to the first block
-    if (mfunction->get_body().size() >= 1) {
-        MBlock *block = mfunction->get_body()[0];
-        llvm::BasicBlock *this_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), block->get_name(),
-                                                                current_function);
-        block->set_data(this_block);
-        jit->get_builder().CreateBr(this_block);
-    }
-
-    for (size_t i = 0; i < mfunction->get_body().size(); i++) {
-        MBlock *block = mfunction->get_body()[i];
-        std::cerr << "block " << block->get_name() << std::endl;
-        block->accept(this);
-    }
-
-    return lfunction;
+//    return lfunction;
 }
 
 void LLVMCodeGenerator::visit(MAdd *madd) {

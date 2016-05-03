@@ -8,6 +8,9 @@
 #include "./MType.h"
 
 class MVar;
+class MFunction;
+class MFunctionCall;
+class MRetVal;
 class MBlock;
 class MBranch;
 class MDirectBranch;
@@ -30,6 +33,9 @@ public:
     virtual ~MIRVisitor() { }
 
     virtual void visit(MVar *mvar) = 0;
+    virtual void visit(MFunction *mfunction) = 0;
+    virtual void visit(MFunctionCall *mfunction_call) = 0;
+    virtual void visit(MRetVal *mret_val) = 0;
     virtual void visit(MBlock *mblock) = 0;
     virtual void visit(MDirectBranch *mdbranch) = 0;
     virtual void visit(MCondBranch *mcbranch) = 0;
@@ -50,16 +56,17 @@ private:
 
     std::string name;
     void *data; // use to hold stuff to pass around nodes (if needed)
+    bool done;
 
 public:
 
-    IR() : name("") { }
+    IR() : name(""), done(false) { }
 
-    IR(void *data) : data(data) { }
+    IR(void *data) : data(data), done(false) { }
 
-    IR(std::string name) : name(name) { }
+    IR(std::string name) : name(name), done(false) { }
 
-    IR(std::string name, void *data) : name(name), data(data) { }
+    IR(std::string name, void *data) : name(name), data(data), done(false) { }
 
     virtual ~IR() { }
 
@@ -73,6 +80,10 @@ public:
     }
 
     void set_data(void *data);
+
+    void set_done();
+
+    bool is_done();
 
 };
 
@@ -135,19 +146,31 @@ public:
 class MFunction : public IR {
 private:
 
-    std::vector<MVar *> args;
+    std::vector<MVar *> args; // TODO this needs to be std::vector<MVar **> so that I can pass in not-yet-created args
     MType *return_type;
     bool var_args;
     std::vector<MBlock *> body;
+    bool prototype_only;
 
 public:
 
+    MFunction(std::string name, MType *return_type) : IR(name), return_type(return_type), prototype_only(false) { }
+
+    MFunction(std::string name, MType *return_type, bool prototype_only) : IR(name), return_type(return_type),
+                                                                           prototype_only(prototype_only) { }
+
     MFunction(std::string name, std::vector<MVar *> args, MType *return_type) : IR(name), args(args),
                                                                                 return_type(return_type),
-                                                                                var_args(false) { }
-    MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool var_args) : IR(name), args(args),
-                                                                                               return_type(return_type),
-                                                                                               var_args(var_args) { }
+                                                                                var_args(false),
+                                                                                prototype_only(false) { }
+
+    MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool prototype_only) :
+            IR(name), args(args), return_type(return_type), var_args(false), prototype_only(prototype_only) { }
+
+//    MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool var_args) : IR(name), args(args),
+//                                                                                               return_type(return_type),
+//                                                                                               var_args(var_args),
+//                                                                                               prototype_only(false) { }
 
     virtual ~MFunction() { }
 
@@ -161,8 +184,11 @@ public:
 
     std::vector<MBlock *> get_body();
 
-    // This is handled separately in the actual codegen classes like LLVM
     void accept(MIRVisitor *visitor);
+
+    bool is_prototype_only();
+
+    void add_args(std::vector<MVar *> args);
 
 };
 
@@ -182,18 +208,57 @@ public:
 //
 //};
 //
-///*
-// * MFunctionCall
-// */
-//
-//class MFunctionCall : public IR {
-//private:
-//
-//    MFunction function;
-//
-//public:
-//
-//};
+
+/*
+ * MFunctionCall
+ */
+
+class MFunctionCall : public MExpr {
+private:
+
+    MFunction *mfunction;
+    std::vector<MVar *> args;
+
+public:
+
+    MFunctionCall(MFunction *mfunction) : mfunction(mfunction) { }
+
+    MFunctionCall(MFunction *mfunction, std::string name) : MExpr(name), mfunction(mfunction) { }
+
+    virtual ~MFunctionCall() { }
+
+    MFunction *get_mfunction();
+
+    void accept(MIRVisitor *visitor);
+
+};
+
+/*
+ * MRetVal
+ */
+
+class MRetVal : public MExpr {
+private:
+
+    MVar *ret_val;
+
+public:
+
+    MRetVal() : ret_val(nullptr) { }
+
+    MRetVal(MVar *ret_val) : ret_val(ret_val) { }
+
+    virtual ~MRetVal() { }
+
+    void accept(MIRVisitor *visitor);
+
+    MVar *get_ret_val();
+
+};
+
+/*
+ * MBlock
+ */
 
 class MBlock : public IR {
 private:

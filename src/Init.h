@@ -13,7 +13,7 @@
 JIT *init() {
     LLVM::init();
     JIT *jit = new JIT();
-    register_utils(jit);
+//    register_utils(jit);
     init_element(jit);
     return jit;
 }

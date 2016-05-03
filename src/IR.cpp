@@ -16,6 +16,14 @@ void IR::set_data(void *data) {
     this->data = data;
 }
 
+void IR::set_done() {
+    done = true;
+}
+
+bool IR::is_done() {
+    return done;
+}
+
 /*
  * MVar
  */
@@ -56,13 +64,44 @@ bool MFunction::is_var_args() {
     return var_args;
 }
 
-// This is handled separately in the actual codegen classes like LLVM
 void MFunction::accept(MIRVisitor *visitor) {
-    assert(false && "can't call baseclass visit on MFunction!");
+    visitor->visit(this);
 }
 
 void MFunction::insert(MBlock *block) {
     body.push_back(block);
+}
+
+bool MFunction::is_prototype_only() {
+    return prototype_only;
+}
+
+void MFunction::add_args(std::vector<MVar *> args) {
+    this->args = args;
+}
+
+/*
+ * MFunctionCall
+ */
+
+MFunction *MFunctionCall::get_mfunction() {
+    return mfunction;
+}
+
+void MFunctionCall::accept(MIRVisitor *visitor) {
+    visitor->visit(this);
+}
+
+/*
+ * MRetVal
+ */
+
+void MRetVal::accept(MIRVisitor *visitor) {
+    visitor->visit(this);
+}
+
+MVar *MRetVal::get_ret_val() {
+    return ret_val;
 }
 
 /*

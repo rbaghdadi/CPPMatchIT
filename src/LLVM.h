@@ -113,9 +113,10 @@ public:
 
     LLVMCodeGenerator(JIT *jit) : jit(jit) { }
 
-    LFunction *visit(MFunction *mfunction);
-
+    void visit(MFunction *mfunction);
     void visit(MVar *mvar);
+    void visit(MFunctionCall *mfunction_call);
+    void visit(MRetVal *mret_val);
     void visit(MBlock *mblock);
     void visit(MDirectBranch *mdbranch);
     void visit(MCondBranch *mcbranch);
