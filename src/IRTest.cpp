@@ -17,23 +17,26 @@ int main() {
 
     // One of the external print functions (prints the row of '=' symbols)
     MType *print_ret_val = MScalarType::get_void_type();
-    std::vector<MVar *> print_args;
+    std::vector<MVar **> print_args;
     MFunction print_func("print_sep", print_args, print_ret_val, true);
     MFunctionCall print_call(&print_func);
 
     // An external print function that prints out an integer
-//    MFunction print_int_func("c_fprintf_int", print_ret_val, true);
-//    MFunctionCall print_int_call(&print_int_func);
+    MFunction print_int_func("c_fprintf", print_ret_val, true);
+    MFunctionCall print_int_call(&print_int_func);
 
     // The initial arguments into our function. Variable type
     MVar *arg1 = new MVar(MScalarType::get_int_type(), "left");
     MVar *arg2 = new MVar(MScalarType::get_int_type(), "right");
-    std::vector<MVar *> args;
-    args.push_back(arg1);
-    args.push_back(arg2);
+    std::vector<MVar **> args;
+    args.push_back(&arg1);
+    args.push_back(&arg2);
+
+    // A function return value
+    MRetVal void_ret;
 
     // A constant MVar
-    int const_val = 0;
+    int const_val = 173;
     MVar *constant = new MVar(MScalarType::get_int_type(), &const_val, "constant", true);
 
     // The return type of our function
@@ -78,16 +81,21 @@ int main() {
     MCondBranch cbranch(&true_block, &false_block, mslt.get_result());
     direct_block.insert(&cbranch);
 
-    // Print a bunch of horizontal line in each
+    // Print a bunch of horizontal lines in each and also some results of the previous arithmetic operations.
     // Also add a return statement in each.
+    print_args.push_back(madd.get_result());
+    print_int_func.add_args(print_args);
+
     true_block.insert(&print_call);
     true_block.insert(&print_call);
+    true_block.insert(&print_int_call);
     true_block.insert(&print_call);
     true_block.insert(&print_call);
-    MRetVal void_ret;
     true_block.insert(&void_ret);
+
     false_block.insert(&print_call);
     false_block.insert(&print_call);
+    false_block.insert(&print_int_call);
     false_block.insert(&print_call);
     false_block.insert(&void_ret);
 
@@ -107,7 +115,7 @@ int main() {
     llvm::verifyFunction(*f);
     jit->dump();
     jit->add_module();
-    runIRTest("my_function", jit, 100, 100);
+    runIRTest("my_function", jit, 36, 74);
 
     return 0;
 

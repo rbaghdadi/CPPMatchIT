@@ -177,10 +177,10 @@ void LLVMCodeGenerator::visit(MVar *mvar) {
 
 void LLVMCodeGenerator::visit(MFunctionCall *mfunction_call) {
     std::vector<llvm::Value *> call_args;
-    std::vector<MVar *> margs = mfunction_call->get_mfunction()->get_args();
+    std::vector<MVar **> margs = mfunction_call->get_mfunction()->get_args();
     for (size_t i = 0; i < margs.size(); i++) {
-        margs[i]->accept(this);
-        call_args.push_back(margs[i]->get_data<llvm::Value>());
+        margs[i][0]->accept(this);
+        call_args.push_back(margs[i][0]->get_data<llvm::Value>());
     }
     mfunction_call->get_mfunction()->accept(this);
     jit->get_builder().CreateCall(mfunction_call->get_mfunction()->get_data<llvm::Function>(), call_args);
@@ -231,7 +231,7 @@ void LLVMCodeGenerator::visit(MFunction *mfunction) {
     if (!mfunction->is_done()) {
         std::vector<llvm::Type *> arg_types;
         for (size_t i = 0; i < mfunction->get_args().size(); i++) {
-            arg_types.push_back(codegen_type(mfunction->get_args()[i]));
+            arg_types.push_back(codegen_type(mfunction->get_args()[i][0]));
         }
         llvm::FunctionType *ft = llvm::FunctionType::get(codegen_type(mfunction->get_return_type()), arg_types,
                                                          mfunction->is_var_args());
@@ -242,24 +242,24 @@ void LLVMCodeGenerator::visit(MFunction *mfunction) {
         mfunction->set_done();
     }
     if (!mfunction->is_prototype_only()) { // if it's a prototype, then it's something like an extern function call so we don't codegen the body
-        // give names to the function inputs
         llvm::BasicBlock *entry = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry",
                                                            lfunction->get_lfunction()); // initial entry point
         current_function = lfunction->get_lfunction();
         jit->get_builder().SetInsertPoint(entry);
+        // give names to the function inputs
         int ctr = 0;
         for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
              iter != lfunction->get_lfunction()->arg_end(); iter++) {
-            iter->setName(mfunction->get_args()[ctr++]->get_name());
+            iter->setName(mfunction->get_args()[ctr++][0]->get_name());
         }
         // codegen the body
         // but first, convert the MVars in the signature to llvm::Values b/c those will be used by some expr later down the line
         int arg_ctr = 0;
         for (llvm::Function::arg_iterator iter = lfunction->get_lfunction()->arg_begin();
              iter != lfunction->get_lfunction()->arg_end(); iter++) {
-            MVar *marg = mfunction->get_args()[arg_ctr++];
+            MVar *marg = mfunction->get_args()[arg_ctr++][0];
             // have to store the args first
-            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(lint32);
+            llvm::AllocaInst *alloc = jit->get_builder().CreateAlloca(codegen_type(marg->get_mtype()));
             jit->get_builder().CreateStore(iter, alloc);
             marg->set_data(jit->get_builder().CreateLoad(alloc));
         }

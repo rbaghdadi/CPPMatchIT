@@ -146,7 +146,7 @@ public:
 class MFunction : public IR {
 private:
 
-    std::vector<MVar *> args; // TODO this needs to be std::vector<MVar **> so that I can pass in not-yet-created args
+    std::vector<MVar **> args; // TODO this needs to be std::vector<MVar **> so that I can pass in not-yet-created args
     MType *return_type;
     bool var_args;
     std::vector<MBlock *> body;
@@ -159,12 +159,12 @@ public:
     MFunction(std::string name, MType *return_type, bool prototype_only) : IR(name), return_type(return_type),
                                                                            prototype_only(prototype_only) { }
 
-    MFunction(std::string name, std::vector<MVar *> args, MType *return_type) : IR(name), args(args),
+    MFunction(std::string name, std::vector<MVar **> args, MType *return_type) : IR(name), args(args),
                                                                                 return_type(return_type),
                                                                                 var_args(false),
                                                                                 prototype_only(false) { }
 
-    MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool prototype_only) :
+    MFunction(std::string name, std::vector<MVar **> args, MType *return_type, bool prototype_only) :
             IR(name), args(args), return_type(return_type), var_args(false), prototype_only(prototype_only) { }
 
 //    MFunction(std::string name, std::vector<MVar *> args, MType *return_type, bool var_args) : IR(name), args(args),
@@ -174,7 +174,7 @@ public:
 
     virtual ~MFunction() { }
 
-    std::vector<MVar *> get_args();
+    std::vector<MVar **> get_args();
 
     MType *get_return_type();
 
@@ -188,7 +188,7 @@ public:
 
     bool is_prototype_only();
 
-    void add_args(std::vector<MVar *> args);
+    void add_args(std::vector<MVar **> args);
 
 };
 

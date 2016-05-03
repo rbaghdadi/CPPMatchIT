@@ -48,7 +48,7 @@ void MVar::set_constant(bool is_constant) {
  * MFunction
  */
 
-std::vector<MVar *> MFunction::get_args() {
+std::vector<MVar **> MFunction::get_args() {
     return args;
 }
 
@@ -76,7 +76,7 @@ bool MFunction::is_prototype_only() {
     return prototype_only;
 }
 
-void MFunction::add_args(std::vector<MVar *> args) {
+void MFunction::add_args(std::vector<MVar **> args) {
     this->args = args;
 }
 
