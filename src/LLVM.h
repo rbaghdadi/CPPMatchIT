@@ -116,6 +116,7 @@ public:
     void visit(MFunction *mfunction);
     void visit(MVar *mvar);
     void visit(MFunctionCall *mfunction_call);
+    void visit(MFor *mfor);
     void visit(MRetVal *mret_val);
     void visit(MBlock *mblock);
     void visit(MDirectBranch *mdbranch);
@@ -125,6 +126,9 @@ public:
     void visit(MMul *mmul);
     void visit(MDiv *mdiv);
     void visit(MSLT *mslt);
+
+    // TODO change over codegen_type calls to codegen the type of the thing actually used (see loop_index in MFor visit for example)
+    llvm::Value *load_mvar(MVar *mvar);
 
 };
 

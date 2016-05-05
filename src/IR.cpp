@@ -24,6 +24,10 @@ bool IR::is_done() {
     return done;
 }
 
+bool IR::is_data_null() {
+    return data == nullptr;
+}
+
 /*
  * MVar
  */
@@ -42,6 +46,58 @@ bool MVar::is_constant_val() {
 
 void MVar::set_constant(bool is_constant) {
     this->is_constant = is_constant;
+}
+
+/*
+ * MFor
+ */
+
+MVar *MFor::get_start() {
+    return start[0];
+}
+
+MVar *MFor::get_loop_bound() {
+    return loop_bound[0];
+}
+
+MVar *MFor::get_step_size() {
+    return step_size[0];
+}
+
+MVar *MFor::get_loop_index() {
+    return loop_index[0];
+}
+
+MBlock *MFor::get_counter_block() {
+    return counter_block;
+}
+
+MBlock *MFor::get_increment_block() {
+    return increment_block;
+}
+
+MBlock *MFor::get_condition_block() {
+    return condition_block;
+}
+
+MBlock *MFor::get_body_block() {
+    return body_block;
+}
+
+MBlock *MFor::get_end_block() {
+    return end_block;
+}
+
+void MFor::set_condition_block(MBlock *mblock) {
+    this->condition_block = mblock;
+}
+
+void MFor::set_increment_block(MBlock *mblock) {
+    this->increment_block = mblock;
+}
+
+void MFor::accept(MIRVisitor *visitor) {
+    visitor->visit(this);
 }
 
 /*

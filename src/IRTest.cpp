@@ -61,10 +61,29 @@ int main() {
     MDiv mdiv(madd.get_result(), mmul.get_result());
     start_block.insert(&mdiv);
 
+
+    // For loop
+    int loop_start = 0;
+    int loop_bound = 5;
+    int step_size = 1;
+    MVar *const_loop_start = new MVar(MScalarType::get_int_type(), &loop_start, true);
+    MVar *const_loop_bound = new MVar(MScalarType::get_int_type(), &loop_bound, true);
+    MVar *const_step_size = new MVar(MScalarType::get_int_type(), &step_size, true);
+    MVar *loop_index = new MVar(MScalarType::get_int_type());
+    MBlock counter_block("loop_counter");
+    MBlock body_block("loop_body");
+    MBlock end_block("end_block");
+    print_args.push_back(madd.get_result());
+    print_int_func.add_args(print_args);
+    body_block.insert(&print_int_call);
+    MFor mfor(&const_loop_start, &const_loop_bound, &const_step_size, &loop_index, &counter_block, &body_block,
+              &end_block);
+    start_block.insert(&mfor);
+
     // create a direct branch to a new block "direct_block"
     MBlock direct_block("direct_block");
     MDirectBranch dbranch("direct_branch", &direct_block);
-    start_block.insert(&dbranch);
+    end_block.insert(&dbranch);
 
     // put another add op in the new block
     MAdd madd2(mdiv.get_result(), mdiv.get_result());
@@ -83,25 +102,22 @@ int main() {
 
     // Print a bunch of horizontal lines in each and also some results of the previous arithmetic operations.
     // Also add a return statement in each.
-    print_args.push_back(madd.get_result());
-    print_int_func.add_args(print_args);
 
     true_block.insert(&print_call);
     true_block.insert(&print_call);
-    true_block.insert(&print_int_call);
     true_block.insert(&print_call);
     true_block.insert(&print_call);
     true_block.insert(&void_ret);
 
     false_block.insert(&print_call);
     false_block.insert(&print_call);
-    false_block.insert(&print_int_call);
     false_block.insert(&print_call);
     false_block.insert(&void_ret);
 
     // Add the blocks to our function. This is what makes up the function body
     // ORDER MATTERS
     mfunc.insert(&start_block);
+    mfunc.insert(&end_block);
     mfunc.insert(&direct_block);
     mfunc.insert(&true_block);
     mfunc.insert(&false_block);

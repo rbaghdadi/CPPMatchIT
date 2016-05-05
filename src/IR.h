@@ -10,6 +10,7 @@
 class MVar;
 class MFunction;
 class MFunctionCall;
+class MFor;
 class MRetVal;
 class MBlock;
 class MBranch;
@@ -33,6 +34,7 @@ public:
     virtual ~MIRVisitor() { }
 
     virtual void visit(MVar *mvar) = 0;
+    virtual void visit(MFor *mfor) = 0;
     virtual void visit(MFunction *mfunction) = 0;
     virtual void visit(MFunctionCall *mfunction_call) = 0;
     virtual void visit(MRetVal *mret_val) = 0;
@@ -55,7 +57,7 @@ class IR {
 private:
 
     std::string name;
-    void *data; // use to hold stuff to pass around nodes (if needed)
+    void *data = nullptr; // use to hold stuff to pass around nodes (if needed)
     bool done;
 
 public:
@@ -84,6 +86,8 @@ public:
     void set_done();
 
     bool is_done();
+
+    bool is_data_null();
 
 };
 
@@ -124,6 +128,10 @@ public:
     void set_constant(bool is_constant);
 };
 
+/*
+ * MExpr
+ */
+
 // just some type of expression
 class MExpr : public IR {
 
@@ -160,9 +168,9 @@ public:
                                                                            prototype_only(prototype_only) { }
 
     MFunction(std::string name, std::vector<MVar **> args, MType *return_type) : IR(name), args(args),
-                                                                                return_type(return_type),
-                                                                                var_args(false),
-                                                                                prototype_only(false) { }
+                                                                                 return_type(return_type),
+                                                                                 var_args(false),
+                                                                                 prototype_only(false) { }
 
     MFunction(std::string name, std::vector<MVar **> args, MType *return_type, bool prototype_only) :
             IR(name), args(args), return_type(return_type), var_args(false), prototype_only(prototype_only) { }
@@ -196,18 +204,54 @@ public:
  * MFor
  */
 
-//class MFor : public IR {
-//private:
-//
-//    MVar start;
-//    MVar end;
-//    MVar step_size;
-//    MVar index;
-//
-//public:
-//
-//};
-//
+class MFor : public MExpr {
+private:
+
+    MVar **start;
+    MVar **loop_bound;
+    MVar **step_size;
+    MVar **loop_index;
+    MBlock *counter_block; // this is the entry block to a for loop, so any branches into the for loop should create this block and branch to it
+    MBlock *increment_block; // created internally
+    MBlock *condition_block; // created internally
+    MBlock *body_block; // created outside
+    MBlock *end_block; // created internally
+
+public:
+
+    MFor(MVar **start, MVar **loop_bound, MVar **step_size, MVar **loop_index, MBlock *counter_block,
+         MBlock *body_block, MBlock *end_block) : start(start), loop_bound(loop_bound), step_size(step_size),
+                                                  loop_index(loop_index), counter_block(counter_block),
+                                                  body_block(body_block), end_block(end_block) { }
+
+    virtual ~MFor() { }
+
+    MVar *get_start();
+
+    MVar *get_loop_bound();
+
+    MVar *get_step_size();
+
+    MVar *get_loop_index();
+
+    MBlock *get_counter_block();
+
+    MBlock *get_increment_block();
+
+    MBlock *get_condition_block();
+
+    MBlock *get_body_block();
+
+    MBlock *get_end_block();
+
+    void set_condition_block(MBlock *mblock);
+
+    void set_increment_block(MBlock *mblock);
+
+    void accept(MIRVisitor *visitor);
+
+};
+
 
 /*
  * MFunctionCall
@@ -239,7 +283,7 @@ public:
 class MRetVal : public MExpr {
 private:
 
-    MVar *ret_val;
+    MVar *ret_val; // TODO make this a ptr-to-ptr so it can accept not-yet computed MVars
 
 public:
 
@@ -278,6 +322,10 @@ public:
 
 };
 
+/*
+ * MBranch
+ */
+
 class MBranch : public MExpr {
 public:
 
@@ -290,6 +338,10 @@ public:
     virtual void accept(MIRVisitor *visitor) = 0;
 
 };
+
+/*
+ * MDirectBranch
+ */
 
 class MDirectBranch : public MBranch {
 private:
@@ -309,6 +361,10 @@ public:
     MBlock *get_branch_block();
 
 };
+
+/*
+ * MCondBranch
+ */
 
 class MCondBranch : public MBranch {
 private:
@@ -358,6 +414,10 @@ public:
 //
 //};
 
+/*
+ * MBinaryOp
+ */
+
 class MBinaryOp : public MExpr {
 protected:
 
@@ -390,6 +450,10 @@ public:
 
 };
 
+/*
+ * MAdd
+ */
+
 class MAdd : public MBinaryOp {
 public:
 
@@ -400,6 +464,10 @@ public:
     void accept(MIRVisitor *visitor);
 
 };
+
+/*
+ * MSub
+ */
 
 class MSub : public MBinaryOp {
 public:
@@ -412,6 +480,10 @@ public:
 
 };
 
+/*
+ * MMul
+ */
+
 class MMul : public MBinaryOp {
 public:
 
@@ -423,6 +495,10 @@ public:
 
 };
 
+/*
+ * MDiv
+ */
+
 class MDiv : public MBinaryOp {
 public:
 
@@ -433,6 +509,10 @@ public:
     void accept(MIRVisitor *visitor);
 
 };
+
+/*
+ * MSLT
+ */
 
 // less than
 class MSLT : public MBinaryOp {
