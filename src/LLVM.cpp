@@ -11,6 +11,7 @@ JIT *init() {
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeAsmParser();
+
     return new JIT();
 }
 
