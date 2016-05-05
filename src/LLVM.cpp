@@ -182,7 +182,6 @@ void LLVMCodeGenerator::visit(MVar *mvar) {
     if (mvar->is_constant_val() && !mvar->is_done()) { // need to convert the data to an LLVM Constant
         llvm::Constant *constant = as_constant(mvar->get_mtype(), mvar->get_data<void>());
         mvar->set_data(constant); // no longer can directly access the c++ literal
-//        mvar->set_constant(false); // hack to make sure we don't re-codegen this llvm::Constant as another llvm::Constant if it used multiple times
         mvar->set_done();
     }
     // else, just leave the mvar as is
@@ -192,19 +191,19 @@ void LLVMCodeGenerator::visit(MFunctionCall *mfunction_call) {
     std::vector<llvm::Value *> call_args;
     std::vector<MVar **> margs = mfunction_call->get_mfunction()->get_args();
     for (size_t i = 0; i < margs.size(); i++) {
-        margs[i][0]->accept(this);
+        visit(margs[i][0]);
         call_args.push_back(load_mvar(margs[i][0]));
     }
-    mfunction_call->get_mfunction()->accept(this);
+    visit(mfunction_call->get_mfunction());
     jit->get_builder().CreateCall(mfunction_call->get_mfunction()->get_data<llvm::Function>(), call_args);
 }
 
 void LLVMCodeGenerator::visit(MFor *mfor) {
     // codegen the MVars if needed
-    mfor->get_start()->accept(this);
-    mfor->get_loop_bound()->accept(this);
-    mfor->get_loop_index()->accept(this);
-    mfor->get_step_size()->accept(this);
+    visit(mfor->get_start());
+    visit(mfor->get_loop_bound());
+    visit(mfor->get_loop_index());
+    visit(mfor->get_step_size());
 
     llvm::BasicBlock *body_block = llvm::BasicBlock::Create(llvm::getGlobalContext(),
                                                             mfor->get_body_block()->get_name(), current_function);
@@ -214,13 +213,11 @@ void LLVMCodeGenerator::visit(MFor *mfor) {
     llvm::BasicBlock *condition_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), condition_mblock->get_name(),
                                                                  current_function);
     condition_mblock->set_data(condition_block);
-//    mfor->set_condition_block(condition_mblock);
 
     MBlock *increment_mblock = new MBlock("loop_increment");
     llvm::BasicBlock *increment_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), increment_mblock->get_name(),
                                                                  current_function);
     increment_mblock->set_data(increment_block);
-//    mfor->set_increment_block(increment_mblock);
 
     llvm::BasicBlock *end_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), mfor->get_end_block()->get_name(),
                                                            current_function);
@@ -249,11 +246,10 @@ void LLVMCodeGenerator::visit(MFor *mfor) {
     jit->get_builder().CreateBr(condition_block);
 
     // make the body
-    mfor->get_body_block()->accept(this);
+    visit(mfor->get_body_block());
     jit->get_builder().CreateBr(increment_block);
 
     // make the end block (empty until code following the for loop is generated)
-//    jit->get_builder().SetInsertPoint(end_block);
 
 }
 
@@ -320,7 +316,7 @@ void LLVMCodeGenerator::visit(MBlock *mblock) {
 
 void LLVMCodeGenerator::visit(MRetVal *mret_val) {
     if (mret_val->get_ret_val()) {
-        mret_val->get_ret_val()->accept(this);
+        visit(mret_val->get_ret_val());
         jit->get_builder().CreateRet(load_mvar(mret_val->get_ret_val()));
     } else {
         jit->get_builder().CreateRetVoid();
@@ -377,7 +373,7 @@ void LLVMCodeGenerator::visit(MFunction *mfunction) {
 
         for (size_t i = 0; i < mfunction->get_body().size(); i++) {
             MBlock *block = mfunction->get_body()[i];
-            block->accept(this);
+            visit(block);
         }
     }
 
@@ -387,8 +383,8 @@ void LLVMCodeGenerator::visit(MFunction *mfunction) {
 void LLVMCodeGenerator::visit(MAdd *madd) {
     llvm::Value *val;
     // do any necessary codegen on parameters of this function
-    madd->get_left()->accept(this);
-    madd->get_right()->accept(this);
+    visit(madd->get_left());
+    visit(madd->get_right());
     if (madd->get_left()->get_mtype()->is_int_type()) {
         val = jit->get_builder().CreateAdd(load_mvar(madd->get_left()),
                                            load_mvar(madd->get_right()));
@@ -405,8 +401,8 @@ void LLVMCodeGenerator::visit(MAdd *madd) {
 void LLVMCodeGenerator::visit(MSub *msub) {
     llvm::Value *val;
     // do any necessary codegen on parameters of this function
-    msub->get_left()->accept(this);
-    msub->get_right()->accept(this);
+    visit(msub->get_left());
+    visit(msub->get_right());
     if (msub->get_left()->get_mtype()->is_int_type()) {
         val = jit->get_builder().CreateSub(load_mvar(msub->get_left()),
                                            load_mvar(msub->get_right()));
@@ -423,8 +419,8 @@ void LLVMCodeGenerator::visit(MSub *msub) {
 void LLVMCodeGenerator::visit(MMul *mmul) {
     llvm::Value *val;
     // do any necessary codegen on parameters of this function
-    mmul->get_left()->accept(this);
-    mmul->get_right()->accept(this);
+    visit(mmul->get_left());
+    visit(mmul->get_right());
     if (mmul->get_left()->get_mtype()->is_int_type()) {
         val = jit->get_builder().CreateMul(load_mvar(mmul->get_left()),
                                            load_mvar(mmul->get_right()));
@@ -441,8 +437,8 @@ void LLVMCodeGenerator::visit(MMul *mmul) {
 void LLVMCodeGenerator::visit(MDiv *mdiv) {
     llvm::Value *val;
     // do any necessary codegen on parameters of this function
-    mdiv->get_left()->accept(this);
-    mdiv->get_right()->accept(this);
+    visit(mdiv->get_left());
+    visit(mdiv->get_right());
     if (mdiv->get_left()->get_mtype()->is_signed_type()) {
         val = jit->get_builder().CreateSDiv(load_mvar(mdiv->get_left()),
                                             load_mvar(mdiv->get_right()));
@@ -459,8 +455,8 @@ void LLVMCodeGenerator::visit(MDiv *mdiv) {
 void LLVMCodeGenerator::visit(MSLT *mslt) {
     llvm::Value *val;
     // do any necessary codegen on parameters of this function
-    mslt->get_left()->accept(this);
-    mslt->get_right()->accept(this);
+    visit(mslt->get_left());
+    visit(mslt->get_right());
     val = jit->get_builder().CreateICmpSLT(load_mvar(mslt->get_left()),
                                            load_mvar(mslt->get_right()));
     MVar *mvar = new MVar(mslt->get_left()->get_mtype(), val, std::string("slt_res"));
