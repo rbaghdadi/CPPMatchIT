@@ -214,13 +214,13 @@ void LLVMCodeGenerator::visit(MFor *mfor) {
     llvm::BasicBlock *condition_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), condition_mblock->get_name(),
                                                                  current_function);
     condition_mblock->set_data(condition_block);
-    mfor->set_condition_block(condition_mblock);
+//    mfor->set_condition_block(condition_mblock);
 
     MBlock *increment_mblock = new MBlock("loop_increment");
     llvm::BasicBlock *increment_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), increment_mblock->get_name(),
                                                                  current_function);
     increment_mblock->set_data(increment_block);
-    mfor->set_increment_block(increment_mblock);
+//    mfor->set_increment_block(increment_mblock);
 
     llvm::BasicBlock *end_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), mfor->get_end_block()->get_name(),
                                                            current_function);
@@ -253,8 +253,60 @@ void LLVMCodeGenerator::visit(MFor *mfor) {
     jit->get_builder().CreateBr(increment_block);
 
     // make the end block (empty until code following the for loop is generated)
-    jit->get_builder().SetInsertPoint(end_block);
+//    jit->get_builder().SetInsertPoint(end_block);
 
+}
+
+void LLVMCodeGenerator::visit(MIfThenElse *mif_then_else) {
+    MBlock *if_mblock = mif_then_else->get_if_mblock();
+    MBlock *else_mblock = mif_then_else->get_else_mblock();
+    MBlock *after_if_mblock = mif_then_else->get_after_if_mblock();
+    MBlock *after_else_mblock = mif_then_else->get_after_else_mblock();
+    MVar *condition = mif_then_else->get_actual_condition();
+    // structure is:
+    // conditional branch (condition, if_block, else_block)
+    // if block: ...
+    // else block: ...
+
+    // codegen the MVar if needed
+    visit(condition);
+
+    // create the LLVM side of things
+    llvm::BasicBlock *if_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), if_mblock->get_name(),
+                                                            current_function);
+    llvm::BasicBlock *else_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), else_mblock->get_name(),
+                                                             current_function);
+    if_mblock->set_data(if_block);
+    else_mblock->set_data(else_block);
+
+    // figure out what is happening AFTER the if/then/else
+    llvm::BasicBlock *after_block;
+    if (after_if_mblock == after_else_mblock && after_if_mblock != nullptr) { // joiner
+        after_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), after_if_mblock->get_name(),
+                                               current_function);
+        after_if_mblock->set_data(after_block);
+        after_else_mblock->set_data(after_block);
+    } else if (after_if_mblock != nullptr) {
+        after_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), after_if_mblock->get_name(),
+                                               current_function);
+        after_if_mblock->set_data(after_block);
+    } else if (after_else_mblock != nullptr) {
+        after_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), after_else_mblock->get_name(),
+                                               current_function);
+        after_else_mblock->set_data(after_block);
+    }
+
+    jit->get_builder().CreateCondBr(condition->get_data<llvm::Value>(), if_block, else_block);
+    // codegen the if block, then the else block
+    // insert a branch to an ending block that is what will run after the if/else stuff is done
+    visit(if_mblock);
+    if (after_if_mblock != nullptr) {
+        jit->get_builder().CreateBr(after_block);
+    }
+    visit(else_mblock);
+    if (after_else_mblock != nullptr) {
+        jit->get_builder().CreateBr(after_block);
+    }
 }
 
 void LLVMCodeGenerator::visit(MBlock *mblock) {
@@ -264,27 +316,6 @@ void LLVMCodeGenerator::visit(MBlock *mblock) {
         MExpr *expr = mblock->get_exprs()[i];
         expr->accept(this);
     }
-}
-
-void LLVMCodeGenerator::visit(MDirectBranch *mdbranch) {
-    MBlock *branch_to = mdbranch->get_branch_block();
-    llvm::BasicBlock *next_block = llvm::BasicBlock::Create(llvm::getGlobalContext(), branch_to->get_name(),
-                                                            current_function);
-    branch_to->set_data(next_block);
-    jit->get_builder().CreateBr(next_block);
-}
-
-void LLVMCodeGenerator::visit(MCondBranch *mcbranch) {
-    MBlock *branch_to_true = mcbranch->get_branch_block_true();
-    MBlock *branch_to_false = mcbranch->get_branch_block_false();
-    llvm::BasicBlock *next_block_true = llvm::BasicBlock::Create(llvm::getGlobalContext(), branch_to_true->get_name(),
-                                                                 current_function);
-    llvm::BasicBlock *next_block_false = llvm::BasicBlock::Create(llvm::getGlobalContext(), branch_to_false->get_name(),
-                                                                  current_function);
-    branch_to_true->set_data(next_block_true);
-    branch_to_false->set_data(next_block_false);
-    jit->get_builder().CreateCondBr(load_mvar(mcbranch->get_actual_condition()), next_block_true,
-                                    next_block_false);
 }
 
 void LLVMCodeGenerator::visit(MRetVal *mret_val) {

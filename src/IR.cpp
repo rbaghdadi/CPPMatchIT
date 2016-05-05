@@ -68,17 +68,17 @@ MVar *MFor::get_loop_index() {
     return loop_index[0];
 }
 
-MBlock *MFor::get_counter_block() {
-    return counter_block;
-}
-
-MBlock *MFor::get_increment_block() {
-    return increment_block;
-}
-
-MBlock *MFor::get_condition_block() {
-    return condition_block;
-}
+//MBlock *MFor::get_counter_block() {
+//    return counter_block;
+//}
+//
+//MBlock *MFor::get_increment_block() {
+//    return increment_block;
+//}
+//
+//MBlock *MFor::get_condition_block() {
+//    return condition_block;
+//}
 
 MBlock *MFor::get_body_block() {
     return body_block;
@@ -88,13 +88,13 @@ MBlock *MFor::get_end_block() {
     return end_block;
 }
 
-void MFor::set_condition_block(MBlock *mblock) {
-    this->condition_block = mblock;
-}
-
-void MFor::set_increment_block(MBlock *mblock) {
-    this->increment_block = mblock;
-}
+//void MFor::set_condition_block(MBlock *mblock) {
+//    this->condition_block = mblock;
+//}
+//
+//void MFor::set_increment_block(MBlock *mblock) {
+//    this->increment_block = mblock;
+//}
 
 void MFor::accept(MIRVisitor *visitor) {
     visitor->visit(this);
@@ -161,6 +161,35 @@ MVar *MRetVal::get_ret_val() {
 }
 
 /*
+ * MIfThenElse
+ */
+
+void MIfThenElse::accept(MIRVisitor *visitor) {
+    visitor->visit(this);
+}
+
+MBlock *MIfThenElse::get_if_mblock() {
+    return if_mblock;
+}
+
+MBlock *MIfThenElse::get_else_mblock() {
+    return else_mblock;
+}
+
+MVar *MIfThenElse::get_actual_condition() {
+    return condition[0];
+}
+
+MBlock *MIfThenElse::get_after_if_mblock() {
+    return after_if_mblock;
+}
+
+MBlock *MIfThenElse::get_after_else_mblock() {
+    return after_else_mblock;
+}
+
+
+/*
  * MBlock
  */
 
@@ -174,42 +203,6 @@ std::vector<MExpr *> MBlock::get_exprs() {
 
 void MBlock::accept(MIRVisitor *visitor) {
     visitor->visit(this);
-}
-
-/*
- * MDirectBranch
- */
-
-void MDirectBranch::accept(MIRVisitor *visitor) {
-    visitor->visit(this);
-}
-
-MBlock *MDirectBranch::get_branch_block() {
-    return branch_to;
-}
-
-/*
- * MCondBranch
- */
-
-void MCondBranch::accept(MIRVisitor *visitor) {
-    visitor->visit(this);
-}
-
-MBlock *MCondBranch::get_branch_block_true() {
-    return branch_to_true;
-}
-
-MBlock *MCondBranch::get_branch_block_false() {
-    return branch_to_false;
-}
-
-MVar *MCondBranch::get_actual_condition() {
-    return condition[0];
-}
-
-MVar **MCondBranch::get_condition() {
-    return condition;
 }
 
 /*

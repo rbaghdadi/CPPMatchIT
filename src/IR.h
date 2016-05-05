@@ -13,9 +13,7 @@ class MFunctionCall;
 class MFor;
 class MRetVal;
 class MBlock;
-class MBranch;
-class MDirectBranch;
-class MCondBranch;
+class MIfThenElse;
 class MAdd;
 class MSub;
 class MMul;
@@ -39,8 +37,7 @@ public:
     virtual void visit(MFunctionCall *mfunction_call) = 0;
     virtual void visit(MRetVal *mret_val) = 0;
     virtual void visit(MBlock *mblock) = 0;
-    virtual void visit(MDirectBranch *mdbranch) = 0;
-    virtual void visit(MCondBranch *mcbranch) = 0;
+    virtual void visit(MIfThenElse *mif_then_else) = 0;
     virtual void visit(MAdd *madd) = 0;
     virtual void visit(MSub *msub) = 0;
     virtual void visit(MMul *mmul) = 0;
@@ -211,17 +208,14 @@ private:
     MVar **loop_bound;
     MVar **step_size;
     MVar **loop_index;
-    MBlock *counter_block; // this is the entry block to a for loop, so any branches into the for loop should create this block and branch to it
-    MBlock *increment_block; // created internally
-    MBlock *condition_block; // created internally
     MBlock *body_block; // created outside
-    MBlock *end_block; // created internally
+    MBlock *end_block; // stuff after the for loop
 
 public:
 
-    MFor(MVar **start, MVar **loop_bound, MVar **step_size, MVar **loop_index, MBlock *counter_block,
+    MFor(MVar **start, MVar **loop_bound, MVar **step_size, MVar **loop_index, /*MBlock *counter_block,*/
          MBlock *body_block, MBlock *end_block) : start(start), loop_bound(loop_bound), step_size(step_size),
-                                                  loop_index(loop_index), counter_block(counter_block),
+                                                  loop_index(loop_index), /*counter_block(counter_block),*/
                                                   body_block(body_block), end_block(end_block) { }
 
     virtual ~MFor() { }
@@ -234,24 +228,54 @@ public:
 
     MVar *get_loop_index();
 
-    MBlock *get_counter_block();
-
-    MBlock *get_increment_block();
-
-    MBlock *get_condition_block();
-
     MBlock *get_body_block();
 
     MBlock *get_end_block();
-
-    void set_condition_block(MBlock *mblock);
-
-    void set_increment_block(MBlock *mblock);
 
     void accept(MIRVisitor *visitor);
 
 };
 
+/*
+ * MIfThenElse
+ */
+
+class MIfThenElse : public MExpr {
+private:
+
+    MVar **condition;
+    MBlock *if_mblock;
+    MBlock *else_mblock;
+    MBlock *after_if_mblock; // allows the if branch to go somewhere after the if/else
+    MBlock *after_else_mblock; // allows the else branch to go somewhere after the if/else
+    // if after_if==after_else, then this basically joins the two branches back together
+    // both should not be set to different blocks, because that is just like them doing different things in their
+    // body, so it should jsut be handled internally in the if_mblock and else_mblock
+
+
+public:
+
+    MIfThenElse(MVar **condition, MBlock *if_mblock, MBlock *else_mblock, MBlock *after_if_mblock,
+                MBlock *after_else_mblock) : condition(condition), if_mblock(if_mblock), else_mblock(else_mblock),
+                                            after_if_mblock(after_if_mblock), after_else_mblock(after_else_mblock) {
+        if (after_if_mblock != after_else_mblock) {
+            assert(after_if_mblock == nullptr || after_else_mblock == nullptr);
+        }
+    }
+
+    MBlock *get_if_mblock();
+
+    MBlock *get_else_mblock();
+
+    MVar *get_actual_condition();
+
+    MBlock *get_after_if_mblock();
+
+    MBlock *get_after_else_mblock();
+
+    void accept(MIRVisitor *visitor);
+
+};
 
 /*
  * MFunctionCall
@@ -319,83 +343,6 @@ public:
     void insert(MExpr *expr);
 
     std::vector<MExpr *> get_exprs();
-
-};
-
-/*
- * MBranch
- */
-
-class MBranch : public MExpr {
-public:
-
-    MBranch() { }
-
-    MBranch(std::string name) : MExpr(name) { }
-
-    virtual ~MBranch() { }
-
-    virtual void accept(MIRVisitor *visitor) = 0;
-
-};
-
-/*
- * MDirectBranch
- */
-
-class MDirectBranch : public MBranch {
-private:
-
-    MBlock *branch_to;
-
-public:
-
-    MDirectBranch(MBlock *branch_to) : branch_to(branch_to) { }
-
-    MDirectBranch(std::string name, MBlock *branch_to) : MBranch(name), branch_to(branch_to) { }
-
-    virtual ~MDirectBranch() { }
-
-    void accept(MIRVisitor *visitor);
-
-    MBlock *get_branch_block();
-
-};
-
-/*
- * MCondBranch
- */
-
-class MCondBranch : public MBranch {
-private:
-
-    MBlock *branch_to_true;
-    MBlock *branch_to_false;
-    MVar **condition;
-
-public:
-
-    MCondBranch(MBlock *branch_to_true, MBlock *branch_to_false, MVar **condition) : branch_to_true(branch_to_true),
-                                                                                     branch_to_false(branch_to_false),
-                                                                                     condition(condition) { }
-
-    MCondBranch(std::string name, MBlock *branch_to_true, MBlock *branch_to_false, MVar **condition) :
-            MBranch(name),
-            branch_to_true(branch_to_true),
-            branch_to_false(branch_to_false),
-            condition(condition) { }
-
-    virtual ~MCondBranch() { }
-
-    void accept(MIRVisitor *visitor);
-
-    MBlock *get_branch_block_true();
-
-    MBlock *get_branch_block_false();
-
-    MVar *get_actual_condition();
-
-    MVar **get_condition();
 
 };
 

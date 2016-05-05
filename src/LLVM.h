@@ -118,9 +118,8 @@ public:
     void visit(MFunctionCall *mfunction_call);
     void visit(MFor *mfor);
     void visit(MRetVal *mret_val);
+    void visit(MIfThenElse *mif_then_else);
     void visit(MBlock *mblock);
-    void visit(MDirectBranch *mdbranch);
-    void visit(MCondBranch *mcbranch);
     void visit(MAdd *madd); // from comment above, if this was template here I would have to define everything in this file
     void visit(MSub *msub);
     void visit(MMul *mmul);
